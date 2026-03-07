@@ -47,7 +47,7 @@ defmodule T3SystemWeb.UserLive.RegistrationTest do
         |> follow_redirect(conn, ~p"/users/log-in")
 
       assert html =~
-               ~r/An email was sent to .*, please access it to confirm your account/
+               "Account created. You&#39;ll be able to sign in once your account is confirmed."
     end
 
     test "renders errors for duplicated email", %{conn: conn} do

@@ -23,6 +23,18 @@ defmodule T3SystemWeb.Router do
     get "/", PageController, :home
   end
 
+  scope "/", T3SystemWeb do
+    pipe_through [:browser, :require_authenticated_user]
+
+    live_session :players,
+      on_mount: [{T3SystemWeb.UserAuth, :require_authenticated}] do
+      live "/player", PlayerLive.Index, :index
+      live "/player/new", PlayerLive.Form, :new
+      live "/player/:id", PlayerLive.Show, :show
+      live "/player/:id/edit", PlayerLive.Form, :edit
+    end
+  end
+
   # Other scopes may use custom stacks.
   # scope "/api", T3SystemWeb do
   #   pipe_through :api

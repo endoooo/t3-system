@@ -1,4 +1,6 @@
 defmodule T3SystemWeb.UserAuth do
+  @moduledoc false
+
   use T3SystemWeb, :verified_routes
 
   import Plug.Conn

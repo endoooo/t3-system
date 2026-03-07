@@ -17,6 +17,8 @@ defmodule T3SystemWeb.ConnCase do
 
   use ExUnit.CaseTemplate
 
+  alias T3System.Accounts.Scope
+
   using do
     quote do
       # The default endpoint for testing
@@ -46,7 +48,7 @@ defmodule T3SystemWeb.ConnCase do
   """
   def register_and_log_in_user(%{conn: conn} = context) do
     user = T3System.AccountsFixtures.user_fixture()
-    scope = T3System.Accounts.Scope.for_user(user)
+    scope = Scope.for_user(user)
 
     opts =
       context

@@ -9,7 +9,6 @@ import Config
 
 config :t3_system, :scopes,
   user: [
-    default: true,
     module: T3System.Accounts.Scope,
     assign_key: :current_scope,
     access_path: [:user, :id],

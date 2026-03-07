@@ -6,7 +6,7 @@ defmodule T3System.Accounts do
   import Ecto.Query, warn: false
   alias T3System.Repo
 
-  alias T3System.Accounts.{User, UserToken, UserNotifier}
+  alias T3System.Accounts.{User, UserNotifier, UserToken}
 
   ## Database getters
 
@@ -144,7 +144,7 @@ defmodule T3System.Accounts do
 
   """
   def change_user_password(user, attrs \\ %{}, opts \\ []) do
-    User.password_changeset(user, attrs, opts)
+    User.password_changeset(user, attrs, Keyword.put(opts, :require_password, true))
   end
 
   @doc """
@@ -163,7 +163,7 @@ defmodule T3System.Accounts do
   """
   def update_user_password(user, attrs) do
     user
-    |> User.password_changeset(attrs)
+    |> User.password_changeset(attrs, require_password: true)
     |> update_user_and_delete_all_tokens()
   end
 

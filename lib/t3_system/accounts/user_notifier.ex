@@ -1,8 +1,10 @@
 defmodule T3System.Accounts.UserNotifier do
+  @moduledoc false
+
   import Swoosh.Email
 
-  alias T3System.Mailer
   alias T3System.Accounts.User
+  alias T3System.Mailer
 
   # Delivers the email using the application mailer.
   defp deliver(recipient, subject, body) do
