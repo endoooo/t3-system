@@ -39,6 +39,12 @@ defmodule T3SystemWeb.Router do
       live "/leagues/new", LeagueLive.Form, :new
       live "/leagues/:id", LeagueLive.Show, :show
       live "/leagues/:id/edit", LeagueLive.Form, :edit
+
+      # -- Events
+      live "/events", EventLive.Index, :index
+      live "/events/new", EventLive.Form, :new
+      live "/events/:id", EventLive.Show, :show
+      live "/events/:id/edit", EventLive.Form, :edit
     end
   end
 

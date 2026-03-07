@@ -1,0 +1,86 @@
+defmodule T3SystemWeb.EventLiveTest do
+  use T3SystemWeb.ConnCase
+
+  import PhoenixTest
+  import T3System.Factory
+
+  setup %{conn: conn} do
+    superuser = insert(:superuser)
+    conn = log_in_user(conn, superuser)
+    %{conn: conn}
+  end
+
+  describe "Index" do
+    test "lists all events", %{conn: conn} do
+      event = insert(:event)
+
+      conn
+      |> visit(~p"/events")
+      |> assert_has("h1", text: "Listing Events")
+      |> assert_has("td", text: event.name)
+    end
+
+    test "saves new event", %{conn: conn} do
+      conn
+      |> visit(~p"/events/new")
+      |> assert_has("h1", text: "New Event")
+      |> fill_in("Name", with: "some name")
+      |> fill_in("Address", with: "some address")
+      |> fill_in("Datetime", with: "2026-03-06T22:01")
+      |> click_button("Save Event")
+      |> assert_has("p", text: "Event created successfully")
+      |> assert_has("td", text: "some name")
+    end
+
+    test "shows validation errors on invalid submit", %{conn: conn} do
+      conn
+      |> visit(~p"/events/new")
+      |> fill_in("Name", with: "")
+      |> click_button("Save Event")
+      |> assert_has("p", text: "can't be blank")
+    end
+
+    test "updates event in listing", %{conn: conn} do
+      event = insert(:event)
+
+      conn
+      |> visit(~p"/events/#{event}/edit")
+      |> assert_has("h1", text: "Edit Event")
+      |> fill_in("Name", with: "some updated name")
+      |> click_button("Save Event")
+      |> assert_has("p", text: "Event updated successfully")
+      |> assert_has("td", text: "some updated name")
+    end
+
+    test "deletes event in listing", %{conn: conn} do
+      event = insert(:event)
+
+      conn
+      |> visit(~p"/events")
+      |> click_link("Delete")
+      |> refute_has("td", text: event.name)
+    end
+  end
+
+  describe "Show" do
+    test "displays event", %{conn: conn} do
+      event = insert(:event)
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> assert_has("li", text: event.name)
+    end
+
+    test "updates event and returns to show", %{conn: conn} do
+      event = insert(:event)
+
+      conn
+      |> visit(~p"/events/#{event}/edit?return_to=show")
+      |> assert_has("h1", text: "Edit Event")
+      |> fill_in("Name", with: "some updated name")
+      |> click_button("Save Event")
+      |> assert_has("p", text: "Event updated successfully")
+      |> assert_has("li", text: "some updated name")
+    end
+  end
+end

@@ -4,6 +4,7 @@ defmodule T3System.Factory do
   use ExMachina.Ecto, repo: T3System.Repo
 
   alias T3System.Accounts.User
+  alias T3System.Events.Event
   alias T3System.Events.League
   alias T3System.Players.Player
 
@@ -26,6 +27,14 @@ defmodule T3System.Factory do
   def league_factory do
     %League{
       name: sequence(:name, &"League #{&1}")
+    }
+  end
+
+  def event_factory do
+    %Event{
+      name: sequence(:name, &"Event #{&1}"),
+      address: sequence(:address, &"Address #{&1}"),
+      datetime: ~U[2026-03-07 12:00:00Z]
     }
   end
 
