@@ -10,7 +10,7 @@ defmodule T3SystemWeb.PlayerLive.Index do
       <.header>
         Listing Player
         <:actions>
-          <.button variant="primary" navigate={~p"/player/new"}>
+          <.button variant="primary" navigate={~p"/players/new"}>
             <.icon name="hero-plus" /> New Player
           </.button>
         </:actions>
@@ -19,16 +19,16 @@ defmodule T3SystemWeb.PlayerLive.Index do
       <.table
         id="player"
         rows={@streams.player_collection}
-        row_click={fn {_id, player} -> JS.navigate(~p"/player/#{player}") end}
+        row_click={fn {_id, player} -> JS.navigate(~p"/players/#{player}") end}
       >
         <:col :let={{_id, player}} label="Name">{player.name}</:col>
         <:col :let={{_id, player}} label="Birthdate">{player.birthdate}</:col>
         <:col :let={{_id, player}} label="Picture url">{player.picture_url}</:col>
         <:action :let={{_id, player}}>
           <div class="sr-only">
-            <.link navigate={~p"/player/#{player}"}>Show</.link>
+            <.link navigate={~p"/players/#{player}"}>Show</.link>
           </div>
-          <.link navigate={~p"/player/#{player}/edit"}>Edit</.link>
+          <.link navigate={~p"/players/#{player}/edit"}>Edit</.link>
         </:action>
         <:action :let={{id, player}}>
           <.link

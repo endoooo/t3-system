@@ -91,6 +91,6 @@ defmodule T3SystemWeb.PlayerLive.Form do
     end
   end
 
-  defp return_path("index", _player), do: ~p"/player"
-  defp return_path("show", player), do: ~p"/player/#{player}"
+  defp return_path("index", _player), do: ~p"/players"
+  defp return_path("show", player), do: ~p"/players/#{player}"
 end

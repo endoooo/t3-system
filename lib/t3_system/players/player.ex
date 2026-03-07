@@ -11,7 +11,7 @@ defmodule T3System.Players.Player do
           updated_at: DateTime.t()
         }
 
-  schema "player" do
+  schema "players" do
     field :name, :string
     field :birthdate, :date
     field :picture_url, :string
