@@ -28,10 +28,17 @@ defmodule T3SystemWeb.Router do
 
     live_session :players,
       on_mount: [{T3SystemWeb.UserAuth, :require_authenticated}] do
+      # -- Players
       live "/player", PlayerLive.Index, :index
       live "/player/new", PlayerLive.Form, :new
       live "/player/:id", PlayerLive.Show, :show
       live "/player/:id/edit", PlayerLive.Form, :edit
+
+      # -- Leagues
+      live "/leagues", LeagueLive.Index, :index
+      live "/leagues/new", LeagueLive.Form, :new
+      live "/leagues/:id", LeagueLive.Show, :show
+      live "/leagues/:id/edit", LeagueLive.Form, :edit
     end
   end
 

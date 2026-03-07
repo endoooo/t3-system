@@ -4,6 +4,7 @@ defmodule T3System.Factory do
   use ExMachina.Ecto, repo: T3System.Repo
 
   alias T3System.Accounts.User
+  alias T3System.Events.League
   alias T3System.Players.Player
 
   def user_factory do
@@ -20,6 +21,12 @@ defmodule T3System.Factory do
       email: sequence(:email, &"superuser#{&1}@example.com"),
       role: "superuser"
     )
+  end
+
+  def league_factory do
+    %League{
+      name: sequence(:name, &"League #{&1}")
+    }
   end
 
   def player_factory do
