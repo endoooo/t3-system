@@ -57,6 +57,15 @@ defmodule T3System.Accounts.User do
   end
 
   @doc """
+  A user changeset for registering with email and password.
+  """
+  def registration_changeset(user, attrs, opts \\ []) do
+    user
+    |> email_changeset(attrs, opts)
+    |> password_changeset(attrs, opts)
+  end
+
+  @doc """
   A user changeset for changing the password.
 
   It is important to validate the length of the password, as long passwords may

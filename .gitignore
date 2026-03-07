@@ -35,3 +35,5 @@ t3_system-*.tar
 npm-debug.log
 /assets/node_modules/
 
+# Claude files
+/.claude/
