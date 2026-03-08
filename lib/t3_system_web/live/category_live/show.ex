@@ -6,7 +6,7 @@ defmodule T3SystemWeb.CategoryLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="categories">
       <.header>
         {gettext("Category %{id}", id: @category.id)}
         <:subtitle>{gettext("This is a category record from your database.")}</:subtitle>
@@ -23,7 +23,7 @@ defmodule T3SystemWeb.CategoryLive.Show do
       <.list>
         <:item title={gettext("Name")}>{@category.name}</:item>
       </.list>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 

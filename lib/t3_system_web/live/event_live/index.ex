@@ -6,7 +6,7 @@ defmodule T3SystemWeb.EventLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="events">
       <.header>
         {gettext("Listing Events")}
         <:actions>
@@ -39,7 +39,7 @@ defmodule T3SystemWeb.EventLive.Index do
           </.link>
         </:action>
       </.table>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 

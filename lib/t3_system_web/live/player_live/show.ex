@@ -6,7 +6,7 @@ defmodule T3SystemWeb.PlayerLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="players">
       <.header>
         Player {@player.id}
         <:subtitle>{gettext("This is a player record from your database.")}</:subtitle>
@@ -25,7 +25,7 @@ defmodule T3SystemWeb.PlayerLive.Show do
         <:item title={gettext("Birthdate")}>{@player.birthdate}</:item>
         <:item title={gettext("Picture url")}>{@player.picture_url}</:item>
       </.list>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 

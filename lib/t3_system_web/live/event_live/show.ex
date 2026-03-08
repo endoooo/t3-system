@@ -6,7 +6,7 @@ defmodule T3SystemWeb.EventLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="events">
       <.header>
         Event {@event.id}
         <:subtitle>{gettext("This is a event record from your database.")}</:subtitle>
@@ -25,7 +25,7 @@ defmodule T3SystemWeb.EventLive.Show do
         <:item title={gettext("Address")}>{@event.address}</:item>
         <:item title={gettext("Datetime")}>{@event.datetime}</:item>
       </.list>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 

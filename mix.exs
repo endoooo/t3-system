@@ -86,8 +86,14 @@ defmodule T3System.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
-      "assets.build": ["compile", "tailwind t3_system", "esbuild t3_system"],
+      "assets.build": [
+        "cmd --cd assets npm ci",
+        "compile",
+        "tailwind t3_system",
+        "esbuild t3_system"
+      ],
       "assets.deploy": [
+        "cmd --cd assets npm ci",
         "tailwind t3_system --minify",
         "esbuild t3_system --minify",
         "phx.digest"

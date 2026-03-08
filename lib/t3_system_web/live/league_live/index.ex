@@ -6,7 +6,7 @@ defmodule T3SystemWeb.LeagueLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="leagues">
       <.header>
         {gettext("Listing Leagues")}
         <:actions>
@@ -37,7 +37,7 @@ defmodule T3SystemWeb.LeagueLive.Index do
           </.link>
         </:action>
       </.table>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 
