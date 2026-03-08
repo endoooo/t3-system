@@ -18,6 +18,12 @@ defmodule T3SystemWeb.EventLive.Form do
         <.input field={@form[:name]} type="text" label={gettext("Name")} />
         <.input field={@form[:address]} type="textarea" label={gettext("Address")} />
         <.input field={@form[:datetime]} type="datetime-local" label={gettext("Datetime")} />
+        <.input
+          field={@form[:league_id]}
+          type="select"
+          label={gettext("League")}
+          options={[{gettext("None"), nil} | Enum.map(@all_leagues, &{&1.name, &1.id})]}
+        />
         <div class="fieldset mb-6">
           <label class="label mb-1">{gettext("Categories")}</label>
           <input type="hidden" name="event[category_ids][]" value="" />
@@ -63,6 +69,7 @@ defmodule T3SystemWeb.EventLive.Form do
     |> assign(:event, event)
     |> assign(:form, to_form(Events.change_event(event)))
     |> assign(:all_categories, Categories.list_categories())
+    |> assign(:all_leagues, Events.list_leagues())
     |> assign(:selected_category_ids, Enum.map(event.categories, & &1.id))
   end
 
@@ -74,6 +81,7 @@ defmodule T3SystemWeb.EventLive.Form do
     |> assign(:event, event)
     |> assign(:form, to_form(Events.change_event(event)))
     |> assign(:all_categories, Categories.list_categories())
+    |> assign(:all_leagues, Events.list_leagues())
     |> assign(:selected_category_ids, [])
   end
 

@@ -24,6 +24,7 @@ defmodule T3SystemWeb.EventLive.Index do
         <:col :let={{_id, event}} label={gettext("Name")}>{event.name}</:col>
         <:col :let={{_id, event}} label={gettext("Address")}>{event.address}</:col>
         <:col :let={{_id, event}} label={gettext("Datetime")}>{event.datetime}</:col>
+        <:col :let={{_id, event}} label={gettext("League")}>{event.league && event.league.name}</:col>
         <:col :let={{_id, event}} label={gettext("Categories")}>
           <div class="flex flex-wrap gap-1">
             <span :for={category <- event.categories} class="badge badge-soft badge-primary">

@@ -3,6 +3,7 @@ defmodule T3System.Events.Event do
   import Ecto.Changeset
 
   alias T3System.Categories.Category
+  alias T3System.Events.League
 
   @type t :: %__MODULE__{
           id: pos_integer(),
@@ -10,6 +11,7 @@ defmodule T3System.Events.Event do
           address: String.t(),
           datetime: DateTime.t(),
           league_id: pos_integer() | nil,
+          league: League.t() | Ecto.Association.NotLoaded.t(),
           categories: [Category.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
@@ -19,8 +21,8 @@ defmodule T3System.Events.Event do
     field :name, :string
     field :address, :string
     field :datetime, :utc_datetime
-    field :league_id, :id
 
+    belongs_to :league, League
     many_to_many :categories, Category, join_through: "events_categories", on_replace: :delete
 
     timestamps(type: :utc_datetime)
@@ -29,7 +31,7 @@ defmodule T3System.Events.Event do
   @doc false
   def changeset(event, attrs) do
     event
-    |> cast(attrs, [:name, :address, :datetime])
+    |> cast(attrs, [:name, :address, :datetime, :league_id])
     |> validate_required([:name, :address, :datetime])
   end
 

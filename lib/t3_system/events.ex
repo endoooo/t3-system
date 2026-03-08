@@ -116,7 +116,7 @@ defmodule T3System.Events do
 
   """
   def list_events do
-    Repo.all(Event) |> Repo.preload(:categories)
+    Repo.all(Event) |> Repo.preload([:categories, :league])
   end
 
   @doc """
@@ -133,7 +133,7 @@ defmodule T3System.Events do
       ** (Ecto.NoResultsError)
 
   """
-  def get_event!(id), do: Repo.get!(Event, id) |> Repo.preload(:categories)
+  def get_event!(id), do: Repo.get!(Event, id) |> Repo.preload([:categories, :league])
 
   @doc """
   Creates a event.
