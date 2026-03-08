@@ -10,16 +10,18 @@ defmodule T3SystemWeb.PlayerLive.Form do
     <Layouts.app flash={@flash}>
       <.header>
         {@page_title}
-        <:subtitle>Use this form to manage player records in your database.</:subtitle>
+        <:subtitle>{gettext("Use this form to manage player records in your database.")}</:subtitle>
       </.header>
 
       <.form for={@form} id="player-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="text" label="Name" />
-        <.input field={@form[:birthdate]} type="date" label="Birthdate" />
-        <.input field={@form[:picture_url]} type="text" label="Picture url" />
+        <.input field={@form[:name]} type="text" label={gettext("Name")} />
+        <.input field={@form[:birthdate]} type="date" label={gettext("Birthdate")} />
+        <.input field={@form[:picture_url]} type="text" label={gettext("Picture url")} />
         <footer>
-          <.button phx-disable-with="Saving..." variant="primary">Save Player</.button>
-          <.button navigate={return_path(@return_to, @player)}>Cancel</.button>
+          <.button phx-disable-with={gettext("Saving...")} variant="primary">
+            {gettext("Save Player")}
+          </.button>
+          <.button navigate={return_path(@return_to, @player)}>{gettext("Cancel")}</.button>
         </footer>
       </.form>
     </Layouts.app>
@@ -41,7 +43,7 @@ defmodule T3SystemWeb.PlayerLive.Form do
     player = Players.get_player!(id)
 
     socket
-    |> assign(:page_title, "Edit Player")
+    |> assign(:page_title, gettext("Edit Player"))
     |> assign(:player, player)
     |> assign(:form, to_form(Players.change_player(player)))
   end
@@ -50,7 +52,7 @@ defmodule T3SystemWeb.PlayerLive.Form do
     player = %Player{}
 
     socket
-    |> assign(:page_title, "New Player")
+    |> assign(:page_title, gettext("New Player"))
     |> assign(:player, player)
     |> assign(:form, to_form(Players.change_player(player)))
   end
@@ -70,7 +72,7 @@ defmodule T3SystemWeb.PlayerLive.Form do
       {:ok, player} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Player updated successfully")
+         |> put_flash(:info, gettext("Player updated successfully"))
          |> push_navigate(to: return_path(socket.assigns.return_to, player))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -83,7 +85,7 @@ defmodule T3SystemWeb.PlayerLive.Form do
       {:ok, player} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Player created successfully")
+         |> put_flash(:info, gettext("Player created successfully"))
          |> push_navigate(to: return_path(socket.assigns.return_to, player))}
 
       {:error, %Ecto.Changeset{} = changeset} ->

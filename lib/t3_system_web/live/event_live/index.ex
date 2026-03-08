@@ -8,10 +8,10 @@ defmodule T3SystemWeb.EventLive.Index do
     ~H"""
     <Layouts.app flash={@flash}>
       <.header>
-        Listing Events
+        {gettext("Listing Events")}
         <:actions>
           <.button variant="primary" navigate={~p"/events/new"}>
-            <.icon name="hero-plus" /> New Event
+            <.icon name="hero-plus" /> {gettext("New Event")}
           </.button>
         </:actions>
       </.header>
@@ -21,21 +21,21 @@ defmodule T3SystemWeb.EventLive.Index do
         rows={@streams.events}
         row_click={fn {_id, event} -> JS.navigate(~p"/events/#{event}") end}
       >
-        <:col :let={{_id, event}} label="Name">{event.name}</:col>
-        <:col :let={{_id, event}} label="Address">{event.address}</:col>
-        <:col :let={{_id, event}} label="Datetime">{event.datetime}</:col>
+        <:col :let={{_id, event}} label={gettext("Name")}>{event.name}</:col>
+        <:col :let={{_id, event}} label={gettext("Address")}>{event.address}</:col>
+        <:col :let={{_id, event}} label={gettext("Datetime")}>{event.datetime}</:col>
         <:action :let={{_id, event}}>
           <div class="sr-only">
-            <.link navigate={~p"/events/#{event}"}>Show</.link>
+            <.link navigate={~p"/events/#{event}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/events/#{event}/edit"}>Edit</.link>
+          <.link navigate={~p"/events/#{event}/edit"}>{gettext("Edit")}</.link>
         </:action>
         <:action :let={{id, event}}>
           <.link
             phx-click={JS.push("delete", value: %{id: event.id}) |> hide("##{id}")}
-            data-confirm="Are you sure?"
+            data-confirm={gettext("Are you sure?")}
           >
-            Delete
+            {gettext("Delete")}
           </.link>
         </:action>
       </.table>
@@ -47,7 +47,7 @@ defmodule T3SystemWeb.EventLive.Index do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, "Listing Events")
+     |> assign(:page_title, gettext("Listing Events"))
      |> stream(:events, list_events())}
   end
 

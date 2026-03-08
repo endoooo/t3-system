@@ -8,10 +8,10 @@ defmodule T3SystemWeb.PlayerLive.Index do
     ~H"""
     <Layouts.app flash={@flash}>
       <.header>
-        Listing Player
+        {gettext("Listing Player")}
         <:actions>
           <.button variant="primary" navigate={~p"/players/new"}>
-            <.icon name="hero-plus" /> New Player
+            <.icon name="hero-plus" /> {gettext("New Player")}
           </.button>
         </:actions>
       </.header>
@@ -21,21 +21,21 @@ defmodule T3SystemWeb.PlayerLive.Index do
         rows={@streams.player_collection}
         row_click={fn {_id, player} -> JS.navigate(~p"/players/#{player}") end}
       >
-        <:col :let={{_id, player}} label="Name">{player.name}</:col>
-        <:col :let={{_id, player}} label="Birthdate">{player.birthdate}</:col>
-        <:col :let={{_id, player}} label="Picture url">{player.picture_url}</:col>
+        <:col :let={{_id, player}} label={gettext("Name")}>{player.name}</:col>
+        <:col :let={{_id, player}} label={gettext("Birthdate")}>{player.birthdate}</:col>
+        <:col :let={{_id, player}} label={gettext("Picture url")}>{player.picture_url}</:col>
         <:action :let={{_id, player}}>
           <div class="sr-only">
-            <.link navigate={~p"/players/#{player}"}>Show</.link>
+            <.link navigate={~p"/players/#{player}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/players/#{player}/edit"}>Edit</.link>
+          <.link navigate={~p"/players/#{player}/edit"}>{gettext("Edit")}</.link>
         </:action>
         <:action :let={{id, player}}>
           <.link
             phx-click={JS.push("delete", value: %{id: player.id}) |> hide("##{id}")}
-            data-confirm="Are you sure?"
+            data-confirm={gettext("Are you sure?")}
           >
-            Delete
+            {gettext("Delete")}
           </.link>
         </:action>
       </.table>
@@ -47,7 +47,7 @@ defmodule T3SystemWeb.PlayerLive.Index do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, "Listing Player")
+     |> assign(:page_title, gettext("Listing Player"))
      |> stream(:player_collection, list_player())}
   end
 

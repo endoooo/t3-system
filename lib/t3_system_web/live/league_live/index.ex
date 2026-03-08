@@ -8,10 +8,10 @@ defmodule T3SystemWeb.LeagueLive.Index do
     ~H"""
     <Layouts.app flash={@flash}>
       <.header>
-        Listing Leagues
+        {gettext("Listing Leagues")}
         <:actions>
           <.button variant="primary" navigate={~p"/leagues/new"}>
-            <.icon name="hero-plus" /> New League
+            <.icon name="hero-plus" /> {gettext("New League")}
           </.button>
         </:actions>
       </.header>
@@ -21,19 +21,19 @@ defmodule T3SystemWeb.LeagueLive.Index do
         rows={@streams.leagues}
         row_click={fn {_id, league} -> JS.navigate(~p"/leagues/#{league}") end}
       >
-        <:col :let={{_id, league}} label="Name">{league.name}</:col>
+        <:col :let={{_id, league}} label={gettext("Name")}>{league.name}</:col>
         <:action :let={{_id, league}}>
           <div class="sr-only">
-            <.link navigate={~p"/leagues/#{league}"}>Show</.link>
+            <.link navigate={~p"/leagues/#{league}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/leagues/#{league}/edit"}>Edit</.link>
+          <.link navigate={~p"/leagues/#{league}/edit"}>{gettext("Edit")}</.link>
         </:action>
         <:action :let={{id, league}}>
           <.link
             phx-click={JS.push("delete", value: %{id: league.id}) |> hide("##{id}")}
-            data-confirm="Are you sure?"
+            data-confirm={gettext("Are you sure?")}
           >
-            Delete
+            {gettext("Delete")}
           </.link>
         </:action>
       </.table>
@@ -45,7 +45,7 @@ defmodule T3SystemWeb.LeagueLive.Index do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, "Listing Leagues")
+     |> assign(:page_title, gettext("Listing Leagues"))
      |> stream(:leagues, list_leagues())}
   end
 

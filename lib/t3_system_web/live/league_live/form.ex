@@ -10,14 +10,16 @@ defmodule T3SystemWeb.LeagueLive.Form do
     <Layouts.app flash={@flash}>
       <.header>
         {@page_title}
-        <:subtitle>Use this form to manage league records in your database.</:subtitle>
+        <:subtitle>{gettext("Use this form to manage league records in your database.")}</:subtitle>
       </.header>
 
       <.form for={@form} id="league-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="text" label="Name" />
+        <.input field={@form[:name]} type="text" label={gettext("Name")} />
         <footer>
-          <.button phx-disable-with="Saving..." variant="primary">Save League</.button>
-          <.button navigate={return_path(@return_to, @league)}>Cancel</.button>
+          <.button phx-disable-with={gettext("Saving...")} variant="primary">
+            {gettext("Save League")}
+          </.button>
+          <.button navigate={return_path(@return_to, @league)}>{gettext("Cancel")}</.button>
         </footer>
       </.form>
     </Layouts.app>
@@ -39,7 +41,7 @@ defmodule T3SystemWeb.LeagueLive.Form do
     league = Events.get_league!(id)
 
     socket
-    |> assign(:page_title, "Edit League")
+    |> assign(:page_title, gettext("Edit League"))
     |> assign(:league, league)
     |> assign(:form, to_form(Events.change_league(league)))
   end
@@ -48,7 +50,7 @@ defmodule T3SystemWeb.LeagueLive.Form do
     league = %League{}
 
     socket
-    |> assign(:page_title, "New League")
+    |> assign(:page_title, gettext("New League"))
     |> assign(:league, league)
     |> assign(:form, to_form(Events.change_league(league)))
   end
@@ -68,7 +70,7 @@ defmodule T3SystemWeb.LeagueLive.Form do
       {:ok, league} ->
         {:noreply,
          socket
-         |> put_flash(:info, "League updated successfully")
+         |> put_flash(:info, gettext("League updated successfully"))
          |> push_navigate(to: return_path(socket.assigns.return_to, league))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -81,7 +83,7 @@ defmodule T3SystemWeb.LeagueLive.Form do
       {:ok, league} ->
         {:noreply,
          socket
-         |> put_flash(:info, "League created successfully")
+         |> put_flash(:info, gettext("League created successfully"))
          |> push_navigate(to: return_path(socket.assigns.return_to, league))}
 
       {:error, %Ecto.Changeset{} = changeset} ->

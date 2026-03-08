@@ -9,21 +9,21 @@ defmodule T3SystemWeb.PlayerLive.Show do
     <Layouts.app flash={@flash}>
       <.header>
         Player {@player.id}
-        <:subtitle>This is a player record from your database.</:subtitle>
+        <:subtitle>{gettext("This is a player record from your database.")}</:subtitle>
         <:actions>
           <.button navigate={~p"/players"}>
             <.icon name="hero-arrow-left" />
           </.button>
           <.button variant="primary" navigate={~p"/players/#{@player}/edit?return_to=show"}>
-            <.icon name="hero-pencil-square" /> Edit player
+            <.icon name="hero-pencil-square" /> {gettext("Edit player")}
           </.button>
         </:actions>
       </.header>
 
       <.list>
-        <:item title="Name">{@player.name}</:item>
-        <:item title="Birthdate">{@player.birthdate}</:item>
-        <:item title="Picture url">{@player.picture_url}</:item>
+        <:item title={gettext("Name")}>{@player.name}</:item>
+        <:item title={gettext("Birthdate")}>{@player.birthdate}</:item>
+        <:item title={gettext("Picture url")}>{@player.picture_url}</:item>
       </.list>
     </Layouts.app>
     """
@@ -33,7 +33,7 @@ defmodule T3SystemWeb.PlayerLive.Show do
   def mount(%{"id" => id}, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, "Show Player")
+     |> assign(:page_title, gettext("Show Player"))
      |> assign(:player, Players.get_player!(id))}
   end
 end

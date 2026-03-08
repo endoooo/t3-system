@@ -9,19 +9,19 @@ defmodule T3SystemWeb.LeagueLive.Show do
     <Layouts.app flash={@flash}>
       <.header>
         League {@league.id}
-        <:subtitle>This is a league record from your database.</:subtitle>
+        <:subtitle>{gettext("This is a league record from your database.")}</:subtitle>
         <:actions>
           <.button navigate={~p"/leagues"}>
             <.icon name="hero-arrow-left" />
           </.button>
           <.button variant="primary" navigate={~p"/leagues/#{@league}/edit?return_to=show"}>
-            <.icon name="hero-pencil-square" /> Edit league
+            <.icon name="hero-pencil-square" /> {gettext("Edit league")}
           </.button>
         </:actions>
       </.header>
 
       <.list>
-        <:item title="Name">{@league.name}</:item>
+        <:item title={gettext("Name")}>{@league.name}</:item>
       </.list>
     </Layouts.app>
     """
@@ -31,7 +31,7 @@ defmodule T3SystemWeb.LeagueLive.Show do
   def mount(%{"id" => id}, _session, socket) do
     {:ok,
      socket
-     |> assign(:page_title, "Show League")
+     |> assign(:page_title, gettext("Show League"))
      |> assign(:league, Events.get_league!(id))}
   end
 end

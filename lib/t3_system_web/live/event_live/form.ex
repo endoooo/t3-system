@@ -10,16 +10,18 @@ defmodule T3SystemWeb.EventLive.Form do
     <Layouts.app flash={@flash}>
       <.header>
         {@page_title}
-        <:subtitle>Use this form to manage event records in your database.</:subtitle>
+        <:subtitle>{gettext("Use this form to manage event records in your database.")}</:subtitle>
       </.header>
 
       <.form for={@form} id="event-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="textarea" label="Name" />
-        <.input field={@form[:address]} type="textarea" label="Address" />
-        <.input field={@form[:datetime]} type="datetime-local" label="Datetime" />
+        <.input field={@form[:name]} type="text" label={gettext("Name")} />
+        <.input field={@form[:address]} type="textarea" label={gettext("Address")} />
+        <.input field={@form[:datetime]} type="datetime-local" label={gettext("Datetime")} />
         <footer>
-          <.button phx-disable-with="Saving..." variant="primary">Save Event</.button>
-          <.button navigate={return_path(@return_to, @event)}>Cancel</.button>
+          <.button phx-disable-with={gettext("Saving...")} variant="primary">
+            {gettext("Save Event")}
+          </.button>
+          <.button navigate={return_path(@return_to, @event)}>{gettext("Cancel")}</.button>
         </footer>
       </.form>
     </Layouts.app>
@@ -41,7 +43,7 @@ defmodule T3SystemWeb.EventLive.Form do
     event = Events.get_event!(id)
 
     socket
-    |> assign(:page_title, "Edit Event")
+    |> assign(:page_title, gettext("Edit Event"))
     |> assign(:event, event)
     |> assign(:form, to_form(Events.change_event(event)))
   end
@@ -50,7 +52,7 @@ defmodule T3SystemWeb.EventLive.Form do
     event = %Event{}
 
     socket
-    |> assign(:page_title, "New Event")
+    |> assign(:page_title, gettext("New Event"))
     |> assign(:event, event)
     |> assign(:form, to_form(Events.change_event(event)))
   end
@@ -70,7 +72,7 @@ defmodule T3SystemWeb.EventLive.Form do
       {:ok, event} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Event updated successfully")
+         |> put_flash(:info, gettext("Event updated successfully"))
          |> push_navigate(to: return_path(socket.assigns.return_to, event))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -83,7 +85,7 @@ defmodule T3SystemWeb.EventLive.Form do
       {:ok, event} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Event created successfully")
+         |> put_flash(:info, gettext("Event created successfully"))
          |> push_navigate(to: return_path(socket.assigns.return_to, event))}
 
       {:error, %Ecto.Changeset{} = changeset} ->

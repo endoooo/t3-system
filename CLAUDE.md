@@ -52,6 +52,10 @@ Context write functions (`create_*`, `update_*`, `delete_*`) take `scope` as the
 
 `User.role` is a string field: `"user"` (default) or `"superuser"`. Login requires email confirmation.
 
+## Database
+
+Text fields in the DB use Postgres `type :text` (not `:string`/varchar). This is a DB-level choice only — in forms, these fields still use `type="text"` (not `type="textarea"`) unless multiline input is explicitly needed.
+
 ## Patterns
 
 ### Schema typespecs
@@ -124,6 +128,15 @@ Router `scope` blocks have an alias prefix — avoid duplicating it in `live` ro
 ### HTTP client
 
 Use `Req` (already a dependency) for all HTTP requests. Never use `:httpoison`, `:tesla`, or `:httpc`.
+
+### Internationalization (i18n)
+
+All user-facing text in templates must use `gettext` for i18n support:
+
+```heex
+<h1><%= gettext("Listing Players") %></h1>
+<p><%= gettext("No players found.") %></p>
+```
 
 ### Tailwind CSS
 
