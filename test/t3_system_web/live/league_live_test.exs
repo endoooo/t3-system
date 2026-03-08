@@ -15,14 +15,14 @@ defmodule T3SystemWeb.LeagueLiveTest do
       league = insert(:league)
 
       conn
-      |> visit(~p"/leagues")
+      |> visit(~p"/admin/leagues")
       |> assert_has("h1", text: "Listing Leagues")
       |> assert_has("td", text: league.name)
     end
 
     test "saves new league", %{conn: conn} do
       conn
-      |> visit(~p"/leagues/new")
+      |> visit(~p"/admin/leagues/new")
       |> assert_has("h1", text: "New League")
       |> fill_in("Name", with: "some name")
       |> click_button("Save League")
@@ -32,7 +32,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
 
     test "shows validation errors on invalid submit", %{conn: conn} do
       conn
-      |> visit(~p"/leagues/new")
+      |> visit(~p"/admin/leagues/new")
       |> fill_in("Name", with: "")
       |> click_button("Save League")
       |> assert_has("p", text: "can't be blank")
@@ -42,7 +42,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
       league = insert(:league)
 
       conn
-      |> visit(~p"/leagues/#{league}/edit")
+      |> visit(~p"/admin/leagues/#{league}/edit")
       |> assert_has("h1", text: "Edit League")
       |> fill_in("Name", with: "some updated name")
       |> click_button("Save League")
@@ -54,7 +54,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
       league = insert(:league)
 
       conn
-      |> visit(~p"/leagues")
+      |> visit(~p"/admin/leagues")
       |> click_link("Delete")
       |> refute_has("td", text: league.name)
     end
@@ -65,7 +65,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
       league = insert(:league)
 
       conn
-      |> visit(~p"/leagues/#{league}")
+      |> visit(~p"/admin/leagues/#{league}")
       |> assert_has("li", text: league.name)
     end
 
@@ -73,7 +73,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
       league = insert(:league)
 
       conn
-      |> visit(~p"/leagues/#{league}/edit?return_to=show")
+      |> visit(~p"/admin/leagues/#{league}/edit?return_to=show")
       |> assert_has("h1", text: "Edit League")
       |> fill_in("Name", with: "some updated name")
       |> click_button("Save League")

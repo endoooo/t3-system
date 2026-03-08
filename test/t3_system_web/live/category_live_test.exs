@@ -15,14 +15,14 @@ defmodule T3SystemWeb.CategoryLiveTest do
       category = insert(:category)
 
       conn
-      |> visit(~p"/categories")
+      |> visit(~p"/admin/categories")
       |> assert_has("h1", text: "Listing Categories")
       |> assert_has("td", text: category.name)
     end
 
     test "saves new category", %{conn: conn} do
       conn
-      |> visit(~p"/categories/new")
+      |> visit(~p"/admin/categories/new")
       |> assert_has("h1", text: "New Category")
       |> fill_in("Name", with: "some name")
       |> click_button("Save Category")
@@ -32,7 +32,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
 
     test "shows validation errors on invalid submit", %{conn: conn} do
       conn
-      |> visit(~p"/categories/new")
+      |> visit(~p"/admin/categories/new")
       |> fill_in("Name", with: "")
       |> click_button("Save Category")
       |> assert_has("p", text: "can't be blank")
@@ -42,7 +42,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
       category = insert(:category)
 
       conn
-      |> visit(~p"/categories/#{category}/edit")
+      |> visit(~p"/admin/categories/#{category}/edit")
       |> assert_has("h1", text: "Edit Category")
       |> fill_in("Name", with: "some updated name")
       |> click_button("Save Category")
@@ -54,7 +54,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
       category = insert(:category)
 
       conn
-      |> visit(~p"/categories")
+      |> visit(~p"/admin/categories")
       |> click_link("Delete")
       |> refute_has("td", text: category.name)
     end
@@ -65,7 +65,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
       category = insert(:category)
 
       conn
-      |> visit(~p"/categories/#{category}")
+      |> visit(~p"/admin/categories/#{category}")
       |> assert_has("li", text: category.name)
     end
 
@@ -73,7 +73,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
       category = insert(:category)
 
       conn
-      |> visit(~p"/categories/#{category}/edit?return_to=show")
+      |> visit(~p"/admin/categories/#{category}/edit?return_to=show")
       |> assert_has("h1", text: "Edit Category")
       |> fill_in("Name", with: "some updated name")
       |> click_button("Save Category")

@@ -10,7 +10,7 @@ defmodule T3SystemWeb.CategoryLive.Index do
       <.header>
         {gettext("Listing Categories")}
         <:actions>
-          <.button variant="primary" navigate={~p"/categories/new"}>
+          <.button variant="primary" navigate={~p"/admin/categories/new"}>
             <.icon name="hero-plus" /> {gettext("New Category")}
           </.button>
         </:actions>
@@ -19,14 +19,14 @@ defmodule T3SystemWeb.CategoryLive.Index do
       <.table
         id="categories"
         rows={@streams.categories}
-        row_click={fn {_id, category} -> JS.navigate(~p"/categories/#{category}") end}
+        row_click={fn {_id, category} -> JS.navigate(~p"/admin/categories/#{category}") end}
       >
         <:col :let={{_id, category}} label={gettext("Name")}>{category.name}</:col>
         <:action :let={{_id, category}}>
           <div class="sr-only">
-            <.link navigate={~p"/categories/#{category}"}>{gettext("Show")}</.link>
+            <.link navigate={~p"/admin/categories/#{category}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/categories/#{category}/edit"}>{gettext("Edit")}</.link>
+          <.link navigate={~p"/admin/categories/#{category}/edit"}>{gettext("Edit")}</.link>
         </:action>
         <:action :let={{id, category}}>
           <.link

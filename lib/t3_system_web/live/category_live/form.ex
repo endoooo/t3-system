@@ -95,6 +95,6 @@ defmodule T3SystemWeb.CategoryLive.Form do
     end
   end
 
-  defp return_path("index", _category), do: ~p"/categories"
-  defp return_path("show", category), do: ~p"/categories/#{category}"
+  defp return_path("index", _category), do: ~p"/admin/categories"
+  defp return_path("show", category), do: ~p"/admin/categories/#{category}"
 end

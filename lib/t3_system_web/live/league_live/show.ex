@@ -11,10 +11,10 @@ defmodule T3SystemWeb.LeagueLive.Show do
         League {@league.id}
         <:subtitle>{gettext("This is a league record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/leagues"}>
+          <.button navigate={~p"/admin/leagues"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/leagues/#{@league}/edit?return_to=show"}>
+          <.button variant="primary" navigate={~p"/admin/leagues/#{@league}/edit?return_to=show"}>
             <.icon name="hero-pencil-square" /> {gettext("Edit league")}
           </.button>
         </:actions>

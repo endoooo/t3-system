@@ -10,7 +10,7 @@ defmodule T3SystemWeb.LeagueLive.Index do
       <.header>
         {gettext("Listing Leagues")}
         <:actions>
-          <.button variant="primary" navigate={~p"/leagues/new"}>
+          <.button variant="primary" navigate={~p"/admin/leagues/new"}>
             <.icon name="hero-plus" /> {gettext("New League")}
           </.button>
         </:actions>
@@ -19,14 +19,14 @@ defmodule T3SystemWeb.LeagueLive.Index do
       <.table
         id="leagues"
         rows={@streams.leagues}
-        row_click={fn {_id, league} -> JS.navigate(~p"/leagues/#{league}") end}
+        row_click={fn {_id, league} -> JS.navigate(~p"/admin/leagues/#{league}") end}
       >
         <:col :let={{_id, league}} label={gettext("Name")}>{league.name}</:col>
         <:action :let={{_id, league}}>
           <div class="sr-only">
-            <.link navigate={~p"/leagues/#{league}"}>{gettext("Show")}</.link>
+            <.link navigate={~p"/admin/leagues/#{league}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/leagues/#{league}/edit"}>{gettext("Edit")}</.link>
+          <.link navigate={~p"/admin/leagues/#{league}/edit"}>{gettext("Edit")}</.link>
         </:action>
         <:action :let={{id, league}}>
           <.link

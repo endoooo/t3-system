@@ -91,6 +91,6 @@ defmodule T3SystemWeb.LeagueLive.Form do
     end
   end
 
-  defp return_path("index", _league), do: ~p"/leagues"
-  defp return_path("show", league), do: ~p"/leagues/#{league}"
+  defp return_path("index", _league), do: ~p"/admin/leagues"
+  defp return_path("show", league), do: ~p"/admin/leagues/#{league}"
 end

@@ -380,25 +380,25 @@ defmodule T3SystemWeb.Layouts do
                         is_active={@active_item == "players"}
                         item_char="P"
                         item_name={gettext("Players")}
-                        navigate={~p"/players"}
+                        navigate={~p"/admin/players"}
                       />
                       <.config_item
                         is_active={@active_item == "events"}
                         item_char="E"
                         item_name={gettext("Events")}
-                        navigate={~p"/events"}
+                        navigate={~p"/admin/events"}
                       />
                       <.config_item
                         is_active={@active_item == "categories"}
                         item_char="C"
                         item_name={gettext("Categories")}
-                        navigate={~p"/categories"}
+                        navigate={~p"/admin/categories"}
                       />
                       <.config_item
                         is_active={@active_item == "leagues"}
                         item_char="L"
                         item_name={gettext("Leagues")}
-                        navigate={~p"/leagues"}
+                        navigate={~p"/admin/leagues"}
                       />
                     </ul>
                   </li>
@@ -585,25 +585,25 @@ defmodule T3SystemWeb.Layouts do
                       is_active={@active_item == "players"}
                       item_char="P"
                       item_name={gettext("Players")}
-                      navigate={~p"/players"}
+                      navigate={~p"/admin/players"}
                     />
                     <.config_item
                       is_active={@active_item == "events"}
                       item_char="E"
                       item_name={gettext("Events")}
-                      navigate={~p"/events"}
+                      navigate={~p"/admin/events"}
                     />
                     <.config_item
                       is_active={@active_item == "categories"}
                       item_char="C"
                       item_name={gettext("Categories")}
-                      navigate={~p"/categories"}
+                      navigate={~p"/admin/categories"}
                     />
                     <.config_item
                       is_active={@active_item == "leagues"}
                       item_char="L"
                       item_name={gettext("Leagues")}
-                      navigate={~p"/leagues"}
+                      navigate={~p"/admin/leagues"}
                     />
                   </ul>
                 </li>

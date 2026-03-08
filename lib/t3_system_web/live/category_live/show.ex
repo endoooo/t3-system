@@ -11,10 +11,10 @@ defmodule T3SystemWeb.CategoryLive.Show do
         {gettext("Category %{id}", id: @category.id)}
         <:subtitle>{gettext("This is a category record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/categories"}>
+          <.button navigate={~p"/admin/categories"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/categories/#{@category}/edit?return_to=show"}>
+          <.button variant="primary" navigate={~p"/admin/categories/#{@category}/edit?return_to=show"}>
             <.icon name="hero-pencil-square" /> {gettext("Edit category")}
           </.button>
         </:actions>

@@ -15,14 +15,14 @@ defmodule T3SystemWeb.PlayerLiveTest do
       player = insert(:player)
 
       conn
-      |> visit(~p"/players")
+      |> visit(~p"/admin/players")
       |> assert_has("h1", text: "Listing Player")
       |> assert_has("td", text: player.name)
     end
 
     test "saves new player", %{conn: conn} do
       conn
-      |> visit(~p"/players/new")
+      |> visit(~p"/admin/players/new")
       |> assert_has("h1", text: "New Player")
       |> fill_in("Name", with: "some name")
       |> fill_in("Birthdate", with: "2026-03-06")
@@ -34,7 +34,7 @@ defmodule T3SystemWeb.PlayerLiveTest do
 
     test "shows validation errors on invalid submit", %{conn: conn} do
       conn
-      |> visit(~p"/players/new")
+      |> visit(~p"/admin/players/new")
       |> fill_in("Name", with: "")
       |> click_button("Save Player")
       |> assert_has("p", text: "can't be blank")
@@ -44,7 +44,7 @@ defmodule T3SystemWeb.PlayerLiveTest do
       player = insert(:player)
 
       conn
-      |> visit(~p"/players/#{player}/edit")
+      |> visit(~p"/admin/players/#{player}/edit")
       |> assert_has("h1", text: "Edit Player")
       |> fill_in("Name", with: "some updated name")
       |> click_button("Save Player")
@@ -56,7 +56,7 @@ defmodule T3SystemWeb.PlayerLiveTest do
       player = insert(:player)
 
       conn
-      |> visit(~p"/players")
+      |> visit(~p"/admin/players")
       |> click_link("Delete")
       |> refute_has("td", text: player.name)
     end
@@ -67,7 +67,7 @@ defmodule T3SystemWeb.PlayerLiveTest do
       player = insert(:player)
 
       conn
-      |> visit(~p"/players/#{player}")
+      |> visit(~p"/admin/players/#{player}")
       |> assert_has("li", text: player.name)
     end
 
@@ -75,7 +75,7 @@ defmodule T3SystemWeb.PlayerLiveTest do
       player = insert(:player)
 
       conn
-      |> visit(~p"/players/#{player}/edit?return_to=show")
+      |> visit(~p"/admin/players/#{player}/edit?return_to=show")
       |> assert_has("h1", text: "Edit Player")
       |> fill_in("Name", with: "some updated name")
       |> click_button("Save Player")

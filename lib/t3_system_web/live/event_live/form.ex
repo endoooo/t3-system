@@ -131,6 +131,6 @@ defmodule T3SystemWeb.EventLive.Form do
     end
   end
 
-  defp return_path("index", _event), do: ~p"/events"
-  defp return_path("show", event), do: ~p"/events/#{event}"
+  defp return_path("index", _event), do: ~p"/admin/events"
+  defp return_path("show", event), do: ~p"/admin/events/#{event}"
 end

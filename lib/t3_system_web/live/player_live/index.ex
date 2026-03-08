@@ -10,7 +10,7 @@ defmodule T3SystemWeb.PlayerLive.Index do
       <.header>
         {gettext("Listing Player")}
         <:actions>
-          <.button variant="primary" navigate={~p"/players/new"}>
+          <.button variant="primary" navigate={~p"/admin/players/new"}>
             <.icon name="hero-plus" /> {gettext("New Player")}
           </.button>
         </:actions>
@@ -19,16 +19,16 @@ defmodule T3SystemWeb.PlayerLive.Index do
       <.table
         id="player"
         rows={@streams.player_collection}
-        row_click={fn {_id, player} -> JS.navigate(~p"/players/#{player}") end}
+        row_click={fn {_id, player} -> JS.navigate(~p"/admin/players/#{player}") end}
       >
         <:col :let={{_id, player}} label={gettext("Name")}>{player.name}</:col>
         <:col :let={{_id, player}} label={gettext("Birthdate")}>{player.birthdate}</:col>
         <:col :let={{_id, player}} label={gettext("Picture url")}>{player.picture_url}</:col>
         <:action :let={{_id, player}}>
           <div class="sr-only">
-            <.link navigate={~p"/players/#{player}"}>{gettext("Show")}</.link>
+            <.link navigate={~p"/admin/players/#{player}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/players/#{player}/edit"}>{gettext("Edit")}</.link>
+          <.link navigate={~p"/admin/players/#{player}/edit"}>{gettext("Edit")}</.link>
         </:action>
         <:action :let={{id, player}}>
           <.link

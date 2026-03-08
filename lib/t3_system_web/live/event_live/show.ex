@@ -11,10 +11,10 @@ defmodule T3SystemWeb.EventLive.Show do
         Event {@event.id}
         <:subtitle>{gettext("This is a event record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/events"}>
+          <.button navigate={~p"/admin/events"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/events/#{@event}/edit?return_to=show"}>
+          <.button variant="primary" navigate={~p"/admin/events/#{@event}/edit?return_to=show"}>
             <.icon name="hero-pencil-square" /> {gettext("Edit event")}
           </.button>
         </:actions>

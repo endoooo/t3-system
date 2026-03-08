@@ -232,6 +232,16 @@ defmodule T3SystemWeb.UserAuth do
     end
   end
 
+  def on_mount(:require_superuser, _params, session, socket) do
+    socket = mount_current_scope(socket, session)
+
+    if match?(%{user: %{role: "superuser"}}, socket.assigns.current_scope) do
+      {:cont, socket}
+    else
+      raise T3SystemWeb.Errors.NotFound
+    end
+  end
+
   def on_mount(:require_sudo_mode, _params, session, socket) do
     socket = mount_current_scope(socket, session)
 
@@ -286,4 +296,8 @@ defmodule T3SystemWeb.UserAuth do
   end
 
   defp maybe_store_return_to(conn), do: conn
+end
+
+defmodule T3SystemWeb.Errors.NotFound do
+  defexception message: "not found", plug_status: 404
 end

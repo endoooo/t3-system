@@ -15,7 +15,7 @@ defmodule T3SystemWeb.EventLiveTest do
       event = insert(:event)
 
       conn
-      |> visit(~p"/events")
+      |> visit(~p"/admin/events")
       |> assert_has("h1", text: "Listing Events")
       |> assert_has("td", text: event.name)
     end
@@ -29,13 +29,13 @@ defmodule T3SystemWeb.EventLiveTest do
       ])
 
       conn
-      |> visit(~p"/events")
+      |> visit(~p"/admin/events")
       |> assert_has("span", text: category.name)
     end
 
     test "saves new event", %{conn: conn} do
       conn
-      |> visit(~p"/events/new")
+      |> visit(~p"/admin/events/new")
       |> assert_has("h1", text: "New Event")
       |> fill_in("Name", with: "some name")
       |> fill_in("Address", with: "some address")
@@ -49,7 +49,7 @@ defmodule T3SystemWeb.EventLiveTest do
       category = insert(:category)
 
       conn
-      |> visit(~p"/events/new")
+      |> visit(~p"/admin/events/new")
       |> assert_has("input[type='checkbox'][aria-label='#{category.name}']")
     end
 
@@ -62,13 +62,13 @@ defmodule T3SystemWeb.EventLiveTest do
       ])
 
       conn
-      |> visit(~p"/events/#{event}/edit")
+      |> visit(~p"/admin/events/#{event}/edit")
       |> assert_has("input[type='checkbox'][aria-label='#{category.name}'][checked]")
     end
 
     test "shows validation errors on invalid submit", %{conn: conn} do
       conn
-      |> visit(~p"/events/new")
+      |> visit(~p"/admin/events/new")
       |> fill_in("Name", with: "")
       |> click_button("Save Event")
       |> assert_has("p", text: "can't be blank")
@@ -78,7 +78,7 @@ defmodule T3SystemWeb.EventLiveTest do
       event = insert(:event)
 
       conn
-      |> visit(~p"/events/#{event}/edit")
+      |> visit(~p"/admin/events/#{event}/edit")
       |> assert_has("h1", text: "Edit Event")
       |> fill_in("Name", with: "some updated name")
       |> click_button("Save Event")
@@ -90,7 +90,7 @@ defmodule T3SystemWeb.EventLiveTest do
       event = insert(:event)
 
       conn
-      |> visit(~p"/events")
+      |> visit(~p"/admin/events")
       |> click_link("Delete")
       |> refute_has("td", text: event.name)
     end
@@ -101,7 +101,7 @@ defmodule T3SystemWeb.EventLiveTest do
       event = insert(:event)
 
       conn
-      |> visit(~p"/events/#{event}")
+      |> visit(~p"/admin/events/#{event}")
       |> assert_has("li", text: event.name)
     end
 
@@ -109,7 +109,7 @@ defmodule T3SystemWeb.EventLiveTest do
       event = insert(:event)
 
       conn
-      |> visit(~p"/events/#{event}/edit?return_to=show")
+      |> visit(~p"/admin/events/#{event}/edit?return_to=show")
       |> assert_has("h1", text: "Edit Event")
       |> fill_in("Name", with: "some updated name")
       |> click_button("Save Event")

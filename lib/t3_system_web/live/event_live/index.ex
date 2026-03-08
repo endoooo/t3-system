@@ -10,7 +10,7 @@ defmodule T3SystemWeb.EventLive.Index do
       <.header>
         {gettext("Listing Events")}
         <:actions>
-          <.button variant="primary" navigate={~p"/events/new"}>
+          <.button variant="primary" navigate={~p"/admin/events/new"}>
             <.icon name="hero-plus" /> {gettext("New Event")}
           </.button>
         </:actions>
@@ -19,7 +19,7 @@ defmodule T3SystemWeb.EventLive.Index do
       <.table
         id="events"
         rows={@streams.events}
-        row_click={fn {_id, event} -> JS.navigate(~p"/events/#{event}") end}
+        row_click={fn {_id, event} -> JS.navigate(~p"/admin/events/#{event}") end}
       >
         <:col :let={{_id, event}} label={gettext("Name")}>{event.name}</:col>
         <:col :let={{_id, event}} label={gettext("Address")}>{event.address}</:col>
@@ -34,9 +34,9 @@ defmodule T3SystemWeb.EventLive.Index do
         </:col>
         <:action :let={{_id, event}}>
           <div class="sr-only">
-            <.link navigate={~p"/events/#{event}"}>{gettext("Show")}</.link>
+            <.link navigate={~p"/admin/events/#{event}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/events/#{event}/edit"}>{gettext("Edit")}</.link>
+          <.link navigate={~p"/admin/events/#{event}/edit"}>{gettext("Edit")}</.link>
         </:action>
         <:action :let={{id, event}}>
           <.link

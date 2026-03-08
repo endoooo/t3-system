@@ -11,10 +11,10 @@ defmodule T3SystemWeb.PlayerLive.Show do
         Player {@player.id}
         <:subtitle>{gettext("This is a player record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/players"}>
+          <.button navigate={~p"/admin/players"}>
             <.icon name="hero-arrow-left" />
           </.button>
-          <.button variant="primary" navigate={~p"/players/#{@player}/edit?return_to=show"}>
+          <.button variant="primary" navigate={~p"/admin/players/#{@player}/edit?return_to=show"}>
             <.icon name="hero-pencil-square" /> {gettext("Edit player")}
           </.button>
         </:actions>

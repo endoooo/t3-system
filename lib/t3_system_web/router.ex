@@ -23,11 +23,11 @@ defmodule T3SystemWeb.Router do
     get "/", PageController, :home
   end
 
-  scope "/", T3SystemWeb do
+  scope "/admin", T3SystemWeb do
     pipe_through [:browser, :require_authenticated_user]
 
-    live_session :players,
-      on_mount: [{T3SystemWeb.UserAuth, :require_authenticated}] do
+    live_session :admin,
+      on_mount: [{T3SystemWeb.UserAuth, :require_superuser}] do
       # -- Players
       live "/players", PlayerLive.Index, :index
       live "/players/new", PlayerLive.Form, :new
