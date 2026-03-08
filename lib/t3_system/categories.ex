@@ -22,6 +22,12 @@ defmodule T3System.Categories do
     Repo.all(Category)
   end
 
+  def list_categories_by_ids([]), do: []
+
+  def list_categories_by_ids(ids) do
+    Repo.all(from c in Category, where: c.id in ^ids)
+  end
+
   @doc """
   Gets a single category.
 

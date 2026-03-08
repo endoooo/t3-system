@@ -7,6 +7,8 @@ defmodule T3System.EventsTest do
 
   import T3System.Factory
 
+  alias T3System.Events.Event
+
   @invalid_attrs %{name: nil}
 
   describe "leagues" do
@@ -89,18 +91,22 @@ defmodule T3System.EventsTest do
   end
 
   describe "events" do
-    alias T3System.Events.Event
-
     @invalid_attrs %{name: nil, address: nil, datetime: nil}
 
     test "list_events/0 returns all events" do
       event = insert(:event)
-      assert Events.list_events() == [event]
+      [listed] = Events.list_events()
+      assert listed.id == event.id
+      assert listed.name == event.name
+      assert listed.categories == []
     end
 
     test "get_event!/1 returns the event with given id" do
       event = insert(:event)
-      assert Events.get_event!(event.id) == event
+      fetched = Events.get_event!(event.id)
+      assert fetched.id == event.id
+      assert fetched.name == event.name
+      assert fetched.categories == []
     end
 
     test "create_event/2 with valid data creates an event" do
@@ -155,7 +161,9 @@ defmodule T3System.EventsTest do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
       assert {:error, %Ecto.Changeset{}} = Events.update_event(scope, event, @invalid_attrs)
-      assert event == Events.get_event!(event.id)
+      fetched = Events.get_event!(event.id)
+      assert fetched.id == event.id
+      assert fetched.name == event.name
     end
 
     test "update_event/3 with non-superuser scope raises" do
@@ -186,6 +194,68 @@ defmodule T3System.EventsTest do
     test "change_event/1 returns an event changeset" do
       event = insert(:event)
       assert %Ecto.Changeset{} = Events.change_event(event)
+    end
+  end
+
+  describe "event categories" do
+    test "create_event/2 with categories associates them" do
+      scope = Scope.for_user(insert(:superuser))
+      category = insert(:category)
+
+      attrs = %{
+        "name" => "some name",
+        "address" => "some address",
+        "datetime" => "2026-03-06T22:01:00Z",
+        "category_ids" => [to_string(category.id)]
+      }
+
+      assert {:ok, %Event{} = event} = Events.create_event(scope, attrs)
+      assert [fetched_category] = event.categories
+      assert fetched_category.id == category.id
+    end
+
+    test "create_event/2 without categories creates event with no categories" do
+      scope = Scope.for_user(insert(:superuser))
+
+      attrs = %{
+        "name" => "some name",
+        "address" => "some address",
+        "datetime" => "2026-03-06T22:01:00Z"
+      }
+
+      assert {:ok, %Event{} = event} = Events.create_event(scope, attrs)
+      assert event.categories == []
+    end
+
+    test "update_event/3 replaces categories" do
+      scope = Scope.for_user(insert(:superuser))
+      category1 = insert(:category)
+      category2 = insert(:category)
+      event = insert(:event)
+
+      attrs = %{"category_ids" => [to_string(category1.id)]}
+      {:ok, event} = Events.update_event(scope, event, attrs)
+      assert [c] = event.categories
+      assert c.id == category1.id
+
+      attrs2 = %{"category_ids" => [to_string(category2.id)]}
+      {:ok, event} = Events.update_event(scope, event, attrs2)
+      assert [c] = event.categories
+      assert c.id == category2.id
+    end
+
+    test "update_event/3 with empty category_ids clears categories" do
+      scope = Scope.for_user(insert(:superuser))
+      category = insert(:category)
+      event = insert(:event)
+
+      {:ok, event} =
+        Events.update_event(scope, event, %{"category_ids" => [to_string(category.id)]})
+
+      assert length(event.categories) == 1
+
+      {:ok, event} = Events.update_event(scope, event, %{"category_ids" => [""]})
+      assert event.categories == []
     end
   end
 end

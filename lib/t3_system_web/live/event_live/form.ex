@@ -1,6 +1,7 @@
 defmodule T3SystemWeb.EventLive.Form do
   use T3SystemWeb, :live_view
 
+  alias T3System.Categories
   alias T3System.Events
   alias T3System.Events.Event
 
@@ -17,6 +18,21 @@ defmodule T3SystemWeb.EventLive.Form do
         <.input field={@form[:name]} type="text" label={gettext("Name")} />
         <.input field={@form[:address]} type="textarea" label={gettext("Address")} />
         <.input field={@form[:datetime]} type="datetime-local" label={gettext("Datetime")} />
+        <div class="fieldset mb-6">
+          <label class="label mb-1">{gettext("Categories")}</label>
+          <input type="hidden" name="event[category_ids][]" value="" />
+          <div class="flex flex-wrap gap-2">
+            <input
+              :for={category <- @all_categories}
+              type="checkbox"
+              class="btn"
+              name="event[category_ids][]"
+              value={category.id}
+              checked={category.id in @selected_category_ids}
+              aria-label={category.name}
+            />
+          </div>
+        </div>
         <footer>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Event")}
@@ -46,21 +62,35 @@ defmodule T3SystemWeb.EventLive.Form do
     |> assign(:page_title, gettext("Edit Event"))
     |> assign(:event, event)
     |> assign(:form, to_form(Events.change_event(event)))
+    |> assign(:all_categories, Categories.list_categories())
+    |> assign(:selected_category_ids, Enum.map(event.categories, & &1.id))
   end
 
   defp apply_action(socket, :new, _params) do
-    event = %Event{}
+    event = %Event{categories: []}
 
     socket
     |> assign(:page_title, gettext("New Event"))
     |> assign(:event, event)
     |> assign(:form, to_form(Events.change_event(event)))
+    |> assign(:all_categories, Categories.list_categories())
+    |> assign(:selected_category_ids, [])
   end
 
   @impl true
   def handle_event("validate", %{"event" => event_params}, socket) do
+    selected_ids =
+      event_params
+      |> Map.get("category_ids", [])
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.map(&String.to_integer/1)
+
     changeset = Events.change_event(socket.assigns.event, event_params)
-    {:noreply, assign(socket, form: to_form(changeset, action: :validate))}
+
+    {:noreply,
+     socket
+     |> assign(:selected_category_ids, selected_ids)
+     |> assign(:form, to_form(changeset, action: :validate))}
   end
 
   def handle_event("save", %{"event" => event_params}, socket) do

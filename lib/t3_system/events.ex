@@ -7,6 +7,7 @@ defmodule T3System.Events do
   alias T3System.Repo
 
   alias T3System.Accounts.Scope
+  alias T3System.Categories
   alias T3System.Events.League
 
   @doc """
@@ -115,7 +116,7 @@ defmodule T3System.Events do
 
   """
   def list_events do
-    Repo.all(Event)
+    Repo.all(Event) |> Repo.preload(:categories)
   end
 
   @doc """
@@ -132,7 +133,7 @@ defmodule T3System.Events do
       ** (Ecto.NoResultsError)
 
   """
-  def get_event!(id), do: Repo.get!(Event, id)
+  def get_event!(id), do: Repo.get!(Event, id) |> Repo.preload(:categories)
 
   @doc """
   Creates a event.
@@ -148,7 +149,7 @@ defmodule T3System.Events do
   """
   def create_event(%Scope{user: %{role: "superuser"}}, attrs) do
     %Event{}
-    |> Event.changeset(attrs)
+    |> Event.changeset_with_categories(attrs, fetch_categories(attrs))
     |> Repo.insert()
   end
 
@@ -166,7 +167,8 @@ defmodule T3System.Events do
   """
   def update_event(%Scope{user: %{role: "superuser"}}, %Event{} = event, attrs) do
     event
-    |> Event.changeset(attrs)
+    |> Repo.preload(:categories)
+    |> Event.changeset_with_categories(attrs, fetch_categories(attrs))
     |> Repo.update()
   end
 
@@ -197,5 +199,15 @@ defmodule T3System.Events do
   """
   def change_event(%Event{} = event, attrs \\ %{}) do
     Event.changeset(event, attrs)
+  end
+
+  defp fetch_categories(attrs) do
+    ids =
+      attrs
+      |> Map.get("category_ids", [])
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.map(&String.to_integer/1)
+
+    Categories.list_categories_by_ids(ids)
   end
 end

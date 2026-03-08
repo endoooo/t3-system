@@ -24,6 +24,13 @@ defmodule T3SystemWeb.EventLive.Show do
         <:item title={gettext("Name")}>{@event.name}</:item>
         <:item title={gettext("Address")}>{@event.address}</:item>
         <:item title={gettext("Datetime")}>{@event.datetime}</:item>
+        <:item title={gettext("Categories")}>
+          <div class="flex flex-wrap gap-1 mt-1">
+            <span :for={category <- @event.categories} class="badge badge-soft badge-primary">
+              {category.name}
+            </span>
+          </div>
+        </:item>
       </.list>
     </Layouts.settings>
     """

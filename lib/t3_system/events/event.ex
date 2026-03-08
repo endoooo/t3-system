@@ -2,12 +2,15 @@ defmodule T3System.Events.Event do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias T3System.Categories.Category
+
   @type t :: %__MODULE__{
           id: pos_integer(),
           name: String.t(),
           address: String.t(),
           datetime: DateTime.t(),
           league_id: pos_integer() | nil,
+          categories: [Category.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -18,6 +21,8 @@ defmodule T3System.Events.Event do
     field :datetime, :utc_datetime
     field :league_id, :id
 
+    many_to_many :categories, Category, join_through: "events_categories", on_replace: :delete
+
     timestamps(type: :utc_datetime)
   end
 
@@ -26,5 +31,11 @@ defmodule T3System.Events.Event do
     event
     |> cast(attrs, [:name, :address, :datetime])
     |> validate_required([:name, :address, :datetime])
+  end
+
+  def changeset_with_categories(event, attrs, categories) do
+    event
+    |> changeset(attrs)
+    |> put_assoc(:categories, categories)
   end
 end
