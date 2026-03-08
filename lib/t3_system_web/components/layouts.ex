@@ -383,6 +383,12 @@ defmodule T3SystemWeb.Layouts do
                         navigate={~p"/admin/players"}
                       />
                       <.config_item
+                        is_active={@active_item == "clubs"}
+                        item_char="C"
+                        item_name={gettext("Clubs")}
+                        navigate={~p"/admin/clubs"}
+                      />
+                      <.config_item
                         is_active={@active_item == "events"}
                         item_char="E"
                         item_name={gettext("Events")}
@@ -586,6 +592,12 @@ defmodule T3SystemWeb.Layouts do
                       item_char="P"
                       item_name={gettext("Players")}
                       navigate={~p"/admin/players"}
+                    />
+                    <.config_item
+                      is_active={@active_item == "clubs"}
+                      item_char="C"
+                      item_name={gettext("Clubs")}
+                      navigate={~p"/admin/clubs"}
                     />
                     <.config_item
                       is_active={@active_item == "events"}

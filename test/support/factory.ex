@@ -5,6 +5,7 @@ defmodule T3System.Factory do
 
   alias T3System.Accounts.User
   alias T3System.Categories.Category
+  alias T3System.Clubs.Club
   alias T3System.Events.Event
   alias T3System.Events.League
   alias T3System.Players.Player
@@ -42,6 +43,12 @@ defmodule T3System.Factory do
   def category_factory do
     %Category{
       name: sequence(:name, &"Category #{&1}")
+    }
+  end
+
+  def club_factory do
+    %Club{
+      name: sequence(:name, &"Club #{&1}")
     }
   end
 
