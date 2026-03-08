@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.CategoryLive.Index do
+defmodule T3SystemWeb.Admin.CategoryLive.Index do
   use T3SystemWeb, :live_view
 
   alias T3System.Categories

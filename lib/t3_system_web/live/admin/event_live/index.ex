@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.EventLive.Index do
+defmodule T3SystemWeb.Admin.EventLive.Index do
   use T3SystemWeb, :live_view
 
   alias T3System.Events

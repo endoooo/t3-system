@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.ClubLive.Index do
+defmodule T3SystemWeb.Admin.ClubLive.Index do
   use T3SystemWeb, :live_view
 
   alias T3System.Clubs

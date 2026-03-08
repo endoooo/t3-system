@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.PlayerLive.Form do
+defmodule T3SystemWeb.Admin.PlayerLive.Form do
   use T3SystemWeb, :live_view
 
   alias T3System.Players

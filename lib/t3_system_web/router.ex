@@ -23,7 +23,7 @@ defmodule T3SystemWeb.Router do
     get "/", PageController, :home
   end
 
-  scope "/admin", T3SystemWeb do
+  scope "/admin", T3SystemWeb.Admin do
     pipe_through [:browser, :require_authenticated_user]
 
     live_session :admin,

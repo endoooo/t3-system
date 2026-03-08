@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.LeagueLive.Show do
+defmodule T3SystemWeb.Admin.LeagueLive.Show do
   use T3SystemWeb, :live_view
 
   alias T3System.Events

@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.CategoryLive.Form do
+defmodule T3SystemWeb.Admin.CategoryLive.Form do
   use T3SystemWeb, :live_view
 
   alias T3System.Categories

@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.PlayerLive.Index do
+defmodule T3SystemWeb.Admin.PlayerLive.Index do
   use T3SystemWeb, :live_view
 
   alias T3System.Players

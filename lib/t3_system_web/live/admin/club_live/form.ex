@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.ClubLive.Form do
+defmodule T3SystemWeb.Admin.ClubLive.Form do
   use T3SystemWeb, :live_view
 
   alias T3System.Clubs
