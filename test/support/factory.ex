@@ -8,6 +8,9 @@ defmodule T3System.Factory do
   alias T3System.Clubs.Club
   alias T3System.Events.Event
   alias T3System.Events.League
+  alias T3System.Matches.Bracket
+  alias T3System.Matches.Group
+  alias T3System.Matches.Match
   alias T3System.Players.Player
   alias T3System.Registrations.Registration
 
@@ -66,6 +69,27 @@ defmodule T3System.Factory do
       player: build(:player),
       event: build(:event),
       club: build(:club)
+    }
+  end
+
+  def group_factory do
+    %Group{
+      name: sequence(:name, &"Group #{&1}"),
+      event: build(:event)
+    }
+  end
+
+  def bracket_factory do
+    %Bracket{
+      name: sequence(:name, &"Bracket #{&1}"),
+      event: build(:event)
+    }
+  end
+
+  def match_factory do
+    %Match{
+      event: build(:event),
+      group: build(:group)
     }
   end
 end

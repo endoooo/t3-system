@@ -4,6 +4,7 @@ defmodule T3System.Registrations.Registration do
 
   alias T3System.Clubs.Club
   alias T3System.Events.Event
+  alias T3System.Matches.Match
   alias T3System.Players.Player
 
   @type t :: %__MODULE__{
@@ -14,6 +15,8 @@ defmodule T3System.Registrations.Registration do
           player: Player.t() | Ecto.Association.NotLoaded.t(),
           event: Event.t() | Ecto.Association.NotLoaded.t(),
           club: Club.t() | Ecto.Association.NotLoaded.t(),
+          matches_as_registration1: [Match.t()] | Ecto.Association.NotLoaded.t(),
+          matches_as_registration2: [Match.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -22,6 +25,9 @@ defmodule T3System.Registrations.Registration do
     belongs_to :player, Player
     belongs_to :event, Event
     belongs_to :club, Club
+
+    has_many :matches_as_registration1, Match, foreign_key: :registration1_id
+    has_many :matches_as_registration2, Match, foreign_key: :registration2_id
 
     timestamps(type: :utc_datetime)
   end
