@@ -70,7 +70,11 @@ defmodule T3System.Registrations do
       ** (FunctionClauseError)
 
   """
-  def update_registration(%Scope{user: %{role: "superuser"}}, %Registration{} = registration, attrs) do
+  def update_registration(
+        %Scope{user: %{role: "superuser"}},
+        %Registration{} = registration,
+        attrs
+      ) do
     registration
     |> Registration.changeset(attrs)
     |> Repo.update()
