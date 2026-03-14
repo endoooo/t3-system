@@ -1,0 +1,89 @@
+defmodule T3System.Matches.Match do
+  use Ecto.Schema
+  import Ecto.Changeset
+
+  alias T3System.Events.Event
+  alias T3System.Matches.Bracket
+  alias T3System.Matches.Group
+  alias T3System.Registrations.Registration
+
+  @type t :: %__MODULE__{
+          id: pos_integer(),
+          event_id: pos_integer(),
+          group_id: pos_integer() | nil,
+          bracket_id: pos_integer() | nil,
+          registration1_id: pos_integer() | nil,
+          registration2_id: pos_integer() | nil,
+          next_match_id: pos_integer() | nil,
+          round: pos_integer() | nil,
+          position: pos_integer() | nil,
+          scheduled_at: DateTime.t() | nil,
+          event: Event.t() | Ecto.Association.NotLoaded.t(),
+          group: Group.t() | Ecto.Association.NotLoaded.t(),
+          bracket: Bracket.t() | Ecto.Association.NotLoaded.t(),
+          registration1: Registration.t() | Ecto.Association.NotLoaded.t(),
+          registration2: Registration.t() | Ecto.Association.NotLoaded.t(),
+          next_match: t() | Ecto.Association.NotLoaded.t(),
+          inserted_at: DateTime.t(),
+          updated_at: DateTime.t()
+        }
+
+  schema "matches" do
+    field :round, :integer
+    field :position, :integer
+    field :scheduled_at, :utc_datetime
+
+    belongs_to :event, Event
+    belongs_to :group, Group
+    belongs_to :bracket, Bracket
+    belongs_to :registration1, Registration
+    belongs_to :registration2, Registration
+    belongs_to :next_match, __MODULE__
+
+    timestamps(type: :utc_datetime)
+  end
+
+  @castable_fields [
+    :event_id,
+    :group_id,
+    :bracket_id,
+    :registration1_id,
+    :registration2_id,
+    :next_match_id,
+    :round,
+    :position,
+    :scheduled_at
+  ]
+
+  @doc false
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
+  def changeset(match, attrs) do
+    match
+    |> cast(attrs, @castable_fields)
+    |> validate_required([:event_id])
+    |> validate_context()
+    |> assoc_constraint(:event)
+    |> assoc_constraint(:group)
+    |> assoc_constraint(:bracket)
+    |> assoc_constraint(:registration1)
+    |> assoc_constraint(:registration2)
+    |> assoc_constraint(:next_match)
+    |> check_constraint(:group_id, name: :exactly_one_context)
+  end
+
+  defp validate_context(changeset) do
+    group_id = get_field(changeset, :group_id)
+    bracket_id = get_field(changeset, :bracket_id)
+
+    case {group_id, bracket_id} do
+      {nil, nil} ->
+        add_error(changeset, :base, "must belong to a group or bracket")
+
+      {g, b} when not is_nil(g) and not is_nil(b) ->
+        add_error(changeset, :base, "cannot belong to both a group and a bracket")
+
+      _ ->
+        changeset
+    end
+  end
+end

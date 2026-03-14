@@ -4,6 +4,9 @@ defmodule T3System.Events.Event do
 
   alias T3System.Categories.Category
   alias T3System.Events.League
+  alias T3System.Matches.Bracket
+  alias T3System.Matches.Group
+  alias T3System.Matches.Match
 
   @type t :: %__MODULE__{
           id: pos_integer(),
@@ -13,6 +16,9 @@ defmodule T3System.Events.Event do
           league_id: pos_integer() | nil,
           league: League.t() | Ecto.Association.NotLoaded.t(),
           categories: [Category.t()] | Ecto.Association.NotLoaded.t(),
+          groups: [Group.t()] | Ecto.Association.NotLoaded.t(),
+          brackets: [Bracket.t()] | Ecto.Association.NotLoaded.t(),
+          matches: [Match.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -24,6 +30,9 @@ defmodule T3System.Events.Event do
 
     belongs_to :league, League
     many_to_many :categories, Category, join_through: "events_categories", on_replace: :delete
+    has_many :groups, Group
+    has_many :brackets, Bracket
+    has_many :matches, Match
 
     timestamps(type: :utc_datetime)
   end
