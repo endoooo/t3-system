@@ -9,6 +9,7 @@ defmodule T3System.Factory do
   alias T3System.Events.Event
   alias T3System.Events.League
   alias T3System.Players.Player
+  alias T3System.Registrations.Registration
 
   def user_factory do
     %User{
@@ -57,6 +58,14 @@ defmodule T3System.Factory do
       name: sequence(:name, &"Player #{&1}"),
       birthdate: ~D[2026-03-06],
       picture_url: "https://example.com/player.jpg"
+    }
+  end
+
+  def registration_factory do
+    %Registration{
+      player: build(:player),
+      event: build(:event),
+      club: build(:club)
     }
   end
 end
