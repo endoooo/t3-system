@@ -10,6 +10,7 @@ defmodule T3System.Matches do
   alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
+  alias T3System.Matches.MatchSet
 
   # ---------------------------------------------------------------------------
   # Groups
@@ -231,8 +232,10 @@ defmodule T3System.Matches do
     |> Repo.preload([
       :group,
       :bracket,
+      :sets,
       registration1: [:player],
-      registration2: [:player]
+      registration2: [:player],
+      winner: [:player]
     ])
   end
 
@@ -255,8 +258,10 @@ defmodule T3System.Matches do
     |> Repo.preload([
       :group,
       :bracket,
+      :sets,
       registration1: [:player],
-      registration2: [:player]
+      registration2: [:player],
+      winner: [:player]
     ])
   end
 
@@ -323,5 +328,153 @@ defmodule T3System.Matches do
   """
   def change_match(%Match{} = match, attrs \\ %{}) do
     Match.changeset(match, attrs)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Match Sets
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Returns the list of sets for the given match.
+
+  ## Examples
+
+      iex> list_sets_for_match(match_id)
+      [%MatchSet{}, ...]
+
+  """
+  def list_sets_for_match(match_id) do
+    MatchSet
+    |> where([s], s.match_id == ^match_id)
+    |> order_by([s], s.set_number)
+    |> Repo.all()
+  end
+
+  @doc """
+  Gets a single match set.
+
+  Raises `Ecto.NoResultsError` if the MatchSet does not exist.
+
+  ## Examples
+
+      iex> get_match_set!(123)
+      %MatchSet{}
+
+      iex> get_match_set!(456)
+      ** (Ecto.NoResultsError)
+
+  """
+  def get_match_set!(id), do: Repo.get!(MatchSet, id)
+
+  @doc """
+  Creates a match set. Requires a superuser scope.
+
+  Resolves `points_per_set` from the match's group (for group matches) or
+  from the match itself (for bracket matches) to apply deuce validation.
+
+  ## Examples
+
+      iex> create_match_set(superuser_scope, %{field: value})
+      {:ok, %MatchSet{}}
+
+      iex> create_match_set(non_superuser_scope, %{field: value})
+      ** (FunctionClauseError)
+
+  """
+  def create_match_set(%Scope{user: %{role: "superuser"}}, attrs) do
+    points_per_set = resolve_points_per_set(attrs)
+
+    %MatchSet{}
+    |> MatchSet.changeset(attrs, points_per_set: points_per_set)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a match set. Requires a superuser scope.
+
+  ## Examples
+
+      iex> update_match_set(superuser_scope, match_set, %{field: new_value})
+      {:ok, %MatchSet{}}
+
+      iex> update_match_set(non_superuser_scope, match_set, %{field: value})
+      ** (FunctionClauseError)
+
+  """
+  def update_match_set(%Scope{user: %{role: "superuser"}}, %MatchSet{} = match_set, attrs) do
+    points_per_set = resolve_points_per_set_for_set(match_set, attrs)
+
+    match_set
+    |> MatchSet.changeset(attrs, points_per_set: points_per_set)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a match set. Requires a superuser scope.
+
+  ## Examples
+
+      iex> delete_match_set(superuser_scope, match_set)
+      {:ok, %MatchSet{}}
+
+      iex> delete_match_set(non_superuser_scope, match_set)
+      ** (FunctionClauseError)
+
+  """
+  def delete_match_set(%Scope{user: %{role: "superuser"}}, %MatchSet{} = match_set) do
+    Repo.delete(match_set)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking match set changes.
+
+  ## Examples
+
+      iex> change_match_set(match_set)
+      %Ecto.Changeset{data: %MatchSet{}}
+
+  """
+  def change_match_set(%MatchSet{} = match_set, attrs \\ %{}, opts \\ []) do
+    MatchSet.changeset(match_set, attrs, opts)
+  end
+
+  # Resolves points_per_set from attrs (for new sets): loads the match and its group if needed.
+  defp resolve_points_per_set(attrs) do
+    match_id = attrs[:match_id] || attrs["match_id"]
+
+    if match_id do
+      match = Repo.get(Match, match_id) |> Repo.preload(:group)
+
+      cond do
+        match && match.group_id && match.group ->
+          match.group.points_per_set
+
+        match && match.points_per_set ->
+          match.points_per_set
+
+        true ->
+          nil
+      end
+    end
+  end
+
+  # Resolves points_per_set for an existing set (update): uses the set's match.
+  defp resolve_points_per_set_for_set(%MatchSet{} = match_set, attrs) do
+    match_id = attrs[:match_id] || attrs["match_id"] || match_set.match_id
+
+    if match_id do
+      match = Repo.get(Match, match_id) |> Repo.preload(:group)
+
+      cond do
+        match && match.group_id && match.group ->
+          match.group.points_per_set
+
+        match && match.points_per_set ->
+          match.points_per_set
+
+        true ->
+          nil
+      end
+    end
   end
 end

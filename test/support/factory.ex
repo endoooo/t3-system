@@ -11,6 +11,7 @@ defmodule T3System.Factory do
   alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
+  alias T3System.Matches.MatchSet
   alias T3System.Players.Player
   alias T3System.Registrations.Registration
 
@@ -90,6 +91,15 @@ defmodule T3System.Factory do
     %Match{
       event: build(:event),
       group: build(:group)
+    }
+  end
+
+  def match_set_factory do
+    %MatchSet{
+      match: build(:match),
+      set_number: 1,
+      score1: 11,
+      score2: 7
     }
   end
 end

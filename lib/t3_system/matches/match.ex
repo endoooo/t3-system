@@ -5,6 +5,7 @@ defmodule T3System.Matches.Match do
   alias T3System.Events.Event
   alias T3System.Matches.Bracket
   alias T3System.Matches.Group
+  alias T3System.Matches.MatchSet
   alias T3System.Registrations.Registration
 
   @type t :: %__MODULE__{
@@ -14,16 +15,21 @@ defmodule T3System.Matches.Match do
           bracket_id: pos_integer() | nil,
           registration1_id: pos_integer() | nil,
           registration2_id: pos_integer() | nil,
+          winner_registration_id: pos_integer() | nil,
           next_match_id: pos_integer() | nil,
           round: pos_integer() | nil,
           position: pos_integer() | nil,
+          best_of: pos_integer() | nil,
+          points_per_set: pos_integer() | nil,
           scheduled_at: DateTime.t() | nil,
           event: Event.t() | Ecto.Association.NotLoaded.t(),
           group: Group.t() | Ecto.Association.NotLoaded.t(),
           bracket: Bracket.t() | Ecto.Association.NotLoaded.t(),
           registration1: Registration.t() | Ecto.Association.NotLoaded.t(),
           registration2: Registration.t() | Ecto.Association.NotLoaded.t(),
+          winner: Registration.t() | Ecto.Association.NotLoaded.t(),
           next_match: t() | Ecto.Association.NotLoaded.t(),
+          sets: [MatchSet.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -31,6 +37,8 @@ defmodule T3System.Matches.Match do
   schema "matches" do
     field :round, :integer
     field :position, :integer
+    field :best_of, :integer
+    field :points_per_set, :integer
     field :scheduled_at, :utc_datetime
 
     belongs_to :event, Event
@@ -38,7 +46,9 @@ defmodule T3System.Matches.Match do
     belongs_to :bracket, Bracket
     belongs_to :registration1, Registration
     belongs_to :registration2, Registration
+    belongs_to :winner, Registration, foreign_key: :winner_registration_id
     belongs_to :next_match, __MODULE__
+    has_many :sets, MatchSet
 
     timestamps(type: :utc_datetime)
   end
@@ -49,9 +59,12 @@ defmodule T3System.Matches.Match do
     :bracket_id,
     :registration1_id,
     :registration2_id,
+    :winner_registration_id,
     :next_match_id,
     :round,
     :position,
+    :best_of,
+    :points_per_set,
     :scheduled_at
   ]
 
@@ -62,13 +75,34 @@ defmodule T3System.Matches.Match do
     |> cast(attrs, @castable_fields)
     |> validate_required([:event_id])
     |> validate_context()
+    |> validate_winner()
+    |> validate_number(:best_of, greater_than: 0)
+    |> validate_number(:points_per_set, greater_than: 0)
     |> assoc_constraint(:event)
     |> assoc_constraint(:group)
     |> assoc_constraint(:bracket)
     |> assoc_constraint(:registration1)
     |> assoc_constraint(:registration2)
+    |> assoc_constraint(:winner)
     |> assoc_constraint(:next_match)
     |> check_constraint(:group_id, name: :exactly_one_context)
+  end
+
+  defp validate_winner(changeset) do
+    winner_id = get_field(changeset, :winner_registration_id)
+
+    if is_nil(winner_id) do
+      changeset
+    else
+      reg1_id = get_field(changeset, :registration1_id)
+      reg2_id = get_field(changeset, :registration2_id)
+
+      if winner_id == reg1_id or winner_id == reg2_id do
+        changeset
+      else
+        add_error(changeset, :winner_registration_id, "must be one of the match participants")
+      end
+    end
   end
 
   defp validate_context(changeset) do
