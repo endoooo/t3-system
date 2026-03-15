@@ -6,6 +6,7 @@ defmodule T3System.MatchesTest do
   alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
+  alias T3System.Matches.MatchSet
 
   import T3System.Factory
 
@@ -408,6 +409,326 @@ defmodule T3System.MatchesTest do
       Matches.delete_bracket(scope, bracket)
 
       assert_raise Ecto.NoResultsError, fn -> Matches.get_match!(match.id) end
+    end
+
+    test "create_match/2 with winner sets winner_registration_id" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event)
+      reg1 = insert(:registration, event: event)
+      reg2 = insert(:registration, event: event)
+
+      attrs = %{
+        event_id: event.id,
+        group_id: group.id,
+        registration1_id: reg1.id,
+        registration2_id: reg2.id,
+        winner_registration_id: reg1.id
+      }
+
+      assert {:ok, %Match{} = match} = Matches.create_match(scope, attrs)
+      assert match.winner_registration_id == reg1.id
+    end
+
+    test "create_match/2 with invalid winner returns error changeset" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event)
+      reg1 = insert(:registration, event: event)
+      reg2 = insert(:registration, event: event)
+      other_reg = insert(:registration)
+
+      attrs = %{
+        event_id: event.id,
+        group_id: group.id,
+        registration1_id: reg1.id,
+        registration2_id: reg2.id,
+        winner_registration_id: other_reg.id
+      }
+
+      assert {:error, %Ecto.Changeset{} = changeset} = Matches.create_match(scope, attrs)
+      assert %{winner_registration_id: [_]} = errors_on(changeset)
+    end
+
+    test "create_match/2 in bracket sets best_of and points_per_set" do
+      scope = Scope.for_user(insert(:superuser))
+      bracket = insert(:bracket)
+
+      attrs = %{
+        event_id: bracket.event_id,
+        bracket_id: bracket.id,
+        best_of: 7,
+        points_per_set: 11
+      }
+
+      assert {:ok, %Match{} = match} = Matches.create_match(scope, attrs)
+      assert match.best_of == 7
+      assert match.points_per_set == 11
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Groups: setup fields
+  # ---------------------------------------------------------------------------
+
+  describe "group setup" do
+    test "create_group/2 with custom best_of and points_per_set" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+
+      assert {:ok, %Group{} = group} =
+               Matches.create_group(scope, %{
+                 name: "Group A",
+                 event_id: event.id,
+                 best_of: 7,
+                 points_per_set: 7
+               })
+
+      assert group.best_of == 7
+      assert group.points_per_set == 7
+    end
+
+    test "create_group/2 uses default best_of and points_per_set" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+
+      assert {:ok, %Group{} = group} =
+               Matches.create_group(scope, %{name: "Group B", event_id: event.id})
+
+      assert group.best_of == 5
+      assert group.points_per_set == 11
+    end
+
+    test "update_group/3 updates best_of and points_per_set" do
+      scope = Scope.for_user(insert(:superuser))
+      group = insert(:group)
+
+      assert {:ok, %Group{} = updated} =
+               Matches.update_group(scope, group, %{best_of: 3, points_per_set: 7})
+
+      assert updated.best_of == 3
+      assert updated.points_per_set == 7
+    end
+  end
+
+  # ---------------------------------------------------------------------------
+  # Match Sets
+  # ---------------------------------------------------------------------------
+
+  describe "match_sets" do
+    test "list_sets_for_match/1 returns sets ordered by set_number" do
+      event = insert(:event)
+      group = insert(:group, event: event)
+      match = insert(:match, event: event, group: group)
+      set2 = insert(:match_set, match: match, set_number: 2, score1: 11, score2: 5)
+      set1 = insert(:match_set, match: match, set_number: 1, score1: 8, score2: 11)
+
+      results = Matches.list_sets_for_match(match.id)
+      assert length(results) == 2
+      assert hd(results).id == set1.id
+      assert List.last(results).id == set2.id
+    end
+
+    test "get_match_set!/1 returns the set with given id" do
+      set = insert(:match_set)
+      result = Matches.get_match_set!(set.id)
+      assert result.id == set.id
+    end
+
+    test "get_match_set!/1 raises for non-existent id" do
+      assert_raise Ecto.NoResultsError, fn -> Matches.get_match_set!(0) end
+    end
+
+    test "create_match_set/2 creates a set" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event)
+      match = insert(:match, event: event, group: group)
+
+      attrs = %{match_id: match.id, set_number: 1, score1: 11, score2: 7}
+
+      assert {:ok, %MatchSet{} = set} = Matches.create_match_set(scope, attrs)
+      assert set.set_number == 1
+      assert set.score1 == 11
+      assert set.score2 == 7
+    end
+
+    test "create_match_set/2 with non-superuser scope raises" do
+      scope = Scope.for_user(insert(:user))
+      match = insert(:match)
+
+      assert_raise FunctionClauseError, fn ->
+        Matches.create_match_set(scope, %{match_id: match.id, set_number: 1})
+      end
+    end
+
+    test "create_match_set/2 validates deuce for group match (11-point)" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event, points_per_set: 11)
+      match = insert(:match, event: event, group: group)
+
+      # 11-10 is invalid (deuce reached, need 2-point lead)
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 11,
+                 score2: 10
+               })
+
+      assert %{score1: [_]} = errors_on(changeset)
+    end
+
+    test "create_match_set/2 accepts valid deuce score for group match" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event, points_per_set: 11)
+      match = insert(:match, event: event, group: group)
+
+      # 12-10 is valid (deuce, 2-point lead)
+      assert {:ok, %MatchSet{}} =
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 12,
+                 score2: 10
+               })
+    end
+
+    test "create_match_set/2 rejects over-scoring outside deuce" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event, points_per_set: 11)
+      match = insert(:match, event: event, group: group)
+
+      # 12-5 is invalid (no deuce, winner should stop at 11)
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 12,
+                 score2: 5
+               })
+
+      assert %{score1: [_]} = errors_on(changeset)
+    end
+
+    test "create_match_set/2 validates deuce for bracket match (7-point)" do
+      scope = Scope.for_user(insert(:superuser))
+      bracket = insert(:bracket)
+
+      match =
+        insert(:match, event: bracket.event, bracket: bracket, group: nil, points_per_set: 7)
+
+      # 7-6 is invalid (deuce, need 2-point lead)
+      assert {:error, %Ecto.Changeset{} = changeset} =
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 7,
+                 score2: 6
+               })
+
+      assert %{score1: [_]} = errors_on(changeset)
+    end
+
+    test "create_match_set/2 accepts valid score for bracket match (7-point)" do
+      scope = Scope.for_user(insert(:superuser))
+      bracket = insert(:bracket)
+
+      match =
+        insert(:match, event: bracket.event, bracket: bracket, group: nil, points_per_set: 7)
+
+      # 7-3 is valid
+      assert {:ok, %MatchSet{}} =
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 7,
+                 score2: 3
+               })
+    end
+
+    test "create_match_set/2 allows partial (in-progress) scores" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event, points_per_set: 11)
+      match = insert(:match, event: event, group: group)
+
+      # 5-3 is a valid in-progress score
+      assert {:ok, %MatchSet{}} =
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 5,
+                 score2: 3
+               })
+    end
+
+    test "update_match_set/3 updates scores" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event)
+      match = insert(:match, event: event, group: group)
+      set = insert(:match_set, match: match, set_number: 1, score1: 5, score2: 3)
+
+      assert {:ok, %MatchSet{} = updated} =
+               Matches.update_match_set(scope, set, %{score1: 11, score2: 8})
+
+      assert updated.score1 == 11
+      assert updated.score2 == 8
+    end
+
+    test "update_match_set/3 with non-superuser scope raises" do
+      scope = Scope.for_user(insert(:user))
+      set = insert(:match_set)
+
+      assert_raise FunctionClauseError, fn ->
+        Matches.update_match_set(scope, set, %{score1: 11})
+      end
+    end
+
+    test "delete_match_set/2 deletes the set" do
+      scope = Scope.for_user(insert(:superuser))
+      set = insert(:match_set)
+      assert {:ok, %MatchSet{}} = Matches.delete_match_set(scope, set)
+      assert_raise Ecto.NoResultsError, fn -> Matches.get_match_set!(set.id) end
+    end
+
+    test "delete_match_set/2 with non-superuser scope raises" do
+      scope = Scope.for_user(insert(:user))
+      set = insert(:match_set)
+
+      assert_raise FunctionClauseError, fn -> Matches.delete_match_set(scope, set) end
+    end
+
+    test "change_match_set/1 returns a match_set changeset" do
+      set = insert(:match_set)
+      assert %Ecto.Changeset{} = Matches.change_match_set(set)
+    end
+
+    test "deleting a match cascades to its sets" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      group = insert(:group, event: event)
+      match = insert(:match, event: event, group: group)
+      set = insert(:match_set, match: match, set_number: 1)
+
+      Matches.delete_match(scope, match)
+
+      assert_raise Ecto.NoResultsError, fn -> Matches.get_match_set!(set.id) end
+    end
+
+    test "get_match!/1 preloads sets" do
+      event = insert(:event)
+      group = insert(:group, event: event)
+      match = insert(:match, event: event, group: group)
+      insert(:match_set, match: match, set_number: 1, score1: 11, score2: 5)
+
+      result = Matches.get_match!(match.id)
+      assert length(result.sets) == 1
+      assert hd(result.sets).set_number == 1
     end
   end
 end
