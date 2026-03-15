@@ -70,7 +70,11 @@ defmodule T3System.Matches.MatchSet do
           if max_score == points_per_set do
             changeset
           else
-            add_error(changeset, :score1, "winner cannot exceed #{points_per_set} points outside deuce")
+            add_error(
+              changeset,
+              :score1,
+              "winner cannot exceed #{points_per_set} points outside deuce"
+            )
           end
         end
       else

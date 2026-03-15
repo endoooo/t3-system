@@ -570,7 +570,12 @@ defmodule T3System.MatchesTest do
 
       # 11-10 is invalid (deuce reached, need 2-point lead)
       assert {:error, %Ecto.Changeset{} = changeset} =
-               Matches.create_match_set(scope, %{match_id: match.id, set_number: 1, score1: 11, score2: 10})
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 11,
+                 score2: 10
+               })
 
       assert %{score1: [_]} = errors_on(changeset)
     end
@@ -583,7 +588,12 @@ defmodule T3System.MatchesTest do
 
       # 12-10 is valid (deuce, 2-point lead)
       assert {:ok, %MatchSet{}} =
-               Matches.create_match_set(scope, %{match_id: match.id, set_number: 1, score1: 12, score2: 10})
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 12,
+                 score2: 10
+               })
     end
 
     test "create_match_set/2 rejects over-scoring outside deuce" do
@@ -594,7 +604,12 @@ defmodule T3System.MatchesTest do
 
       # 12-5 is invalid (no deuce, winner should stop at 11)
       assert {:error, %Ecto.Changeset{} = changeset} =
-               Matches.create_match_set(scope, %{match_id: match.id, set_number: 1, score1: 12, score2: 5})
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 12,
+                 score2: 5
+               })
 
       assert %{score1: [_]} = errors_on(changeset)
     end
@@ -602,11 +617,18 @@ defmodule T3System.MatchesTest do
     test "create_match_set/2 validates deuce for bracket match (7-point)" do
       scope = Scope.for_user(insert(:superuser))
       bracket = insert(:bracket)
-      match = insert(:match, event: bracket.event, bracket: bracket, group: nil, points_per_set: 7)
+
+      match =
+        insert(:match, event: bracket.event, bracket: bracket, group: nil, points_per_set: 7)
 
       # 7-6 is invalid (deuce, need 2-point lead)
       assert {:error, %Ecto.Changeset{} = changeset} =
-               Matches.create_match_set(scope, %{match_id: match.id, set_number: 1, score1: 7, score2: 6})
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 7,
+                 score2: 6
+               })
 
       assert %{score1: [_]} = errors_on(changeset)
     end
@@ -614,11 +636,18 @@ defmodule T3System.MatchesTest do
     test "create_match_set/2 accepts valid score for bracket match (7-point)" do
       scope = Scope.for_user(insert(:superuser))
       bracket = insert(:bracket)
-      match = insert(:match, event: bracket.event, bracket: bracket, group: nil, points_per_set: 7)
+
+      match =
+        insert(:match, event: bracket.event, bracket: bracket, group: nil, points_per_set: 7)
 
       # 7-3 is valid
       assert {:ok, %MatchSet{}} =
-               Matches.create_match_set(scope, %{match_id: match.id, set_number: 1, score1: 7, score2: 3})
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 7,
+                 score2: 3
+               })
     end
 
     test "create_match_set/2 allows partial (in-progress) scores" do
@@ -629,7 +658,12 @@ defmodule T3System.MatchesTest do
 
       # 5-3 is a valid in-progress score
       assert {:ok, %MatchSet{}} =
-               Matches.create_match_set(scope, %{match_id: match.id, set_number: 1, score1: 5, score2: 3})
+               Matches.create_match_set(scope, %{
+                 match_id: match.id,
+                 set_number: 1,
+                 score1: 5,
+                 score2: 3
+               })
     end
 
     test "update_match_set/3 updates scores" do
