@@ -441,40 +441,24 @@ defmodule T3System.Matches do
   # Resolves points_per_set from attrs (for new sets): loads the match and its group if needed.
   defp resolve_points_per_set(attrs) do
     match_id = attrs[:match_id] || attrs["match_id"]
-
-    if match_id do
-      match = Repo.get(Match, match_id) |> Repo.preload(:group)
-
-      cond do
-        match && match.group_id && match.group ->
-          match.group.points_per_set
-
-        match && match.points_per_set ->
-          match.points_per_set
-
-        true ->
-          nil
-      end
-    end
+    resolve_points_per_set_from_match_id(match_id)
   end
 
   # Resolves points_per_set for an existing set (update): uses the set's match.
   defp resolve_points_per_set_for_set(%MatchSet{} = match_set, attrs) do
     match_id = attrs[:match_id] || attrs["match_id"] || match_set.match_id
+    resolve_points_per_set_from_match_id(match_id)
+  end
 
-    if match_id do
-      match = Repo.get(Match, match_id) |> Repo.preload(:group)
+  defp resolve_points_per_set_from_match_id(nil), do: nil
 
-      cond do
-        match && match.group_id && match.group ->
-          match.group.points_per_set
+  defp resolve_points_per_set_from_match_id(match_id) do
+    match = Repo.get(Match, match_id) |> Repo.preload(:group)
 
-        match && match.points_per_set ->
-          match.points_per_set
-
-        true ->
-          nil
-      end
+    cond do
+      match && match.group_id && match.group -> match.group.points_per_set
+      match && match.points_per_set -> match.points_per_set
+      true -> nil
     end
   end
 end

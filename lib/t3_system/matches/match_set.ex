@@ -53,33 +53,42 @@ defmodule T3System.Matches.MatchSet do
     if is_nil(score1) or is_nil(score2) do
       changeset
     else
-      max_score = max(score1, score2)
-      min_score = min(score1, score2)
-      deuce_threshold = points_per_set - 1
+      validate_complete_set_score(changeset, score1, score2, points_per_set)
+    end
+  end
 
-      if max_score >= points_per_set do
-        if min_score >= deuce_threshold do
-          # deuce situation: need 2-point lead
-          if max_score - min_score >= 2 do
-            changeset
-          else
-            add_error(changeset, :score1, "deuce: winner needs a 2-point lead")
-          end
-        else
-          # normal win: winner must have exactly points_per_set
-          if max_score == points_per_set do
-            changeset
-          else
-            add_error(
-              changeset,
-              :score1,
-              "winner cannot exceed #{points_per_set} points outside deuce"
-            )
-          end
-        end
-      else
-        changeset
-      end
+  defp validate_complete_set_score(changeset, score1, score2, points_per_set) do
+    max_score = max(score1, score2)
+    min_score = min(score1, score2)
+
+    if max_score >= points_per_set do
+      validate_winning_score(changeset, max_score, min_score, points_per_set)
+    else
+      changeset
+    end
+  end
+
+  defp validate_winning_score(changeset, max_score, min_score, points_per_set) do
+    if min_score >= points_per_set - 1 do
+      validate_deuce_score(changeset, max_score, min_score)
+    else
+      validate_normal_win_score(changeset, max_score, points_per_set)
+    end
+  end
+
+  defp validate_deuce_score(changeset, max_score, min_score) do
+    if max_score - min_score >= 2 do
+      changeset
+    else
+      add_error(changeset, :score1, "deuce: winner needs a 2-point lead")
+    end
+  end
+
+  defp validate_normal_win_score(changeset, max_score, points_per_set) do
+    if max_score == points_per_set do
+      changeset
+    else
+      add_error(changeset, :score1, "winner cannot exceed #{points_per_set} points outside deuce")
     end
   end
 end
