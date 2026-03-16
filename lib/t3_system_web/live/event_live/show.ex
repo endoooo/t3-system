@@ -5,6 +5,7 @@ defmodule T3SystemWeb.EventLive.Show do
   alias T3System.Events
   alias T3System.Matches
   alias T3System.Matches.Group
+  alias T3System.Matches.Match
   alias T3System.Players
   alias T3System.Registrations
   alias T3System.Registrations.Registration
@@ -237,8 +238,181 @@ defmodule T3SystemWeb.EventLive.Show do
           </p>
         </div>
 
+        <%!-- Tab: Matches --%>
+        <div :if={@current_tab == "matches"}>
+          <div :if={@active_category}>
+            <div :if={@is_superuser and @groups_with_standings != []} class="mb-4 flex justify-end">
+              <.button phx-click="open_new_match" variant="primary">
+                <.icon name="hero-plus" /> {gettext("Add Match")}
+              </.button>
+            </div>
+
+            <% all_matches =
+              @groups_with_standings
+              |> Enum.flat_map(fn {group, _} -> Enum.map(group.matches, &{&1, group}) end)
+              |> Enum.sort_by(fn {m, _} -> {m.scheduled_at, m.id} end) %>
+
+            <p :if={all_matches == []} class="text-gray-400 text-sm">
+              {gettext("No matches yet.")}
+            </p>
+
+            <div class="space-y-3">
+              <div
+                :for={{match, group} <- all_matches}
+                id={"match-#{match.id}"}
+                class="rounded-lg bg-white/5"
+              >
+                <% sorted_sets =
+                  case match.sets do
+                    %Ecto.Association.NotLoaded{} -> []
+                    sets -> Enum.sort_by(sets, & &1.set_number)
+                  end %>
+                <% best_of = match.best_of || group.best_of %>
+                <% sets_by_number = Map.new(sorted_sets, fn s -> {s.set_number, s} end) %>
+                <% p1_scores =
+                  Enum.map(1..best_of, fn n ->
+                    case Map.get(sets_by_number, n) do
+                      nil -> "–"
+                      s -> if is_nil(s.score1), do: "–", else: to_string(s.score1)
+                    end
+                  end) %>
+                <% p2_scores =
+                  Enum.map(1..best_of, fn n ->
+                    case Map.get(sets_by_number, n) do
+                      nil -> "–"
+                      s -> if is_nil(s.score2), do: "–", else: to_string(s.score2)
+                    end
+                  end) %>
+                <% sw1 =
+                  Enum.count(sorted_sets, fn s ->
+                    not is_nil(s.score1) and not is_nil(s.score2) and s.score1 > s.score2
+                  end) %>
+                <% sw2 =
+                  Enum.count(sorted_sets, fn s ->
+                    not is_nil(s.score1) and not is_nil(s.score2) and s.score2 > s.score1
+                  end) %>
+                <% p1_won =
+                  not is_nil(match.winner_registration_id) and
+                    match.winner_registration_id == match.registration1_id %>
+                <% p2_won =
+                  not is_nil(match.winner_registration_id) and
+                    match.winner_registration_id == match.registration2_id %>
+
+                <%!-- Card header --%>
+                <div class="flex items-start justify-between p-4 pb-3">
+                  <div>
+                    <p class="text-sm font-semibold text-white">{group.name}</p>
+                    <p :if={match.scheduled_at} class="mt-0.5 text-xs text-gray-400">
+                      {Calendar.strftime(match.scheduled_at, "%d/%m %H:%M")}
+                    </p>
+                  </div>
+                  <div :if={sorted_sets != []} class="text-xl font-bold text-indigo-400">
+                    {sw1}–{sw2}
+                  </div>
+                </div>
+
+                <%!-- Divider --%>
+                <div class="mx-4 h-px bg-indigo-500/40"></div>
+
+                <%!-- Player rows --%>
+                <div class="space-y-2 p-4 pt-3">
+                  <div class="flex items-center gap-2">
+                    <.icon
+                      :if={p1_won}
+                      name="hero-check"
+                      class="size-3.5 shrink-0 text-green-400"
+                    />
+                    <span :if={!p1_won} class="size-3.5 shrink-0"></span>
+                    <span class={[
+                      "min-w-0 flex-1 truncate text-sm",
+                      if(p1_won, do: "font-semibold text-white", else: "text-gray-300")
+                    ]}>
+                      {match_player_name(match.registration1)}
+                    </span>
+                    <span
+                      :if={sorted_sets != []}
+                      class="w-5 shrink-0 text-center text-sm font-bold text-white"
+                    >
+                      {sw1}
+                    </span>
+                    <div class="flex gap-1">
+                      <span
+                        :for={score <- p1_scores}
+                        class="w-7 text-center text-xs tabular-nums text-gray-400"
+                      >
+                        {score}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <.icon
+                      :if={p2_won}
+                      name="hero-check"
+                      class="size-3.5 shrink-0 text-green-400"
+                    />
+                    <span :if={!p2_won} class="size-3.5 shrink-0"></span>
+                    <span class={[
+                      "min-w-0 flex-1 truncate text-sm",
+                      if(p2_won, do: "font-semibold text-white", else: "text-gray-300")
+                    ]}>
+                      {match_player_name(match.registration2)}
+                    </span>
+                    <span
+                      :if={sorted_sets != []}
+                      class="w-5 shrink-0 text-center text-sm font-bold text-white"
+                    >
+                      {sw2}
+                    </span>
+                    <div class="flex gap-1">
+                      <span
+                        :for={score <- p2_scores}
+                        class="w-7 text-center text-xs tabular-nums text-gray-400"
+                      >
+                        {score}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <%!-- Superuser actions --%>
+                <div
+                  :if={@is_superuser}
+                  class="flex justify-end gap-3 border-t border-white/10 px-4 py-2"
+                >
+                  <button
+                    phx-click="open_edit_match"
+                    phx-value-id={match.id}
+                    class="text-xs text-indigo-400 hover:text-indigo-300"
+                  >
+                    {gettext("Edit")}
+                  </button>
+                  <button
+                    phx-click="open_score_modal"
+                    phx-value-id={match.id}
+                    class="text-xs text-indigo-400 hover:text-indigo-300"
+                  >
+                    {gettext("Scores")}
+                  </button>
+                  <button
+                    phx-click="delete_match"
+                    phx-value-id={match.id}
+                    data-confirm={gettext("Are you sure?")}
+                    class="text-xs text-red-400 hover:text-red-300"
+                  >
+                    {gettext("Delete")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p :if={!@active_category} class="text-gray-400 text-sm">
+            {gettext("No category selected.")}
+          </p>
+        </div>
+
         <%!-- Other tabs: placeholder --%>
-        <div :if={@current_tab not in ["overview", "groups"]}>
+        <div :if={@current_tab not in ["overview", "groups", "matches"]}>
           <p class="text-gray-400 text-sm">{gettext("Coming soon.")}</p>
         </div>
 
@@ -446,6 +620,175 @@ defmodule T3SystemWeb.EventLive.Show do
             </div>
           </div>
         </div>
+        <%!-- Match modal --%>
+        <div :if={@match_modal != nil} class="fixed inset-0 z-50">
+          <div class="absolute inset-0 bg-black/60" phx-click="close_match_modal"></div>
+          <div class="relative flex h-full items-center justify-center pointer-events-none">
+            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">
+                  {if @match_modal == :new,
+                    do: gettext("Add Match"),
+                    else: gettext("Edit Match")}
+                </h2>
+                <button phx-click="close_match_modal" class="text-gray-400 hover:text-white">
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+
+              <.form
+                :if={@match_form}
+                for={@match_form}
+                id="match-form"
+                phx-change="validate_match"
+                phx-submit="save_match"
+              >
+                <.input
+                  field={@match_form[:group_id]}
+                  type="select"
+                  label={gettext("Group")}
+                  options={Enum.map(@groups_with_standings, fn {g, _} -> {g.name, g.id} end)}
+                  disabled={@match_modal != :new}
+                />
+                <% reg1_val = to_string(@match_form[:registration1_id].value || "") %>
+                <% reg2_val = to_string(@match_form[:registration2_id].value || "") %>
+                <.input
+                  field={@match_form[:registration1_id]}
+                  type="select"
+                  label={gettext("Player 1")}
+                  options={
+                    @match_group_regs
+                    |> Enum.reject(&(to_string(&1.id) == reg2_val))
+                    |> Enum.map(&{&1.player.name, &1.id})
+                  }
+                  prompt={gettext("Select a player")}
+                />
+                <.input
+                  field={@match_form[:registration2_id]}
+                  type="select"
+                  label={gettext("Player 2")}
+                  options={
+                    @match_group_regs
+                    |> Enum.reject(&(to_string(&1.id) == reg1_val))
+                    |> Enum.map(&{&1.player.name, &1.id})
+                  }
+                  prompt={gettext("Select a player")}
+                />
+                <.input
+                  field={@match_form[:scheduled_at]}
+                  type="datetime-local"
+                  label={gettext("When")}
+                />
+                <.input
+                  field={@match_form[:best_of]}
+                  type="number"
+                  label={gettext("Best of")}
+                />
+                <.input
+                  field={@match_form[:points_per_set]}
+                  type="number"
+                  label={gettext("Points per set")}
+                />
+                <input type="hidden" name="match[event_id]" value={@event.id} />
+                <div class="mt-4 flex justify-end gap-2">
+                  <.button type="button" phx-click="close_match_modal">
+                    {gettext("Cancel")}
+                  </.button>
+                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                </div>
+              </.form>
+            </div>
+          </div>
+        </div>
+        <%!-- Scores modal --%>
+        <div :if={@score_modal != nil} class="fixed inset-0 z-50">
+          <div class="absolute inset-0 bg-black/60" phx-click="close_score_modal"></div>
+          <div class="relative flex h-full items-center justify-center pointer-events-none">
+            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+              <% {sm_match, sm_group} = @score_modal %>
+              <% sm_best_of = sm_match.best_of || sm_group.best_of %>
+              <% sm_sets_by_num = Map.new(sm_match.sets, &{&1.set_number, &1}) %>
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">
+                  {gettext("Edit Scores")}
+                </h2>
+                <button phx-click="close_score_modal" class="text-gray-400 hover:text-white">
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+
+              <form id="score-form" phx-submit="save_scores">
+                <%!-- Column headers --%>
+                <div class="mb-1 flex items-center gap-2 text-xs text-gray-400">
+                  <span class="w-14 shrink-0"></span>
+                  <span class="flex-1 truncate text-center font-medium">
+                    {match_player_name(sm_match.registration1)}
+                  </span>
+                  <span class="w-4 shrink-0 text-center text-gray-600">vs</span>
+                  <span class="flex-1 truncate text-center font-medium">
+                    {match_player_name(sm_match.registration2)}
+                  </span>
+                </div>
+                <%!-- Set rows --%>
+                <div :for={n <- 1..sm_best_of} class="mb-1.5 flex items-center gap-2">
+                  <% sm_set = Map.get(sm_sets_by_num, n) %>
+                  <input :if={sm_set} type="hidden" name={"sets[#{n - 1}][id]"} value={sm_set.id} />
+                  <input type="hidden" name={"sets[#{n - 1}][set_number]"} value={n} />
+                  <span class="w-14 shrink-0 text-xs text-gray-400">
+                    {gettext("Set %{n}", n: n)}
+                  </span>
+                  <input
+                    type="number"
+                    name={"sets[#{n - 1}][score1]"}
+                    value={sm_set && sm_set.score1}
+                    min="0"
+                    class="flex-1 rounded border border-white/10 bg-gray-800 px-2 py-1 text-center text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <span class="w-4 shrink-0 text-center text-xs text-gray-600">–</span>
+                  <input
+                    type="number"
+                    name={"sets[#{n - 1}][score2]"}
+                    value={sm_set && sm_set.score2}
+                    min="0"
+                    class="flex-1 rounded border border-white/10 bg-gray-800 px-2 py-1 text-center text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+                <%!-- Winner --%>
+                <div class="mt-3">
+                  <label class="mb-1 block text-sm font-medium text-gray-300">
+                    {gettext("Winner")}
+                  </label>
+                  <select
+                    name="winner_registration_id"
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">{gettext("No winner yet")}</option>
+                    <option
+                      :if={sm_match.registration1}
+                      value={sm_match.registration1_id}
+                      selected={sm_match.winner_registration_id == sm_match.registration1_id}
+                    >
+                      {match_player_name(sm_match.registration1)}
+                    </option>
+                    <option
+                      :if={sm_match.registration2}
+                      value={sm_match.registration2_id}
+                      selected={sm_match.winner_registration_id == sm_match.registration2_id}
+                    >
+                      {match_player_name(sm_match.registration2)}
+                    </option>
+                  </select>
+                </div>
+                <div class="mt-4 flex justify-end gap-2">
+                  <.button type="button" phx-click="close_score_modal">
+                    {gettext("Cancel")}
+                  </.button>
+                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
       </div>
     </Layouts.app>
     """
@@ -470,6 +813,11 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:players_modal, nil)
       |> assign(:category_registrations, [])
       |> assign(:groups_with_standings, [])
+      |> assign(:match_modal, nil)
+      |> assign(:match_form, nil)
+      |> assign(:match_group, nil)
+      |> assign(:match_group_regs, [])
+      |> assign(:score_modal, nil)
       |> stream(:registrations, [])
 
     socket =
@@ -714,6 +1062,163 @@ defmodule T3SystemWeb.EventLive.Show do
     {:noreply, reload_groups_with_standings(socket)}
   end
 
+  # Match management (superuser only)
+
+  def handle_event("open_new_match", _params, socket) do
+    {match_struct, group, group_regs} =
+      case socket.assigns.groups_with_standings do
+        [{first_group, _} | _] ->
+          g = Matches.get_group_with_registrations!(first_group.id)
+          {%Match{group_id: first_group.id}, g, g.registrations}
+
+        _ ->
+          {%Match{}, nil, []}
+      end
+
+    form = Matches.change_match(match_struct) |> to_form()
+
+    {:noreply,
+     assign(socket,
+       match_modal: :new,
+       match_form: form,
+       match_group: group,
+       match_group_regs: group_regs
+     )}
+  end
+
+  def handle_event("open_edit_match", %{"id" => id}, socket) do
+    match = Matches.get_match!(id)
+    group = Matches.get_group_with_registrations!(match.group_id)
+    form = Matches.change_match(match) |> to_form()
+
+    {:noreply,
+     assign(socket,
+       match_modal: {:edit, match},
+       match_form: form,
+       match_group: group,
+       match_group_regs: group.registrations
+     )}
+  end
+
+  def handle_event("close_match_modal", _params, socket) do
+    {:noreply,
+     assign(socket, match_modal: nil, match_form: nil, match_group: nil, match_group_regs: [])}
+  end
+
+  def handle_event("validate_match", %{"match" => attrs}, socket) do
+    match_struct =
+      case socket.assigns.match_modal do
+        {:edit, match} -> match
+        _ -> %Match{}
+      end
+
+    form =
+      Matches.change_match(match_struct, attrs)
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    socket = assign(socket, :match_form, form)
+
+    socket =
+      case attrs["group_id"] do
+        "" ->
+          socket
+          |> assign(:match_group, nil)
+          |> assign(:match_group_regs, [])
+
+        group_id_str when is_binary(group_id_str) ->
+          case Integer.parse(group_id_str) do
+            {group_id, ""} ->
+              group = Matches.get_group_with_registrations!(group_id)
+
+              socket
+              |> assign(:match_group, group)
+              |> assign(:match_group_regs, group.registrations)
+
+            _ ->
+              socket
+          end
+
+        _ ->
+          socket
+      end
+
+    {:noreply, socket}
+  end
+
+  def handle_event("save_match", %{"match" => attrs}, socket) do
+    scope = socket.assigns.current_scope
+
+    result =
+      case socket.assigns.match_modal do
+        {:edit, match} -> Matches.update_match(scope, match, attrs)
+        _ -> Matches.create_match(scope, attrs)
+      end
+
+    case result do
+      {:ok, _match} ->
+        {:noreply,
+         socket
+         |> reload_groups_with_standings()
+         |> assign(match_modal: nil, match_form: nil, match_group: nil, match_group_regs: [])}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :match_form, to_form(changeset))}
+    end
+  end
+
+  def handle_event("delete_match", %{"id" => id}, socket) do
+    match = Matches.get_match!(id)
+    {:ok, _} = Matches.delete_match(socket.assigns.current_scope, match)
+    {:noreply, reload_groups_with_standings(socket)}
+  end
+
+  # Score management (superuser only)
+
+  def handle_event("open_score_modal", %{"id" => id}, socket) do
+    match_id = String.to_integer(id)
+
+    {match, group} =
+      Enum.find_value(socket.assigns.groups_with_standings, fn {g, _} ->
+        case Enum.find(g.matches, &(&1.id == match_id)) do
+          nil -> nil
+          match -> {match, g}
+        end
+      end)
+
+    {:noreply, assign(socket, :score_modal, {match, group})}
+  end
+
+  def handle_event("close_score_modal", _params, socket) do
+    {:noreply, assign(socket, :score_modal, nil)}
+  end
+
+  def handle_event("save_scores", params, socket) do
+    {match, _group} = socket.assigns.score_modal
+    scope = socket.assigns.current_scope
+
+    filtered_sets =
+      (params["sets"] || %{})
+      |> Enum.reject(fn {_, s} -> s["score1"] in [nil, ""] and s["score2"] in [nil, ""] end)
+      |> Map.new()
+
+    match_attrs = %{
+      "sets" => filtered_sets,
+      "winner_registration_id" => params["winner_registration_id"]
+    }
+
+    case Matches.update_match(scope, match, match_attrs) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> reload_groups_with_standings()
+         |> assign(:score_modal, nil)}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not save scores."))}
+    end
+  end
+
   # Private helpers
 
   defp load_registrations(socket, "overview", event, active_category)
@@ -728,7 +1233,8 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp load_registrations(socket, _tab, _event, _active_category), do: socket
 
-  defp load_groups(socket, "groups", event, active_category) when not is_nil(active_category) do
+  defp load_groups(socket, tab, event, active_category)
+       when tab in ["groups", "matches"] and not is_nil(active_category) do
     groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
     groups_with_standings = Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
     assign(socket, :groups_with_standings, groups_with_standings)
@@ -777,4 +1283,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp format_diff(n) when n > 0, do: "+#{n}"
   defp format_diff(n), do: to_string(n)
+
+  defp match_player_name(%{player: %{name: name}}), do: name
+  defp match_player_name(_), do: gettext("TBD")
 end

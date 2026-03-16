@@ -91,7 +91,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       event = insert(:event)
 
       conn
-      |> visit(~p"/events/#{event}?tab=matches")
+      |> visit(~p"/events/#{event}?tab=knockout")
       |> assert_has("p", text: "Coming soon.")
     end
 
@@ -258,7 +258,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn
       |> visit(~p"/events/#{event}")
       |> click_link("Matches")
-      |> assert_has("p", text: "Coming soon.")
+      |> assert_has("p", text: "No matches yet.")
       |> click_link("Overview")
       |> assert_has("select", text: category.name)
     end

@@ -25,8 +25,8 @@ defmodule T3System.Matches.MatchSet do
     timestamps(type: :utc_datetime)
   end
 
-  @required_fields [:match_id, :set_number]
-  @optional_fields [:score1, :score2]
+  @required_fields [:set_number]
+  @optional_fields [:match_id, :score1, :score2]
 
   @doc false
   @spec changeset(t() | Ecto.Changeset.t(), map(), keyword()) :: Ecto.Changeset.t()

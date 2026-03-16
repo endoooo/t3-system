@@ -46,7 +46,8 @@ defmodule T3System.Matches do
       matches: [
         :sets,
         registration1: [:player, :club],
-        registration2: [:player, :club]
+        registration2: [:player, :club],
+        winner: [:player]
       ]
     )
   end

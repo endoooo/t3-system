@@ -48,7 +48,7 @@ defmodule T3System.Matches.Match do
     belongs_to :registration2, Registration
     belongs_to :winner, Registration, foreign_key: :winner_registration_id
     belongs_to :next_match, __MODULE__
-    has_many :sets, MatchSet
+    has_many :sets, MatchSet, on_replace: :delete
 
     timestamps(type: :utc_datetime)
   end
@@ -76,6 +76,8 @@ defmodule T3System.Matches.Match do
     |> validate_required([:event_id])
     |> validate_context()
     |> validate_winner()
+    |> validate_different_registrations()
+    |> cast_assoc(:sets, with: &MatchSet.changeset/2)
     |> validate_number(:best_of, greater_than: 0)
     |> validate_number(:points_per_set, greater_than: 0)
     |> assoc_constraint(:event)
@@ -102,6 +104,17 @@ defmodule T3System.Matches.Match do
       else
         add_error(changeset, :winner_registration_id, "must be one of the match participants")
       end
+    end
+  end
+
+  defp validate_different_registrations(changeset) do
+    reg1_id = get_field(changeset, :registration1_id)
+    reg2_id = get_field(changeset, :registration2_id)
+
+    if not is_nil(reg1_id) and not is_nil(reg2_id) and reg1_id == reg2_id do
+      add_error(changeset, :registration2_id, "must be different from player 1")
+    else
+      changeset
     end
   end
 
