@@ -48,6 +48,6 @@ defmodule T3System.Registrations.Registration do
     |> assoc_constraint(:event)
     |> assoc_constraint(:club)
     |> assoc_constraint(:category)
-    |> unique_constraint([:player_id, :event_id])
+    |> unique_constraint([:player_id, :event_id, :category_id])
   end
 end

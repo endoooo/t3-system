@@ -115,7 +115,9 @@ defmodule T3System.Registrations do
   """
   def list_registrations_by_event_and_category(event_id, %Category{id: category_id}) do
     Registration
+    |> join(:inner, [r], p in assoc(r, :player))
     |> where([r], r.event_id == ^event_id and r.category_id == ^category_id)
+    |> order_by([_r, p], fragment("? COLLATE \"und-x-icu\"", p.name))
     |> Repo.all()
     |> Repo.preload([:player, :club, :category])
   end
