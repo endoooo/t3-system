@@ -69,7 +69,8 @@ defmodule T3System.Factory do
     %Registration{
       player: build(:player),
       event: build(:event),
-      club: build(:club)
+      club: build(:club),
+      category: build(:category)
     }
   end
 

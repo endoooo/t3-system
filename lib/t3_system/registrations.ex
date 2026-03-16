@@ -7,6 +7,7 @@ defmodule T3System.Registrations do
   alias T3System.Repo
 
   alias T3System.Accounts.Scope
+  alias T3System.Categories.Category
   alias T3System.Registrations.Registration
 
   @doc """
@@ -19,7 +20,7 @@ defmodule T3System.Registrations do
 
   """
   def list_registrations do
-    Repo.all(Registration) |> Repo.preload([:player, :event, :club])
+    Repo.all(Registration) |> Repo.preload([:player, :event, :club, :category])
   end
 
   @doc """
@@ -37,7 +38,7 @@ defmodule T3System.Registrations do
 
   """
   def get_registration!(id) do
-    Repo.get!(Registration, id) |> Repo.preload([:player, :event, :club])
+    Repo.get!(Registration, id) |> Repo.preload([:player, :event, :club, :category])
   end
 
   @doc """
@@ -107,5 +108,15 @@ defmodule T3System.Registrations do
   """
   def change_registration(%Registration{} = registration, attrs \\ %{}) do
     Registration.changeset(registration, attrs)
+  end
+
+  @doc """
+  Returns registrations for a given event and category, with player, club, and category preloaded.
+  """
+  def list_registrations_by_event_and_category(event_id, %Category{id: category_id}) do
+    Registration
+    |> where([r], r.event_id == ^event_id and r.category_id == ^category_id)
+    |> Repo.all()
+    |> Repo.preload([:player, :club, :category])
   end
 end

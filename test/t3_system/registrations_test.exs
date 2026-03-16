@@ -36,7 +36,8 @@ defmodule T3System.RegistrationsTest do
       event = insert(:event)
       club = insert(:club)
 
-      valid_attrs = %{player_id: player.id, event_id: event.id, club_id: club.id}
+      category = insert(:category)
+      valid_attrs = %{player_id: player.id, event_id: event.id, club_id: club.id, category_id: category.id}
 
       assert {:ok, %Registration{} = registration} =
                Registrations.create_registration(scope, valid_attrs)
@@ -44,6 +45,7 @@ defmodule T3System.RegistrationsTest do
       assert registration.player_id == player.id
       assert registration.event_id == event.id
       assert registration.club_id == club.id
+      assert registration.category_id == category.id
     end
 
     test "create_registration/2 with invalid data returns error changeset" do
