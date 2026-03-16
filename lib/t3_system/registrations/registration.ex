@@ -5,6 +5,7 @@ defmodule T3System.Registrations.Registration do
   alias T3System.Categories.Category
   alias T3System.Clubs.Club
   alias T3System.Events.Event
+  alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Players.Player
 
@@ -18,6 +19,7 @@ defmodule T3System.Registrations.Registration do
           event: Event.t() | Ecto.Association.NotLoaded.t(),
           club: Club.t() | Ecto.Association.NotLoaded.t(),
           category: Category.t() | Ecto.Association.NotLoaded.t(),
+          groups: [Group.t()] | Ecto.Association.NotLoaded.t(),
           matches_as_registration1: [Match.t()] | Ecto.Association.NotLoaded.t(),
           matches_as_registration2: [Match.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
@@ -30,6 +32,7 @@ defmodule T3System.Registrations.Registration do
     belongs_to :club, Club
     belongs_to :category, Category
 
+    many_to_many :groups, Group, join_through: "group_registrations"
     has_many :matches_as_registration1, Match, foreign_key: :registration1_id
     has_many :matches_as_registration2, Match, foreign_key: :registration2_id
 

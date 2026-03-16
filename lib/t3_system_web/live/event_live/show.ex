@@ -139,6 +139,13 @@ defmodule T3SystemWeb.EventLive.Show do
                 <h2 class="text-lg font-semibold text-white">{group.name}</h2>
                 <div :if={@is_superuser} class="flex gap-3">
                   <button
+                    phx-click="open_manage_players"
+                    phx-value-id={group.id}
+                    class="text-xs text-gray-400 hover:text-gray-300"
+                  >
+                    {gettext("Players")}
+                  </button>
+                  <button
                     phx-click="open_edit_group"
                     phx-value-id={group.id}
                     class="text-xs text-indigo-400 hover:text-indigo-300"
@@ -285,6 +292,91 @@ defmodule T3SystemWeb.EventLive.Show do
           </div>
         </div>
 
+        <%!-- Manage players modal --%>
+        <div :if={@players_modal != nil} class="fixed inset-0 z-50">
+          <div class="absolute inset-0 bg-black/60" phx-click="close_players_modal"></div>
+          <div class="relative flex h-full items-center justify-center pointer-events-none">
+            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">
+                  {gettext("Manage Players")} — {@players_modal.name}
+                </h2>
+                <button phx-click="close_players_modal" class="text-gray-400 hover:text-white">
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+
+              <%!-- Current members --%>
+              <div class="mb-4">
+                <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                  {gettext("Players")} ({length(@players_modal.registrations)})
+                </p>
+                <p
+                  :if={@players_modal.registrations == []}
+                  class="text-sm text-gray-500"
+                >
+                  {gettext("No players added yet.")}
+                </p>
+                <ul class="space-y-1">
+                  <li
+                    :for={reg <- @players_modal.registrations}
+                    class="flex items-center justify-between rounded px-2 py-1.5 hover:bg-white/5"
+                  >
+                    <span class="text-sm text-white">
+                      {reg.player.name}
+                      <span class="ml-1 text-xs text-gray-400">{reg.club.name}</span>
+                    </span>
+                    <button
+                      phx-click="remove_from_group"
+                      phx-value-registration_id={reg.id}
+                      class="text-xs text-red-400 hover:text-red-300"
+                    >
+                      {gettext("Remove")}
+                    </button>
+                  </li>
+                </ul>
+              </div>
+
+              <%!-- Add player --%>
+              <% available = available_registrations(@category_registrations, @players_modal.registrations) %>
+              <div :if={available != []} class="mb-5">
+                <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                  {gettext("Add Player")}
+                </p>
+                <select
+                  phx-change="add_to_group"
+                  name="registration_id"
+                  class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                >
+                  <option value="">{gettext("Select a player...")}</option>
+                  <option :for={reg <- available} value={reg.id}>
+                    {reg.player.name} — {reg.club.name}
+                  </option>
+                </select>
+              </div>
+
+              <%!-- Generate matches --%>
+              <div class="border-t border-white/10 pt-4">
+                <div class="flex items-center justify-between">
+                  <div>
+                    <p class="text-sm text-white">{gettext("Generate Matches")}</p>
+                    <p class="text-xs text-gray-400">
+                      {gettext("Round-robin for all players. Replaces existing matches.")}
+                    </p>
+                  </div>
+                  <.button
+                    phx-click="generate_matches"
+                    variant="primary"
+                    disabled={length(@players_modal.registrations) < 2}
+                  >
+                    {gettext("Generate")}
+                  </.button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <%!-- Group modal --%>
         <div :if={@group_modal != nil} class="fixed inset-0 z-50">
           <div class="absolute inset-0 bg-black/60" phx-click="close_group_modal"></div>
@@ -365,6 +457,8 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:form, nil)
       |> assign(:group_modal, nil)
       |> assign(:group_form, nil)
+      |> assign(:players_modal, nil)
+      |> assign(:category_registrations, [])
       |> assign(:groups_with_standings, [])
       |> stream(:registrations, [])
 
@@ -547,16 +641,9 @@ defmodule T3SystemWeb.EventLive.Show do
 
     case result do
       {:ok, _group} ->
-        event = socket.assigns.event
-        active_category = socket.assigns.active_category
-        groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
-
-        groups_with_standings =
-          Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
-
         {:noreply,
          socket
-         |> assign(:groups_with_standings, groups_with_standings)
+         |> reload_groups_with_standings()
          |> assign(group_modal: nil, group_form: nil)}
 
       {:error, changeset} ->
@@ -567,18 +654,73 @@ defmodule T3SystemWeb.EventLive.Show do
   def handle_event("delete_group", %{"id" => id}, socket) do
     group = Matches.get_group!(id)
     {:ok, _} = Matches.delete_group(socket.assigns.current_scope, group)
+    {:noreply, reload_groups_with_standings(socket)}
+  end
 
-    event = socket.assigns.event
-    active_category = socket.assigns.active_category
-    groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
+  # Group player management (superuser only)
 
-    groups_with_standings =
-      Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
+  def handle_event("open_manage_players", %{"id" => id}, socket) do
+    group = Matches.get_group_with_registrations!(id)
 
-    {:noreply, assign(socket, :groups_with_standings, groups_with_standings)}
+    category_registrations =
+      Registrations.list_registrations_by_event_and_category(
+        socket.assigns.event.id,
+        socket.assigns.active_category
+      )
+
+    {:noreply,
+     socket
+     |> assign(:players_modal, group)
+     |> assign(:category_registrations, category_registrations)}
+  end
+
+  def handle_event("close_players_modal", _params, socket) do
+    {:noreply, assign(socket, players_modal: nil, category_registrations: [])}
+  end
+
+  def handle_event("add_to_group", %{"registration_id" => ""}, socket) do
+    {:noreply, socket}
+  end
+
+  def handle_event("add_to_group", %{"registration_id" => reg_id}, socket) do
+    group = socket.assigns.players_modal
+    Matches.add_registration_to_group(socket.assigns.current_scope, group.id, reg_id)
+    updated_group = Matches.get_group_with_registrations!(group.id)
+    {:noreply, assign(socket, :players_modal, updated_group)}
+  end
+
+  def handle_event("remove_from_group", %{"registration_id" => reg_id}, socket) do
+    group = socket.assigns.players_modal
+    Matches.remove_registration_from_group(socket.assigns.current_scope, group.id, reg_id)
+    updated_group = Matches.get_group_with_registrations!(group.id)
+
+    {:noreply,
+     socket
+     |> assign(:players_modal, updated_group)
+     |> reload_groups_with_standings()}
+  end
+
+  def handle_event("generate_matches", _params, socket) do
+    {:ok, _count} =
+      Matches.generate_group_matches(socket.assigns.current_scope, socket.assigns.players_modal)
+
+    {:noreply, reload_groups_with_standings(socket)}
   end
 
   # Private helpers
+
+  defp reload_groups_with_standings(socket) do
+    event = socket.assigns.event
+    active_category = socket.assigns.active_category
+    groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
+    groups_with_standings = Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
+    assign(socket, :groups_with_standings, groups_with_standings)
+  end
+
+  defp available_registrations(category_registrations, group_registrations) do
+    group_ids = MapSet.new(group_registrations, & &1.id)
+    Enum.reject(category_registrations, &MapSet.member?(group_ids, &1.id))
+  end
 
   defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
   defp superuser?(_), do: false

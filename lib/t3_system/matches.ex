@@ -33,41 +33,147 @@ defmodule T3System.Matches do
   end
 
   @doc """
-  Returns groups for the given event and category, with matches preloaded for standings.
+  Returns groups for the given event and category, with members and matches
+  preloaded for standings computation.
   """
   def list_groups_for_event_and_category(event_id, category_id) do
     Group
     |> where([g], g.event_id == ^event_id and g.category_id == ^category_id)
     |> order_by([g], g.name)
     |> Repo.all()
-    |> Repo.preload(
+    |> Repo.preload([
+      registrations: [:player, :club],
       matches: [
         :sets,
         registration1: [:player, :club],
         registration2: [:player, :club]
       ]
-    )
+    ])
   end
 
   @doc """
-  Computes standings for a group from its preloaded matches.
+  Returns a group with its registrations (including player and club) preloaded.
+  """
+  def get_group_with_registrations!(id) do
+    Repo.get!(Group, id) |> Repo.preload(registrations: [:player, :club])
+  end
+
+  @doc """
+  Adds a registration to a group. Requires a superuser scope.
+  """
+  def add_registration_to_group(%Scope{user: %{role: "superuser"}}, group_id, registration_id) do
+    now = DateTime.utc_now(:second)
+
+    Repo.insert_all(
+      "group_registrations",
+      [
+        %{
+          group_id: group_id,
+          registration_id: registration_id,
+          inserted_at: now,
+          updated_at: now
+        }
+      ],
+      on_conflict: :nothing
+    )
+
+    :ok
+  end
+
+  @doc """
+  Removes a registration from a group and deletes their matches in that group.
+  Requires a superuser scope.
+  """
+  def remove_registration_from_group(
+        %Scope{user: %{role: "superuser"}},
+        group_id,
+        registration_id
+      ) do
+    Repo.transaction(fn ->
+      from(m in Match,
+        where:
+          m.group_id == ^group_id and
+            (m.registration1_id == ^registration_id or m.registration2_id == ^registration_id)
+      )
+      |> Repo.delete_all()
+
+      from(gr in "group_registrations",
+        where: gr.group_id == ^group_id and gr.registration_id == ^registration_id
+      )
+      |> Repo.delete_all()
+    end)
+
+    :ok
+  end
+
+  @doc """
+  Generates round-robin matches for all members of a group.
+  Deletes any existing matches first. Requires a superuser scope.
+  Returns `{:ok, match_count}`.
+  """
+  def generate_group_matches(%Scope{user: %{role: "superuser"}}, %Group{} = group) do
+    group = Repo.preload(group, :registrations)
+    registrations = group.registrations
+
+    pairs =
+      for {r1, i} <- Enum.with_index(registrations),
+          {r2, j} <- Enum.with_index(registrations),
+          i < j,
+          do: {r1, r2}
+
+    Repo.transaction(fn ->
+      from(m in Match, where: m.group_id == ^group.id) |> Repo.delete_all()
+
+      if pairs == [] do
+        0
+      else
+        now = DateTime.utc_now(:second)
+
+        match_rows =
+          Enum.map(pairs, fn {r1, r2} ->
+            %{
+              event_id: group.event_id,
+              group_id: group.id,
+              registration1_id: r1.id,
+              registration2_id: r2.id,
+              inserted_at: now,
+              updated_at: now
+            }
+          end)
+
+        {count, _} = Repo.insert_all(Match, match_rows)
+        count
+      end
+    end)
+  end
+
+  @doc """
+  Computes standings for a group from its preloaded registrations and matches.
 
   Returns a list of maps with keys: registration, played, won, lost,
   set_diff, point_diff, rank, qualified.
   """
-  def compute_group_standings(%Group{matches: matches, qualifies_count: qualifies_count}) do
+  def compute_group_standings(%Group{matches: matches} = group) do
+    qualifies_count = group.qualifies_count
+
     valid_matches =
       Enum.filter(matches, fn m ->
         is_struct(m.registration1, Registration) and is_struct(m.registration2, Registration)
       end)
 
-    registrations =
-      valid_matches
-      |> Enum.flat_map(fn m -> [m.registration1, m.registration2] end)
-      |> Enum.uniq_by(& &1.id)
+    all_registrations =
+      case group.registrations do
+        %Ecto.Association.NotLoaded{} ->
+          valid_matches
+          |> Enum.flat_map(fn m -> [m.registration1, m.registration2] end)
+          |> Enum.uniq_by(& &1.id)
+
+        regs ->
+          regs
+      end
 
     stats =
-      Enum.map(registrations, fn reg ->
+      Enum.map(all_registrations, fn reg ->
         my_matches =
           Enum.filter(valid_matches, fn m ->
             m.registration1_id == reg.id or m.registration2_id == reg.id

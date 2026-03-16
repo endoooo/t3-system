@@ -5,6 +5,7 @@ defmodule T3System.Matches.Group do
   alias T3System.Categories.Category
   alias T3System.Events.Event
   alias T3System.Matches.Match
+  alias T3System.Registrations.Registration
 
   @type t :: %__MODULE__{
           id: pos_integer(),
@@ -17,6 +18,7 @@ defmodule T3System.Matches.Group do
           event: Event.t() | Ecto.Association.NotLoaded.t(),
           category: Category.t() | Ecto.Association.NotLoaded.t(),
           matches: [Match.t()] | Ecto.Association.NotLoaded.t(),
+          registrations: [Registration.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -30,6 +32,7 @@ defmodule T3System.Matches.Group do
     belongs_to :event, Event
     belongs_to :category, Category
     has_many :matches, Match
+    many_to_many :registrations, Registration, join_through: "group_registrations"
 
     timestamps(type: :utc_datetime)
   end
