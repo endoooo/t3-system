@@ -38,12 +38,18 @@ defmodule T3System.MatchesTest do
     test "create_group/2 with valid data creates a group" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
+      category = insert(:category)
 
       assert {:ok, %Group{} = group} =
-               Matches.create_group(scope, %{name: "Group A", event_id: event.id})
+               Matches.create_group(scope, %{
+                 name: "Group A",
+                 event_id: event.id,
+                 category_id: category.id
+               })
 
       assert group.name == "Group A"
       assert group.event_id == event.id
+      assert group.category_id == category.id
     end
 
     test "create_group/2 with invalid data returns error changeset" do
@@ -475,11 +481,13 @@ defmodule T3System.MatchesTest do
     test "create_group/2 with custom best_of and points_per_set" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
+      category = insert(:category)
 
       assert {:ok, %Group{} = group} =
                Matches.create_group(scope, %{
                  name: "Group A",
                  event_id: event.id,
+                 category_id: category.id,
                  best_of: 7,
                  points_per_set: 7
                })
@@ -491,9 +499,14 @@ defmodule T3System.MatchesTest do
     test "create_group/2 uses default best_of and points_per_set" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
+      category = insert(:category)
 
       assert {:ok, %Group{} = group} =
-               Matches.create_group(scope, %{name: "Group B", event_id: event.id})
+               Matches.create_group(scope, %{
+                 name: "Group B",
+                 event_id: event.id,
+                 category_id: category.id
+               })
 
       assert group.best_of == 5
       assert group.points_per_set == 11

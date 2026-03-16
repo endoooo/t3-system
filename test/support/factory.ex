@@ -77,7 +77,8 @@ defmodule T3System.Factory do
   def group_factory do
     %Group{
       name: sequence(:name, &"Group #{&1}"),
-      event: build(:event)
+      event: build(:event),
+      category: build(:category)
     }
   end
 

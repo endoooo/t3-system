@@ -11,6 +11,7 @@ defmodule T3System.Matches do
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.MatchSet
+  alias T3System.Registrations.Registration
 
   # ---------------------------------------------------------------------------
   # Groups
@@ -29,6 +30,91 @@ defmodule T3System.Matches do
     Group
     |> where([g], g.event_id == ^event_id)
     |> Repo.all()
+  end
+
+  @doc """
+  Returns groups for the given event and category, with matches preloaded for standings.
+  """
+  def list_groups_for_event_and_category(event_id, category_id) do
+    Group
+    |> where([g], g.event_id == ^event_id and g.category_id == ^category_id)
+    |> order_by([g], g.name)
+    |> Repo.all()
+    |> Repo.preload(
+      matches: [
+        :sets,
+        registration1: [:player, :club],
+        registration2: [:player, :club]
+      ]
+    )
+  end
+
+  @doc """
+  Computes standings for a group from its preloaded matches.
+
+  Returns a list of maps with keys: registration, played, won, lost,
+  set_diff, point_diff, rank, qualified.
+  """
+  def compute_group_standings(%Group{matches: matches, qualifies_count: qualifies_count}) do
+    valid_matches =
+      Enum.filter(matches, fn m ->
+        is_struct(m.registration1, Registration) and is_struct(m.registration2, Registration)
+      end)
+
+    registrations =
+      valid_matches
+      |> Enum.flat_map(fn m -> [m.registration1, m.registration2] end)
+      |> Enum.uniq_by(& &1.id)
+
+    stats =
+      Enum.map(registrations, fn reg ->
+        my_matches =
+          Enum.filter(valid_matches, fn m ->
+            m.registration1_id == reg.id or m.registration2_id == reg.id
+          end)
+
+        completed = Enum.filter(my_matches, fn m -> not is_nil(m.winner_registration_id) end)
+        won = Enum.count(completed, fn m -> m.winner_registration_id == reg.id end)
+        played = length(completed)
+        lost = played - won
+
+        {sets_won, sets_lost, pts_won, pts_lost} =
+          Enum.reduce(my_matches, {0, 0, 0, 0}, fn m, {sw, sl, pw, pl} ->
+            {my_scores, opp_scores} =
+              if m.registration1_id == reg.id do
+                {Enum.map(m.sets, & &1.score1), Enum.map(m.sets, & &1.score2)}
+              else
+                {Enum.map(m.sets, & &1.score2), Enum.map(m.sets, & &1.score1)}
+              end
+
+            valid_sets =
+              Enum.zip(my_scores, opp_scores)
+              |> Enum.filter(fn {a, b} -> not is_nil(a) and not is_nil(b) end)
+
+            sw2 = Enum.count(valid_sets, fn {a, b} -> a > b end)
+            sl2 = Enum.count(valid_sets, fn {a, b} -> b > a end)
+            pw2 = Enum.sum(Enum.map(valid_sets, fn {a, _} -> a end))
+            pl2 = Enum.sum(Enum.map(valid_sets, fn {_, b} -> b end))
+
+            {sw + sw2, sl + sl2, pw + pw2, pl + pl2}
+          end)
+
+        %{
+          registration: reg,
+          played: played,
+          won: won,
+          lost: lost,
+          set_diff: sets_won - sets_lost,
+          point_diff: pts_won - pts_lost
+        }
+      end)
+
+    stats
+    |> Enum.sort_by(fn s -> {-s.won, -s.set_diff, -s.point_diff} end)
+    |> Enum.with_index(1)
+    |> Enum.map(fn {s, rank} ->
+      Map.merge(s, %{rank: rank, qualified: rank <= qualifies_count})
+    end)
   end
 
   @doc """
