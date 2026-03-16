@@ -47,8 +47,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   "w-1/4 border-b-2 px-1 py-4 text-center text-sm font-medium",
                   if(tab == @current_tab,
                     do: "border-indigo-400 text-indigo-400",
-                    else:
-                      "border-transparent text-gray-400 hover:border-white/20 hover:text-gray-300"
+                    else: "border-transparent text-gray-400 hover:border-white/20 hover:text-gray-300"
                   )
                 ]}
               >
@@ -131,51 +130,51 @@ defmodule T3SystemWeb.EventLive.Show do
           <div class="absolute inset-0 bg-black/60" phx-click="close_modal"></div>
           <%!-- Content: positioned above backdrop, pointer-events on inner div only --%>
           <div class="relative flex h-full items-center justify-center pointer-events-none">
-          <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
-            <div class="mb-4 flex items-center justify-between">
-              <h2 class="text-lg font-semibold text-white">
-                {if @modal == :new,
-                  do: gettext("Add Registration"),
-                  else: gettext("Edit Registration")}
-              </h2>
-              <button phx-click="close_modal" class="text-gray-400 hover:text-white">
-                <.icon name="hero-x-mark" class="size-5" />
-              </button>
-            </div>
-
-            <.form
-              :if={@form}
-              for={@form}
-              id="registration-form"
-              phx-change="validate"
-              phx-submit="save_registration"
-            >
-              <.input
-                field={@form[:player_id]}
-                type="select"
-                label={gettext("Player")}
-                options={Enum.map(@players, &{&1.name, &1.id})}
-                prompt={gettext("Select a player")}
-              />
-              <.input
-                field={@form[:club_id]}
-                type="select"
-                label={gettext("Club")}
-                options={Enum.map(@clubs, &{&1.name, &1.id})}
-                prompt={gettext("Select a club")}
-              />
-              <input type="hidden" name="registration[event_id]" value={@event.id} />
-              <input
-                type="hidden"
-                name="registration[category_id]"
-                value={@active_category && @active_category.id}
-              />
-              <div class="mt-4 flex justify-end gap-2">
-                <.button type="button" phx-click="close_modal">{gettext("Cancel")}</.button>
-                <.button type="submit" variant="primary">{gettext("Save")}</.button>
+            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">
+                  {if @modal == :new,
+                    do: gettext("Add Registration"),
+                    else: gettext("Edit Registration")}
+                </h2>
+                <button phx-click="close_modal" class="text-gray-400 hover:text-white">
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
               </div>
-            </.form>
-          </div>
+
+              <.form
+                :if={@form}
+                for={@form}
+                id="registration-form"
+                phx-change="validate"
+                phx-submit="save_registration"
+              >
+                <.input
+                  field={@form[:player_id]}
+                  type="select"
+                  label={gettext("Player")}
+                  options={Enum.map(@players, &{&1.name, &1.id})}
+                  prompt={gettext("Select a player")}
+                />
+                <.input
+                  field={@form[:club_id]}
+                  type="select"
+                  label={gettext("Club")}
+                  options={Enum.map(@clubs, &{&1.name, &1.id})}
+                  prompt={gettext("Select a club")}
+                />
+                <input type="hidden" name="registration[event_id]" value={@event.id} />
+                <input
+                  type="hidden"
+                  name="registration[category_id]"
+                  value={@active_category && @active_category.id}
+                />
+                <div class="mt-4 flex justify-end gap-2">
+                  <.button type="button" phx-click="close_modal">{gettext("Cancel")}</.button>
+                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                </div>
+              </.form>
+            </div>
           </div>
         </div>
       </div>
@@ -252,8 +251,7 @@ defmodule T3SystemWeb.EventLive.Show do
   def handle_event("switch_category", %{"category" => %{"category_id" => id}}, socket) do
     {:noreply,
      push_patch(socket,
-       to:
-         ~p"/events/#{socket.assigns.event}?tab=#{socket.assigns.current_tab}&category_id=#{id}"
+       to: ~p"/events/#{socket.assigns.event}?tab=#{socket.assigns.current_tab}&category_id=#{id}"
      )}
   end
 

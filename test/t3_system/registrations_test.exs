@@ -37,7 +37,13 @@ defmodule T3System.RegistrationsTest do
       club = insert(:club)
 
       category = insert(:category)
-      valid_attrs = %{player_id: player.id, event_id: event.id, club_id: club.id, category_id: category.id}
+
+      valid_attrs = %{
+        player_id: player.id,
+        event_id: event.id,
+        club_id: club.id,
+        category_id: category.id
+      }
 
       assert {:ok, %Registration{} = registration} =
                Registrations.create_registration(scope, valid_attrs)
