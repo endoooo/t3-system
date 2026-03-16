@@ -41,14 +41,14 @@ defmodule T3System.Matches do
     |> where([g], g.event_id == ^event_id and g.category_id == ^category_id)
     |> order_by([g], g.name)
     |> Repo.all()
-    |> Repo.preload([
+    |> Repo.preload(
       registrations: [:player, :club],
       matches: [
         :sets,
         registration1: [:player, :club],
         registration2: [:player, :club]
       ]
-    ])
+    )
   end
 
   @doc """
@@ -123,27 +123,25 @@ defmodule T3System.Matches do
 
     Repo.transaction(fn ->
       from(m in Match, where: m.group_id == ^group.id) |> Repo.delete_all()
+      {count, _} = Repo.insert_all(Match, build_match_rows(pairs, group))
+      count
+    end)
+  end
 
-      if pairs == [] do
-        0
-      else
-        now = DateTime.utc_now(:second)
+  defp build_match_rows([], _group), do: []
 
-        match_rows =
-          Enum.map(pairs, fn {r1, r2} ->
-            %{
-              event_id: group.event_id,
-              group_id: group.id,
-              registration1_id: r1.id,
-              registration2_id: r2.id,
-              inserted_at: now,
-              updated_at: now
-            }
-          end)
+  defp build_match_rows(pairs, group) do
+    now = DateTime.utc_now(:second)
 
-        {count, _} = Repo.insert_all(Match, match_rows)
-        count
-      end
+    Enum.map(pairs, fn {r1, r2} ->
+      %{
+        event_id: group.event_id,
+        group_id: group.id,
+        registration1_id: r1.id,
+        registration2_id: r2.id,
+        inserted_at: now,
+        updated_at: now
+      }
     end)
   end
 
@@ -185,25 +183,7 @@ defmodule T3System.Matches do
         lost = played - won
 
         {sets_won, sets_lost, pts_won, pts_lost} =
-          Enum.reduce(my_matches, {0, 0, 0, 0}, fn m, {sw, sl, pw, pl} ->
-            {my_scores, opp_scores} =
-              if m.registration1_id == reg.id do
-                {Enum.map(m.sets, & &1.score1), Enum.map(m.sets, & &1.score2)}
-              else
-                {Enum.map(m.sets, & &1.score2), Enum.map(m.sets, & &1.score1)}
-              end
-
-            valid_sets =
-              Enum.zip(my_scores, opp_scores)
-              |> Enum.filter(fn {a, b} -> not is_nil(a) and not is_nil(b) end)
-
-            sw2 = Enum.count(valid_sets, fn {a, b} -> a > b end)
-            sl2 = Enum.count(valid_sets, fn {a, b} -> b > a end)
-            pw2 = Enum.sum(Enum.map(valid_sets, fn {a, _} -> a end))
-            pl2 = Enum.sum(Enum.map(valid_sets, fn {_, b} -> b end))
-
-            {sw + sw2, sl + sl2, pw + pw2, pl + pl2}
-          end)
+          Enum.reduce(my_matches, {0, 0, 0, 0}, &accumulate_set_stats(&1, reg.id, &2))
 
         %{
           registration: reg,
@@ -221,6 +201,26 @@ defmodule T3System.Matches do
     |> Enum.map(fn {s, rank} ->
       Map.merge(s, %{rank: rank, qualified: rank <= qualifies_count})
     end)
+  end
+
+  defp accumulate_set_stats(m, reg_id, {sw, sl, pw, pl}) do
+    {my_scores, opp_scores} =
+      if m.registration1_id == reg_id do
+        {Enum.map(m.sets, & &1.score1), Enum.map(m.sets, & &1.score2)}
+      else
+        {Enum.map(m.sets, & &1.score2), Enum.map(m.sets, & &1.score1)}
+      end
+
+    valid_sets =
+      Enum.zip(my_scores, opp_scores)
+      |> Enum.filter(fn {a, b} -> not is_nil(a) and not is_nil(b) end)
+
+    sw2 = Enum.count(valid_sets, fn {a, b} -> a > b end)
+    sl2 = Enum.count(valid_sets, fn {a, b} -> b > a end)
+    pw2 = Enum.sum(Enum.map(valid_sets, fn {a, _} -> a end))
+    pl2 = Enum.sum(Enum.map(valid_sets, fn {_, b} -> b end))
+
+    {sw + sw2, sl + sl2, pw + pw2, pl + pl2}
   end
 
   @doc """

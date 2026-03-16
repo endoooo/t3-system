@@ -134,7 +134,11 @@ defmodule T3SystemWeb.EventLive.Show do
               {gettext("No groups yet.")}
             </p>
 
-            <div :for={{group, standings} <- @groups_with_standings} class="mb-8">
+            <div
+              :for={{group, standings} <- @groups_with_standings}
+              id={"group-#{group.id}"}
+              class="mb-8"
+            >
               <div class="mb-3 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">{group.name}</h2>
                 <div :if={@is_superuser} class="flex gap-3">
@@ -302,6 +306,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   {gettext("Manage Players")} — {@players_modal.name}
                 </h2>
                 <button phx-click="close_players_modal" class="text-gray-400 hover:text-white">
+                  <span class="sr-only">{gettext("Close")}</span>
                   <.icon name="hero-x-mark" class="size-5" />
                 </button>
               </div>
@@ -338,21 +343,26 @@ defmodule T3SystemWeb.EventLive.Show do
               </div>
 
               <%!-- Add player --%>
-              <% available = available_registrations(@category_registrations, @players_modal.registrations) %>
+              <% available = available_registrations(@category_registrations, @groups_with_standings) %>
               <div :if={available != []} class="mb-5">
-                <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {gettext("Add Player")}
-                </p>
-                <select
-                  phx-change="add_to_group"
-                  name="registration_id"
-                  class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                <label
+                  for="add-player-select"
+                  class="mb-2 block text-xs font-medium uppercase tracking-wide text-gray-400"
                 >
-                  <option value="">{gettext("Select a player...")}</option>
-                  <option :for={reg <- available} value={reg.id}>
-                    {reg.player.name} — {reg.club.name}
-                  </option>
-                </select>
+                  {gettext("Add Player")}
+                </label>
+                <form phx-change="add_to_group">
+                  <select
+                    id="add-player-select"
+                    name="registration_id"
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">{gettext("Select a player...")}</option>
+                    <option :for={reg <- available} value={reg.id}>
+                      {reg.player.name} — {reg.club.name}
+                    </option>
+                  </select>
+                </form>
               </div>
 
               <%!-- Generate matches --%>
@@ -497,28 +507,9 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:category_form, category_form)
 
     socket =
-      if tab == "overview" && active_category do
-        stream(
-          socket,
-          :registrations,
-          Registrations.list_registrations_by_event_and_category(event.id, active_category),
-          reset: true
-        )
-      else
-        socket
-      end
-
-    socket =
-      if tab == "groups" && active_category do
-        groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
-
-        groups_with_standings =
-          Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
-
-        assign(socket, :groups_with_standings, groups_with_standings)
-      else
-        assign(socket, :groups_with_standings, [])
-      end
+      socket
+      |> load_registrations(tab, event, active_category)
+      |> load_groups(tab, event, active_category)
 
     {:noreply, socket}
   end
@@ -684,14 +675,30 @@ defmodule T3SystemWeb.EventLive.Show do
 
   def handle_event("add_to_group", %{"registration_id" => reg_id}, socket) do
     group = socket.assigns.players_modal
-    Matches.add_registration_to_group(socket.assigns.current_scope, group.id, reg_id)
+
+    Matches.add_registration_to_group(
+      socket.assigns.current_scope,
+      group.id,
+      String.to_integer(reg_id)
+    )
+
     updated_group = Matches.get_group_with_registrations!(group.id)
-    {:noreply, assign(socket, :players_modal, updated_group)}
+
+    {:noreply,
+     socket
+     |> assign(:players_modal, updated_group)
+     |> reload_groups_with_standings()}
   end
 
   def handle_event("remove_from_group", %{"registration_id" => reg_id}, socket) do
     group = socket.assigns.players_modal
-    Matches.remove_registration_from_group(socket.assigns.current_scope, group.id, reg_id)
+
+    Matches.remove_registration_from_group(
+      socket.assigns.current_scope,
+      group.id,
+      String.to_integer(reg_id)
+    )
+
     updated_group = Matches.get_group_with_registrations!(group.id)
 
     {:noreply,
@@ -709,6 +716,28 @@ defmodule T3SystemWeb.EventLive.Show do
 
   # Private helpers
 
+  defp load_registrations(socket, "overview", event, active_category)
+       when not is_nil(active_category) do
+    stream(
+      socket,
+      :registrations,
+      Registrations.list_registrations_by_event_and_category(event.id, active_category),
+      reset: true
+    )
+  end
+
+  defp load_registrations(socket, _tab, _event, _active_category), do: socket
+
+  defp load_groups(socket, "groups", event, active_category) when not is_nil(active_category) do
+    groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
+    groups_with_standings = Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
+    assign(socket, :groups_with_standings, groups_with_standings)
+  end
+
+  defp load_groups(socket, _tab, _event, _active_category) do
+    assign(socket, :groups_with_standings, [])
+  end
+
   defp reload_groups_with_standings(socket) do
     event = socket.assigns.event
     active_category = socket.assigns.active_category
@@ -717,9 +746,14 @@ defmodule T3SystemWeb.EventLive.Show do
     assign(socket, :groups_with_standings, groups_with_standings)
   end
 
-  defp available_registrations(category_registrations, group_registrations) do
-    group_ids = MapSet.new(group_registrations, & &1.id)
-    Enum.reject(category_registrations, &MapSet.member?(group_ids, &1.id))
+  defp available_registrations(category_registrations, groups_with_standings) do
+    taken_ids =
+      MapSet.new(
+        Enum.flat_map(groups_with_standings, fn {g, _} -> g.registrations end),
+        & &1.id
+      )
+
+    Enum.reject(category_registrations, &MapSet.member?(taken_ids, &1.id))
   end
 
   defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
