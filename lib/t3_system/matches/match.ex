@@ -17,6 +17,10 @@ defmodule T3System.Matches.Match do
           registration2_id: pos_integer() | nil,
           winner_registration_id: pos_integer() | nil,
           next_match_id: pos_integer() | nil,
+          source1_group_id: pos_integer() | nil,
+          source1_rank: pos_integer() | nil,
+          source2_group_id: pos_integer() | nil,
+          source2_rank: pos_integer() | nil,
           round: pos_integer() | nil,
           position: pos_integer() | nil,
           best_of: pos_integer() | nil,
@@ -29,6 +33,8 @@ defmodule T3System.Matches.Match do
           registration2: Registration.t() | Ecto.Association.NotLoaded.t(),
           winner: Registration.t() | Ecto.Association.NotLoaded.t(),
           next_match: t() | Ecto.Association.NotLoaded.t(),
+          source1_group: Group.t() | Ecto.Association.NotLoaded.t(),
+          source2_group: Group.t() | Ecto.Association.NotLoaded.t(),
           sets: [MatchSet.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
@@ -40,6 +46,8 @@ defmodule T3System.Matches.Match do
     field :best_of, :integer
     field :points_per_set, :integer
     field :scheduled_at, :utc_datetime
+    field :source1_rank, :integer
+    field :source2_rank, :integer
 
     belongs_to :event, Event
     belongs_to :group, Group
@@ -48,6 +56,8 @@ defmodule T3System.Matches.Match do
     belongs_to :registration2, Registration
     belongs_to :winner, Registration, foreign_key: :winner_registration_id
     belongs_to :next_match, __MODULE__
+    belongs_to :source1_group, Group, foreign_key: :source1_group_id
+    belongs_to :source2_group, Group, foreign_key: :source2_group_id
     has_many :sets, MatchSet, on_replace: :delete
 
     timestamps(type: :utc_datetime)
@@ -61,6 +71,10 @@ defmodule T3System.Matches.Match do
     :registration2_id,
     :winner_registration_id,
     :next_match_id,
+    :source1_group_id,
+    :source1_rank,
+    :source2_group_id,
+    :source2_rank,
     :round,
     :position,
     :best_of,

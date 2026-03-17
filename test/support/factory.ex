@@ -85,7 +85,9 @@ defmodule T3System.Factory do
   def bracket_factory do
     %Bracket{
       name: sequence(:name, &"Bracket #{&1}"),
-      event: build(:event)
+      rounds: 2,
+      event: build(:event),
+      category: build(:category)
     }
   end
 

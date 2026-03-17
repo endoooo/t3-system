@@ -138,12 +138,19 @@ defmodule T3System.MatchesTest do
     test "create_bracket/2 with valid data creates a bracket" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
+      category = insert(:category)
 
       assert {:ok, %Bracket{} = bracket} =
-               Matches.create_bracket(scope, %{name: "Main Draw", event_id: event.id})
+               Matches.create_bracket(scope, %{
+                 name: "Main Draw",
+                 event_id: event.id,
+                 category_id: category.id,
+                 rounds: 2
+               })
 
       assert bracket.name == "Main Draw"
       assert bracket.event_id == event.id
+      assert bracket.rounds == 2
     end
 
     test "create_bracket/2 with invalid data returns error changeset" do

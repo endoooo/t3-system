@@ -87,12 +87,14 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("p", text: club.name)
     end
 
-    test "non-overview tabs show coming soon placeholder", %{conn: conn} do
+    test "knockout tab shows bracket not set up message", %{conn: conn} do
+      category = insert(:category)
       event = insert(:event)
+      associate_category(event, category)
 
       conn
-      |> visit(~p"/events/#{event}?tab=knockout")
-      |> assert_has("p", text: "Coming soon.")
+      |> visit(~p"/events/#{event}?tab=knockout&category_id=#{category.id}")
+      |> assert_has("p", text: "Bracket not set up yet.")
     end
 
     test "does not show add registration button for anonymous users", %{conn: conn} do

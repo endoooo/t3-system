@@ -325,6 +325,32 @@ defmodule T3System.Matches do
   end
 
   @doc """
+  Returns the bracket for the given event and category with matches fully preloaded,
+  or nil if none exists.
+  """
+  def get_bracket_for_event_and_category(event_id, category_id) do
+    Bracket
+    |> where([b], b.event_id == ^event_id and b.category_id == ^category_id)
+    |> Repo.one()
+    |> case do
+      nil ->
+        nil
+
+      bracket ->
+        Repo.preload(bracket,
+          matches: [
+            :sets,
+            :source1_group,
+            :source2_group,
+            registration1: [:player, :club],
+            registration2: [:player, :club],
+            winner: [:player]
+          ]
+        )
+    end
+  end
+
+  @doc """
   Gets a single bracket.
 
   Raises `Ecto.NoResultsError` if the Bracket does not exist.
@@ -341,7 +367,9 @@ defmodule T3System.Matches do
   def get_bracket!(id), do: Repo.get!(Bracket, id)
 
   @doc """
-  Creates a bracket. Requires a superuser scope.
+  Creates a bracket and generates placeholder matches for all rounds.
+  Deletes any existing bracket for the same event+category first.
+  Requires a superuser scope.
 
   ## Examples
 
@@ -353,9 +381,27 @@ defmodule T3System.Matches do
 
   """
   def create_bracket(%Scope{user: %{role: "superuser"}}, attrs) do
-    %Bracket{}
-    |> Bracket.changeset(attrs)
-    |> Repo.insert()
+    event_id = attrs["event_id"] || attrs[:event_id]
+    category_id = attrs["category_id"] || attrs[:category_id]
+
+    Repo.transaction(fn ->
+      # Delete any existing bracket for this event+category
+      if event_id && category_id do
+        from(b in Bracket,
+          where: b.event_id == ^event_id and b.category_id == ^category_id
+        )
+        |> Repo.delete_all()
+      end
+
+      case %Bracket{} |> Bracket.changeset(attrs) |> Repo.insert() do
+        {:ok, bracket} ->
+          generate_bracket_matches(bracket)
+          bracket
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
   end
 
   @doc """
@@ -403,6 +449,126 @@ defmodule T3System.Matches do
   """
   def change_bracket(%Bracket{} = bracket, attrs \\ %{}) do
     Bracket.changeset(bracket, attrs)
+  end
+
+  @doc """
+  Assigns a source group and rank to a slot on a first-round bracket match.
+  Also updates the registration slot if standings can be resolved.
+  Requires a superuser scope.
+  """
+  def assign_bracket_slot(%Scope{user: %{role: "superuser"}}, %Match{} = match, slot, group_id, rank)
+      when slot in [1, 2] do
+    group =
+      Repo.get!(Group, group_id)
+      |> Repo.preload(
+        registrations: [:player, :club],
+        matches: [
+          :sets,
+          registration1: [:player, :club],
+          registration2: [:player, :club],
+          winner: [:player]
+        ]
+      )
+
+    standings = compute_group_standings(group)
+    row = Enum.find(standings, &(&1.rank == rank))
+    registration_id = row && row.registration.id
+
+    slot_attrs =
+      case slot do
+        1 ->
+          %{
+            source1_group_id: group_id,
+            source1_rank: rank,
+            registration1_id: registration_id
+          }
+
+        2 ->
+          %{
+            source2_group_id: group_id,
+            source2_rank: rank,
+            registration2_id: registration_id
+          }
+      end
+
+    match
+    |> Match.changeset(slot_attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Directly assigns a registration (or nil for bye/WO) to a slot on a bracket match.
+  Clears any source group/rank for that slot. Requires a superuser scope.
+  """
+  def assign_bracket_slot_direct(
+        %Scope{user: %{role: "superuser"}},
+        %Match{} = match,
+        slot,
+        registration_id
+      )
+      when slot in [1, 2] do
+    slot_attrs =
+      case slot do
+        1 ->
+          %{
+            source1_group_id: nil,
+            source1_rank: nil,
+            registration1_id: registration_id
+          }
+
+        2 ->
+          %{
+            source2_group_id: nil,
+            source2_rank: nil,
+            registration2_id: registration_id
+          }
+      end
+
+    match
+    |> Match.changeset(slot_attrs)
+    |> Repo.update()
+  end
+
+  # Generates 2^rounds - 1 placeholder matches for a bracket.
+  # Matches are linked by next_match_id forming a single-elimination tree.
+  defp generate_bracket_matches(%Bracket{} = bracket) do
+    rounds = bracket.rounds
+    now = DateTime.utc_now(:second)
+
+    rows =
+      for r <- 1..rounds,
+          p <- 1..trunc(:math.pow(2, rounds - r)) do
+        %{
+          event_id: bracket.event_id,
+          bracket_id: bracket.id,
+          round: r,
+          position: p,
+          inserted_at: now,
+          updated_at: now
+        }
+      end
+
+    Repo.insert_all(Match, rows)
+
+    # Fetch back with IDs to wire up next_match_id
+    matches =
+      Match
+      |> where([m], m.bracket_id == ^bracket.id)
+      |> order_by([m], [m.round, m.position])
+      |> Repo.all()
+
+    match_map = Map.new(matches, fn m -> {{m.round, m.position}, m.id} end)
+
+    # Update next_match_id for all non-final matches
+    for m <- matches, m.round < rounds do
+      next_pos = ceil(m.position / 2)
+      next_id = Map.get(match_map, {m.round + 1, next_pos})
+
+      from(match in Match, where: match.id == ^m.id)
+      |> Repo.update_all(set: [next_match_id: next_id])
+    end
+
+    :ok
   end
 
   # ---------------------------------------------------------------------------
@@ -478,6 +644,8 @@ defmodule T3System.Matches do
 
   @doc """
   Updates a match. Requires a superuser scope.
+  After a successful update, if this is a bracket match and a winner was just set,
+  advances the winner to the appropriate slot in the next match.
 
   ## Examples
 
@@ -489,9 +657,14 @@ defmodule T3System.Matches do
 
   """
   def update_match(%Scope{user: %{role: "superuser"}}, %Match{} = match, attrs) do
-    match
-    |> Match.changeset(attrs)
-    |> Repo.update()
+    case match |> Match.changeset(attrs) |> Repo.update() do
+      {:ok, updated_match} ->
+        maybe_advance_bracket_winner(updated_match)
+        {:ok, updated_match}
+
+      error ->
+        error
+    end
   end
 
   @doc """
@@ -521,6 +694,27 @@ defmodule T3System.Matches do
   """
   def change_match(%Match{} = match, attrs \\ %{}) do
     Match.changeset(match, attrs)
+  end
+
+  # After a bracket match gets a winner, propagate to next match's appropriate slot.
+  defp maybe_advance_bracket_winner(%Match{next_match_id: nil}), do: :ok
+  defp maybe_advance_bracket_winner(%Match{winner_registration_id: nil}), do: :ok
+
+  defp maybe_advance_bracket_winner(%Match{} = match) do
+    next_match = Repo.get!(Match, match.next_match_id)
+
+    slot_attrs =
+      if rem(match.position, 2) == 1 do
+        %{registration1_id: match.winner_registration_id}
+      else
+        %{registration2_id: match.winner_registration_id}
+      end
+
+    next_match
+    |> Match.changeset(slot_attrs)
+    |> Repo.update()
+
+    :ok
   end
 
   # ---------------------------------------------------------------------------

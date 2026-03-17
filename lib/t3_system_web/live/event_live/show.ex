@@ -4,6 +4,7 @@ defmodule T3SystemWeb.EventLive.Show do
   alias T3System.Clubs
   alias T3System.Events
   alias T3System.Matches
+  alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Players
@@ -404,6 +405,160 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
               </div>
             </div>
+
+            <%!-- Bracket matches --%>
+            <div :if={@bracket}>
+              <h3 class="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-gray-400">
+                {@bracket.name}
+              </h3>
+              <div class="space-y-3">
+                <div :for={{round, round_matches} <- @bracket_rounds}>
+                  <p class="mb-2 text-xs text-gray-500">
+                    {round_label(round, @bracket.rounds)}
+                  </p>
+                  <div
+                    :for={match <- round_matches}
+                    id={"bm-matches-#{match.id}"}
+                    class="rounded-lg bg-white/5"
+                  >
+                    <% sorted_sets =
+                      case match.sets do
+                        %Ecto.Association.NotLoaded{} -> []
+                        sets -> Enum.sort_by(sets, & &1.set_number)
+                      end %>
+                    <% best_of = match.best_of || 5 %>
+                    <% sets_by_number = Map.new(sorted_sets, fn s -> {s.set_number, s} end) %>
+                    <% p1_scores =
+                      Enum.map(1..best_of, fn n ->
+                        case Map.get(sets_by_number, n) do
+                          nil -> "–"
+                          s -> if is_nil(s.score1), do: "–", else: to_string(s.score1)
+                        end
+                      end) %>
+                    <% p2_scores =
+                      Enum.map(1..best_of, fn n ->
+                        case Map.get(sets_by_number, n) do
+                          nil -> "–"
+                          s -> if is_nil(s.score2), do: "–", else: to_string(s.score2)
+                        end
+                      end) %>
+                    <% sw1 =
+                      Enum.count(sorted_sets, fn s ->
+                        not is_nil(s.score1) and not is_nil(s.score2) and s.score1 > s.score2
+                      end) %>
+                    <% sw2 =
+                      Enum.count(sorted_sets, fn s ->
+                        not is_nil(s.score1) and not is_nil(s.score2) and s.score2 > s.score1
+                      end) %>
+                    <% p1_won =
+                      not is_nil(match.winner_registration_id) and
+                        match.winner_registration_id == match.registration1_id %>
+                    <% p2_won =
+                      not is_nil(match.winner_registration_id) and
+                        match.winner_registration_id == match.registration2_id %>
+
+                    <div class="flex items-start justify-between p-4 pb-3">
+                      <div>
+                        <p class="text-sm font-semibold text-white">
+                          {round_label(round, @bracket.rounds)}
+                          <span class="ml-1 font-normal text-gray-500">
+                            — {@bracket.name}
+                          </span>
+                        </p>
+                        <p :if={match.scheduled_at} class="mt-0.5 text-xs text-gray-400">
+                          {Calendar.strftime(match.scheduled_at, "%d/%m %H:%M")}
+                        </p>
+                      </div>
+                      <div :if={sorted_sets != []} class="text-xl font-bold text-indigo-400">
+                        {sw1}–{sw2}
+                      </div>
+                    </div>
+
+                    <div class="mx-4 h-px bg-indigo-500/40"></div>
+
+                    <div class="space-y-2 p-4 pt-3">
+                      <div class="flex items-center gap-2">
+                        <.icon
+                          :if={p1_won}
+                          name="hero-check"
+                          class="size-3.5 shrink-0 text-green-400"
+                        />
+                        <span :if={!p1_won} class="size-3.5 shrink-0"></span>
+                        <span class={[
+                          "min-w-0 flex-1 truncate text-sm",
+                          if(p1_won, do: "font-semibold text-white", else: "text-gray-300")
+                        ]}>
+                          {slot_label(match, 1)}
+                        </span>
+                        <span
+                          :if={sorted_sets != []}
+                          class="w-5 shrink-0 text-center text-sm font-bold text-white"
+                        >
+                          {sw1}
+                        </span>
+                        <div class="flex gap-1">
+                          <span
+                            :for={score <- p1_scores}
+                            class="w-7 text-center text-xs tabular-nums text-gray-400"
+                          >
+                            {score}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="flex items-center gap-2">
+                        <.icon
+                          :if={p2_won}
+                          name="hero-check"
+                          class="size-3.5 shrink-0 text-green-400"
+                        />
+                        <span :if={!p2_won} class="size-3.5 shrink-0"></span>
+                        <span class={[
+                          "min-w-0 flex-1 truncate text-sm",
+                          if(p2_won, do: "font-semibold text-white", else: "text-gray-300")
+                        ]}>
+                          {slot_label(match, 2)}
+                        </span>
+                        <span
+                          :if={sorted_sets != []}
+                          class="w-5 shrink-0 text-center text-sm font-bold text-white"
+                        >
+                          {sw2}
+                        </span>
+                        <div class="flex gap-1">
+                          <span
+                            :for={score <- p2_scores}
+                            class="w-7 text-center text-xs tabular-nums text-gray-400"
+                          >
+                            {score}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div
+                      :if={@is_superuser}
+                      class="flex justify-end gap-3 border-t border-white/10 px-4 py-2"
+                    >
+                      <button
+                        phx-click="open_score_modal"
+                        phx-value-id={match.id}
+                        class="text-xs text-indigo-400 hover:text-indigo-300"
+                      >
+                        {gettext("Scores")}
+                      </button>
+                      <button
+                        phx-click="delete_bracket_match"
+                        phx-value-id={match.id}
+                        data-confirm={gettext("Are you sure?")}
+                        class="text-xs text-red-400 hover:text-red-300"
+                      >
+                        {gettext("Delete")}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <p :if={!@active_category} class="text-gray-400 text-sm">
@@ -411,9 +566,191 @@ defmodule T3SystemWeb.EventLive.Show do
           </p>
         </div>
 
-        <%!-- Other tabs: placeholder --%>
-        <div :if={@current_tab not in ["overview", "groups", "matches"]}>
-          <p class="text-gray-400 text-sm">{gettext("Coming soon.")}</p>
+        <%!-- Tab: Knockout --%>
+        <div :if={@current_tab == "knockout"}>
+          <div :if={@active_category}>
+            <%!-- No bracket yet --%>
+            <div :if={is_nil(@bracket)}>
+              <div :if={@is_superuser} class="mb-4 flex justify-end">
+                <.button phx-click="open_bracket_setup" variant="primary">
+                  <.icon name="hero-plus" /> {gettext("Setup Bracket")}
+                </.button>
+              </div>
+              <p class="text-gray-400 text-sm">{gettext("Bracket not set up yet.")}</p>
+            </div>
+
+            <%!-- Bracket exists --%>
+            <div :if={@bracket}>
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">{@bracket.name}</h2>
+                <div :if={@is_superuser} class="flex gap-3">
+                  <button
+                    phx-click="open_bracket_setup"
+                    class="text-xs text-indigo-400 hover:text-indigo-300"
+                  >
+                    {gettext("Reconfigure")}
+                  </button>
+                  <button
+                    phx-click="delete_bracket"
+                    data-confirm={gettext("Are you sure? This will delete all bracket matches.")}
+                    class="text-xs text-red-400 hover:text-red-300"
+                  >
+                    {gettext("Delete")}
+                  </button>
+                </div>
+              </div>
+
+              <%!-- Bracket visualization --%>
+              <div class="overflow-x-auto pb-6 -mx-4 px-4">
+                <div class="flex min-w-max">
+                  <div :for={{round, matches} <- @bracket_rounds} style="width: 224px; flex-shrink: 0;">
+                    <%!-- Round header --%>
+                    <div class="mb-3 h-8 flex items-end pl-3 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">
+                      {round_label(round, @bracket.rounds)}
+                    </div>
+                    <%!-- Match slots --%>
+                    <div
+                      :for={match <- matches}
+                      id={"bracket-match-#{match.id}"}
+                      style={"position: relative; height: #{slot_height(round)}px;"}
+                    >
+                      <% sorted_sets =
+                        case match.sets do
+                          %Ecto.Association.NotLoaded{} -> []
+                          sets -> Enum.sort_by(sets, & &1.set_number)
+                        end %>
+                      <% sw1 =
+                        Enum.count(sorted_sets, fn s ->
+                          not is_nil(s.score1) and not is_nil(s.score2) and s.score1 > s.score2
+                        end) %>
+                      <% sw2 =
+                        Enum.count(sorted_sets, fn s ->
+                          not is_nil(s.score1) and not is_nil(s.score2) and s.score2 > s.score1
+                        end) %>
+                      <% p1_won =
+                        not is_nil(match.winner_registration_id) and
+                          match.winner_registration_id == match.registration1_id %>
+                      <% p2_won =
+                        not is_nil(match.winner_registration_id) and
+                          match.winner_registration_id == match.registration2_id %>
+
+                      <%!-- Left connector: horizontal line from right edge of prev column to card --%>
+                      <div
+                        :if={round > 1}
+                        style="position: absolute; left: 0; width: 12px; top: 50%; height: 2px; background-color: rgba(99,102,241,0.25);"
+                      ></div>
+
+                      <%!-- Match card, vertically centered in slot --%>
+                      <div style="position: absolute; top: 50%; transform: translateY(-50%); left: 12px; right: 24px;">
+                        <div class="overflow-hidden rounded-lg bg-white/5">
+                          <%!-- Player 1 --%>
+                          <div class={[
+                            "flex items-center gap-1.5 px-2.5 py-2",
+                            if(p1_won, do: "bg-white/5")
+                          ]}>
+                            <.icon
+                              :if={p1_won}
+                              name="hero-check"
+                              class="size-3 shrink-0 text-green-400"
+                            />
+                            <span :if={!p1_won} class="size-3 shrink-0"></span>
+                            <span class={[
+                              "min-w-0 flex-1 truncate text-sm",
+                              if(p1_won, do: "font-semibold text-white", else: "text-gray-300")
+                            ]}>
+                              {slot_label(match, 1)}
+                            </span>
+                            <span
+                              :if={sorted_sets != []}
+                              class={[
+                                "tabular-nums text-sm font-bold",
+                                if(p1_won, do: "text-white", else: "text-gray-400")
+                              ]}
+                            >
+                              {sw1}
+                            </span>
+                          </div>
+                          <div class="h-px bg-white/10"></div>
+                          <%!-- Player 2 --%>
+                          <div class={[
+                            "flex items-center gap-1.5 px-2.5 py-2",
+                            if(p2_won, do: "bg-white/5")
+                          ]}>
+                            <.icon
+                              :if={p2_won}
+                              name="hero-check"
+                              class="size-3 shrink-0 text-green-400"
+                            />
+                            <span :if={!p2_won} class="size-3 shrink-0"></span>
+                            <span class={[
+                              "min-w-0 flex-1 truncate text-sm",
+                              if(p2_won, do: "font-semibold text-white", else: "text-gray-300")
+                            ]}>
+                              {slot_label(match, 2)}
+                            </span>
+                            <span
+                              :if={sorted_sets != []}
+                              class={[
+                                "tabular-nums text-sm font-bold",
+                                if(p2_won, do: "text-white", else: "text-gray-400")
+                              ]}
+                            >
+                              {sw2}
+                            </span>
+                          </div>
+                          <%!-- Superuser actions --%>
+                          <div
+                            :if={@is_superuser}
+                            class="flex justify-end gap-2 border-t border-white/5 px-2.5 py-1"
+                          >
+                            <button
+                              :if={round == 1}
+                              phx-click="open_assign_slot"
+                              phx-value-id={match.id}
+                              class="text-xs text-gray-500 hover:text-gray-400"
+                            >
+                              {gettext("Assign")}
+                            </button>
+                            <button
+                              phx-click="open_score_modal"
+                              phx-value-id={match.id}
+                              class="text-xs text-indigo-400/70 hover:text-indigo-300"
+                            >
+                              {gettext("Scores")}
+                            </button>
+                            <button
+                              phx-click="delete_bracket_match"
+                              phx-value-id={match.id}
+                              data-confirm={gettext("Are you sure?")}
+                              class="text-xs text-red-400/70 hover:text-red-300"
+                            >
+                              {gettext("Del")}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <%!-- Right connector: top of pair (odd position) — line goes right then down --%>
+                      <div
+                        :if={round < @bracket.rounds and rem(match.position, 2) == 1}
+                        style="position: absolute; right: 0; width: 24px; top: 50%; height: 50%; border-top: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
+                      ></div>
+
+                      <%!-- Right connector: bottom of pair (even position) — line goes right then up --%>
+                      <div
+                        :if={round < @bracket.rounds and rem(match.position, 2) == 0}
+                        style="position: absolute; right: 0; width: 24px; top: 0; height: 50%; border-bottom: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p :if={!@active_category} class="text-gray-400 text-sm">
+            {gettext("No category selected.")}
+          </p>
         </div>
 
         <%!-- Registration modal --%>
@@ -620,6 +957,7 @@ defmodule T3SystemWeb.EventLive.Show do
             </div>
           </div>
         </div>
+
         <%!-- Match modal --%>
         <div :if={@match_modal != nil} class="fixed inset-0 z-50">
           <div class="absolute inset-0 bg-black/60" phx-click="close_match_modal"></div>
@@ -700,13 +1038,18 @@ defmodule T3SystemWeb.EventLive.Show do
             </div>
           </div>
         </div>
+
         <%!-- Scores modal --%>
         <div :if={@score_modal != nil} class="fixed inset-0 z-50">
           <div class="absolute inset-0 bg-black/60" phx-click="close_score_modal"></div>
           <div class="relative flex h-full items-center justify-center pointer-events-none">
             <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
-              <% {sm_match, sm_group} = @score_modal %>
-              <% sm_best_of = sm_match.best_of || sm_group.best_of %>
+              <% {sm_match, sm_context} = @score_modal %>
+              <% sm_best_of =
+                case sm_context do
+                  :bracket -> sm_match.best_of || 5
+                  sm_group -> sm_match.best_of || sm_group.best_of
+                end %>
               <% sm_sets_by_num = Map.new(sm_match.sets, &{&1.set_number, &1}) %>
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
@@ -722,11 +1065,11 @@ defmodule T3SystemWeb.EventLive.Show do
                 <div class="mb-1 flex items-center gap-2 text-xs text-gray-400">
                   <span class="w-14 shrink-0"></span>
                   <span class="flex-1 truncate text-center font-medium">
-                    {match_player_name(sm_match.registration1)}
+                    {slot_label(sm_match, 1)}
                   </span>
                   <span class="w-4 shrink-0 text-center text-gray-600">vs</span>
                   <span class="flex-1 truncate text-center font-medium">
-                    {match_player_name(sm_match.registration2)}
+                    {slot_label(sm_match, 2)}
                   </span>
                 </div>
                 <%!-- Set rows --%>
@@ -764,18 +1107,18 @@ defmodule T3SystemWeb.EventLive.Show do
                   >
                     <option value="">{gettext("No winner yet")}</option>
                     <option
-                      :if={sm_match.registration1}
+                      :if={is_struct(sm_match.registration1, Registration)}
                       value={sm_match.registration1_id}
                       selected={sm_match.winner_registration_id == sm_match.registration1_id}
                     >
-                      {match_player_name(sm_match.registration1)}
+                      {slot_label(sm_match, 1)}
                     </option>
                     <option
-                      :if={sm_match.registration2}
+                      :if={is_struct(sm_match.registration2, Registration)}
                       value={sm_match.registration2_id}
                       selected={sm_match.winner_registration_id == sm_match.registration2_id}
                     >
-                      {match_player_name(sm_match.registration2)}
+                      {slot_label(sm_match, 2)}
                     </option>
                   </select>
                 </div>
@@ -786,6 +1129,238 @@ defmodule T3SystemWeb.EventLive.Show do
                   <.button type="submit" variant="primary">{gettext("Save")}</.button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+
+        <%!-- Bracket setup modal --%>
+        <div :if={@bracket_modal != nil} class="fixed inset-0 z-50">
+          <div class="absolute inset-0 bg-black/60" phx-click="close_bracket_modal"></div>
+          <div class="relative flex h-full items-center justify-center pointer-events-none">
+            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">
+                  {gettext("Setup Bracket")}
+                </h2>
+                <button phx-click="close_bracket_modal" class="text-gray-400 hover:text-white">
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+
+              <.form
+                :if={@bracket_form}
+                for={@bracket_form}
+                id="bracket-form"
+                phx-change="validate_bracket"
+                phx-submit="save_bracket"
+              >
+                <.input
+                  field={@bracket_form[:name]}
+                  type="text"
+                  label={gettext("Name")}
+                />
+                <.input
+                  field={@bracket_form[:rounds]}
+                  type="number"
+                  label={gettext("Number of rounds (1–7)")}
+                />
+                <input type="hidden" name="bracket[event_id]" value={@event.id} />
+                <input
+                  type="hidden"
+                  name="bracket[category_id]"
+                  value={@active_category && @active_category.id}
+                />
+                <div class="mt-4 flex justify-end gap-2">
+                  <.button type="button" phx-click="close_bracket_modal">
+                    {gettext("Cancel")}
+                  </.button>
+                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                </div>
+              </.form>
+            </div>
+          </div>
+        </div>
+
+        <%!-- Assign slot modal --%>
+        <div :if={@assign_slot_modal != nil} class="fixed inset-0 z-50">
+          <div class="absolute inset-0 bg-black/60" phx-click="close_assign_slot"></div>
+          <div class="relative flex h-full items-center justify-center pointer-events-none">
+            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">
+                  {gettext("Assign Players")}
+                </h2>
+                <button phx-click="close_assign_slot" class="text-gray-400 hover:text-white">
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+
+              <form id="assign-slot-form" phx-submit="save_assign_slot">
+                <%!-- Slot 1 --%>
+                <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                  {gettext("Player 1")}
+                </p>
+                <div class="mb-5">
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Assignment type")}</label>
+                  <select
+                    id="slot1-type-select"
+                    name="slot1_type"
+                    phx-hook=".SlotTypeToggle"
+                    data-group-target="slot1-group-section"
+                    data-direct-target="slot1-direct-section"
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="group" selected={is_nil(@assign_slot_modal.registration1_id) and not is_nil(@assign_slot_modal.source1_group_id) or (is_nil(@assign_slot_modal.registration1_id) and is_nil(@assign_slot_modal.source1_group_id))}>
+                      {gettext("From group standings")}
+                    </option>
+                    <option value="direct" selected={not is_nil(@assign_slot_modal.registration1_id)}>
+                      {gettext("Direct")}
+                    </option>
+                    <option value="bye">
+                      {gettext("Bye / WO")}
+                    </option>
+                  </select>
+                  <%!-- Group section --%>
+                  <div id="slot1-group-section" class="mt-3 flex gap-3">
+                    <div class="flex-1">
+                      <label class="mb-1 block text-sm text-gray-300">{gettext("Group")}</label>
+                      <select
+                        name="slot1_group_id"
+                        class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="">{gettext("Select group")}</option>
+                        <option
+                          :for={g <- @bracket_groups}
+                          value={g.id}
+                          selected={@assign_slot_modal.source1_group_id == g.id}
+                        >
+                          {g.name}
+                        </option>
+                      </select>
+                    </div>
+                    <div class="w-20">
+                      <label class="mb-1 block text-sm text-gray-300">{gettext("Rank")}</label>
+                      <input
+                        type="number"
+                        name="slot1_rank"
+                        value={@assign_slot_modal.source1_rank}
+                        min="1"
+                        class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  <%!-- Direct section --%>
+                  <div id="slot1-direct-section" class="mt-3 hidden">
+                    <label class="mb-1 block text-sm text-gray-300">{gettext("Player")}</label>
+                    <select
+                      name="slot1_registration_id"
+                      class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">{gettext("Select player")}</option>
+                      <option
+                        :for={r <- @bracket_registrations}
+                        value={r.id}
+                        selected={@assign_slot_modal.registration1_id == r.id}
+                      >
+                        {r.player.name} — {r.club.name}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <%!-- Slot 2 --%>
+                <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
+                  {gettext("Player 2")}
+                </p>
+                <div class="mb-4">
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Assignment type")}</label>
+                  <select
+                    id="slot2-type-select"
+                    name="slot2_type"
+                    phx-hook=".SlotTypeToggle"
+                    data-group-target="slot2-group-section"
+                    data-direct-target="slot2-direct-section"
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="group" selected={is_nil(@assign_slot_modal.registration2_id) and not is_nil(@assign_slot_modal.source2_group_id) or (is_nil(@assign_slot_modal.registration2_id) and is_nil(@assign_slot_modal.source2_group_id))}>
+                      {gettext("From group standings")}
+                    </option>
+                    <option value="direct" selected={not is_nil(@assign_slot_modal.registration2_id)}>
+                      {gettext("Direct")}
+                    </option>
+                    <option value="bye">
+                      {gettext("Bye / WO")}
+                    </option>
+                  </select>
+                  <%!-- Group section --%>
+                  <div id="slot2-group-section" class="mt-3 flex gap-3">
+                    <div class="flex-1">
+                      <label class="mb-1 block text-sm text-gray-300">{gettext("Group")}</label>
+                      <select
+                        name="slot2_group_id"
+                        class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="">{gettext("Select group")}</option>
+                        <option
+                          :for={g <- @bracket_groups}
+                          value={g.id}
+                          selected={@assign_slot_modal.source2_group_id == g.id}
+                        >
+                          {g.name}
+                        </option>
+                      </select>
+                    </div>
+                    <div class="w-20">
+                      <label class="mb-1 block text-sm text-gray-300">{gettext("Rank")}</label>
+                      <input
+                        type="number"
+                        name="slot2_rank"
+                        value={@assign_slot_modal.source2_rank}
+                        min="1"
+                        class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                  <%!-- Direct section --%>
+                  <div id="slot2-direct-section" class="mt-3 hidden">
+                    <label class="mb-1 block text-sm text-gray-300">{gettext("Player")}</label>
+                    <select
+                      name="slot2_registration_id"
+                      class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">{gettext("Select player")}</option>
+                      <option
+                        :for={r <- @bracket_registrations}
+                        value={r.id}
+                        selected={@assign_slot_modal.registration2_id == r.id}
+                      >
+                        {r.player.name} — {r.club.name}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="mt-4 flex justify-end gap-2">
+                  <.button type="button" phx-click="close_assign_slot">
+                    {gettext("Cancel")}
+                  </.button>
+                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                </div>
+              </form>
+              <script :type={Phoenix.LiveView.ColocatedHook} name=".SlotTypeToggle">
+                export default {
+                  mounted() {
+                    this.el.addEventListener("change", () => this.toggle())
+                    this.toggle()
+                  },
+                  toggle() {
+                    const groupTarget = document.getElementById(this.el.dataset.groupTarget)
+                    const directTarget = document.getElementById(this.el.dataset.directTarget)
+                    groupTarget.classList.toggle("hidden", this.el.value !== "group")
+                    directTarget.classList.toggle("hidden", this.el.value !== "direct")
+                  }
+                }
+              </script>
             </div>
           </div>
         </div>
@@ -818,6 +1393,13 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:match_group, nil)
       |> assign(:match_group_regs, [])
       |> assign(:score_modal, nil)
+      |> assign(:bracket, nil)
+      |> assign(:bracket_rounds, [])
+      |> assign(:bracket_modal, nil)
+      |> assign(:bracket_form, nil)
+      |> assign(:bracket_groups, [])
+      |> assign(:bracket_registrations, [])
+      |> assign(:assign_slot_modal, nil)
       |> stream(:registrations, [])
 
     socket =
@@ -858,6 +1440,7 @@ defmodule T3SystemWeb.EventLive.Show do
       socket
       |> load_registrations(tab, event, active_category)
       |> load_groups(tab, event, active_category)
+      |> load_bracket(tab, event, active_category)
 
     {:noreply, socket}
   end
@@ -1178,15 +1761,21 @@ defmodule T3SystemWeb.EventLive.Show do
   def handle_event("open_score_modal", %{"id" => id}, socket) do
     match_id = String.to_integer(id)
 
-    {match, group} =
+    score_modal =
       Enum.find_value(socket.assigns.groups_with_standings, fn {g, _} ->
         case Enum.find(g.matches, &(&1.id == match_id)) do
           nil -> nil
           match -> {match, g}
         end
-      end)
+      end) ||
+        Enum.find_value(socket.assigns.bracket_rounds, fn {_round, matches} ->
+          case Enum.find(matches, &(&1.id == match_id)) do
+            nil -> nil
+            match -> {match, :bracket}
+          end
+        end)
 
-    {:noreply, assign(socket, :score_modal, {match, group})}
+    {:noreply, assign(socket, :score_modal, score_modal)}
   end
 
   def handle_event("close_score_modal", _params, socket) do
@@ -1194,7 +1783,7 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   def handle_event("save_scores", params, socket) do
-    {match, _group} = socket.assigns.score_modal
+    {match, context} = socket.assigns.score_modal
     scope = socket.assigns.current_scope
 
     filtered_sets =
@@ -1209,13 +1798,135 @@ defmodule T3SystemWeb.EventLive.Show do
 
     case Matches.update_match(scope, match, match_attrs) do
       {:ok, _} ->
-        {:noreply,
-         socket
-         |> reload_groups_with_standings()
-         |> assign(:score_modal, nil)}
+        socket =
+          cond do
+            socket.assigns.current_tab == "matches" ->
+              socket |> reload_groups_with_standings() |> reload_bracket()
+
+            context == :bracket ->
+              reload_bracket(socket)
+
+            true ->
+              reload_groups_with_standings(socket)
+          end
+
+        {:noreply, assign(socket, :score_modal, nil)}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Could not save scores."))}
+    end
+  end
+
+  # Bracket management (superuser only)
+
+  def handle_event("open_bracket_setup", _params, socket) do
+    bracket = socket.assigns.bracket
+
+    form =
+      (bracket || %Bracket{})
+      |> Matches.change_bracket()
+      |> to_form()
+
+    {:noreply, assign(socket, bracket_modal: :setup, bracket_form: form)}
+  end
+
+  def handle_event("close_bracket_modal", _params, socket) do
+    {:noreply, assign(socket, bracket_modal: nil, bracket_form: nil)}
+  end
+
+  def handle_event("validate_bracket", %{"bracket" => attrs}, socket) do
+    form =
+      (socket.assigns.bracket || %Bracket{})
+      |> Matches.change_bracket(attrs)
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, :bracket_form, form)}
+  end
+
+  def handle_event("save_bracket", %{"bracket" => attrs}, socket) do
+    case Matches.create_bracket(socket.assigns.current_scope, attrs) do
+      {:ok, _bracket} ->
+        {:noreply,
+         socket
+         |> reload_bracket()
+         |> assign(bracket_modal: nil, bracket_form: nil)}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :bracket_form, to_form(changeset))}
+    end
+  end
+
+  def handle_event("delete_bracket", _params, socket) do
+    bracket = socket.assigns.bracket
+    {:ok, _} = Matches.delete_bracket(socket.assigns.current_scope, bracket)
+
+    {:noreply,
+     socket
+     |> assign(:bracket, nil)
+     |> assign(:bracket_rounds, [])}
+  end
+
+  def handle_event("delete_bracket_match", %{"id" => id}, socket) do
+    match = Matches.get_match!(id)
+    {:ok, _} = Matches.delete_match(socket.assigns.current_scope, match)
+    {:noreply, reload_bracket(socket)}
+  end
+
+  def handle_event("open_assign_slot", %{"id" => id}, socket) do
+    match_id = String.to_integer(id)
+
+    match =
+      Enum.find_value(socket.assigns.bracket_rounds, fn {_round, matches} ->
+        Enum.find(matches, &(&1.id == match_id))
+      end)
+
+    bracket_groups =
+      Matches.list_groups_for_event_and_category(
+        socket.assigns.event.id,
+        socket.assigns.active_category.id
+      )
+
+    bracket_registrations =
+      Registrations.list_registrations_by_event_and_category(
+        socket.assigns.event.id,
+        socket.assigns.active_category
+      )
+
+    {:noreply,
+     socket
+     |> assign(:assign_slot_modal, match)
+     |> assign(:bracket_groups, bracket_groups)
+     |> assign(:bracket_registrations, bracket_registrations)}
+  end
+
+  def handle_event("close_assign_slot", _params, socket) do
+    {:noreply, assign(socket, assign_slot_modal: nil, bracket_groups: [], bracket_registrations: [])}
+  end
+
+  def handle_event("save_assign_slot", params, socket) do
+    match = socket.assigns.assign_slot_modal
+    scope = socket.assigns.current_scope
+
+    result =
+      with {:ok, _} <- assign_slot(scope, match, 1, params),
+           fresh_match = Matches.get_match!(match.id),
+           {:ok, _} <- assign_slot(scope, fresh_match, 2, params) do
+        :done
+      else
+        :skip -> :done
+        {:error, _} -> :error
+      end
+
+    case result do
+      :error ->
+        {:noreply, put_flash(socket, :error, gettext("Could not assign slot."))}
+
+      _ ->
+        {:noreply,
+         socket
+         |> reload_bracket()
+         |> assign(assign_slot_modal: nil, bracket_groups: [], bracket_registrations: [])}
     end
   end
 
@@ -1233,6 +1944,39 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp load_registrations(socket, _tab, _event, _active_category), do: socket
 
+  defp assign_slot(scope, match, slot, params) do
+    n = Integer.to_string(slot)
+
+    case params["slot#{n}_type"] do
+      "direct" ->
+        reg_id = params["slot#{n}_registration_id"]
+
+        registration_id =
+          if reg_id != "" and reg_id != nil, do: String.to_integer(reg_id), else: nil
+
+        Matches.assign_bracket_slot_direct(scope, match, slot, registration_id)
+
+      "bye" ->
+        Matches.assign_bracket_slot_direct(scope, match, slot, nil)
+
+      _ ->
+        group_id = params["slot#{n}_group_id"]
+        rank = params["slot#{n}_rank"]
+
+        if group_id != "" and rank != "" do
+          Matches.assign_bracket_slot(
+            scope,
+            match,
+            slot,
+            String.to_integer(group_id),
+            String.to_integer(rank)
+          )
+        else
+          {:ok, :skip}
+        end
+    end
+  end
+
   defp load_groups(socket, tab, event, active_category)
        when tab in ["groups", "matches"] and not is_nil(active_category) do
     groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
@@ -1242,6 +1986,43 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp load_groups(socket, _tab, _event, _active_category) do
     assign(socket, :groups_with_standings, [])
+  end
+
+  defp load_bracket(socket, tab, event, active_category)
+       when tab in ["knockout", "matches"] and not is_nil(active_category) do
+    bracket = Matches.get_bracket_for_event_and_category(event.id, active_category.id)
+    assign_bracket_data(socket, bracket)
+  end
+
+  defp load_bracket(socket, _tab, _event, _active_category) do
+    socket
+    |> assign(:bracket, nil)
+    |> assign(:bracket_rounds, [])
+  end
+
+  defp reload_bracket(socket) do
+    event = socket.assigns.event
+    active_category = socket.assigns.active_category
+    bracket = Matches.get_bracket_for_event_and_category(event.id, active_category.id)
+    assign_bracket_data(socket, bracket)
+  end
+
+  defp assign_bracket_data(socket, nil) do
+    socket
+    |> assign(:bracket, nil)
+    |> assign(:bracket_rounds, [])
+  end
+
+  defp assign_bracket_data(socket, bracket) do
+    bracket_rounds =
+      bracket.matches
+      |> Enum.group_by(& &1.round)
+      |> Enum.sort_by(fn {round, _} -> round end)
+      |> Enum.map(fn {round, matches} -> {round, Enum.sort_by(matches, & &1.position)} end)
+
+    socket
+    |> assign(:bracket, bracket)
+    |> assign(:bracket_rounds, bracket_rounds)
   end
 
   defp reload_groups_with_standings(socket) do
@@ -1283,6 +2064,56 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp format_diff(n) when n > 0, do: "+#{n}"
   defp format_diff(n), do: to_string(n)
+
+  defp round_label(round, total_rounds) do
+    rounds_from_end = total_rounds - round
+
+    case rounds_from_end do
+      0 -> gettext("Final")
+      1 -> gettext("Semifinals")
+      2 -> gettext("Quarterfinals")
+      3 -> gettext("Round of 16")
+      4 -> gettext("Round of 32")
+      5 -> gettext("Round of 64")
+      6 -> gettext("Round of 128")
+      _ -> gettext("Round %{n}", n: round)
+    end
+  end
+
+  defp slot_label(match, 1) do
+    cond do
+      is_struct(match.registration1, Registration) ->
+        match.registration1.player.name
+
+      match.source1_group_id && is_struct(match.source1_group, Group) ->
+        "#{ordinal(match.source1_rank)} — #{match.source1_group.name}"
+
+      true ->
+        gettext("TBD")
+    end
+  end
+
+  defp slot_label(match, 2) do
+    cond do
+      is_struct(match.registration2, Registration) ->
+        match.registration2.player.name
+
+      match.source2_group_id && is_struct(match.source2_group, Group) ->
+        "#{ordinal(match.source2_rank)} — #{match.source2_group.name}"
+
+      true ->
+        gettext("TBD")
+    end
+  end
+
+  defp ordinal(1), do: "1st"
+  defp ordinal(2), do: "2nd"
+  defp ordinal(3), do: "3rd"
+  defp ordinal(n) when is_integer(n), do: "#{n}th"
+  defp ordinal(_), do: "?"
+
+  # Height in px for one bracket slot at the given round (doubles each round).
+  defp slot_height(round), do: 88 * trunc(:math.pow(2, round - 1))
 
   defp match_player_name(%{player: %{name: name}}), do: name
   defp match_player_name(_), do: gettext("TBD")
