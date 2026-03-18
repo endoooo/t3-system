@@ -17,52 +17,50 @@ defmodule T3SystemWeb.EventLive.Show do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash}>
-      <div class="mx-auto max-w-4xl px-4 py-8">
+      <div class="mx-auto max-w-4xl">
         <%!-- Event header --%>
-        <div class="mb-6">
-          <h1 class="text-2xl font-bold text-white">{@event.name}</h1>
-          <div class="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400">
-            <span :if={@event.datetime}>{Calendar.strftime(@event.datetime, "%d/%m/%Y %H:%M")}</span>
-            <span :if={@event.address}>{@event.address}</span>
-            <span :if={@event.league}>{@event.league.name}</span>
+        <div class="p-8">
+          <h1 class="text-2xl font-display font-black mb-6">{@event.name}</h1>
+          <div :if={@event.datetime} class="flex items-center gap-2 mb-2">
+            <.icon name="hero-calendar-mini" />
+            {Calendar.strftime(@event.datetime, "%d/%m/%Y %H:%M")}
           </div>
-        </div>
+          <div :if={@event.address} class="text-sm">{@event.address}</div>
 
-        <%!-- Category selector --%>
-        <div :if={@event.categories != []} class="mb-6 w-48">
-          <.form for={@category_form} id="category-form" phx-change="switch_category">
-            <.input
-              field={@category_form[:category_id]}
-              type="select"
-              label={gettext("Category")}
-              options={Enum.map(@event.categories, &{&1.name, &1.id})}
-            />
-          </.form>
+          <%!-- Category selector --%>
+          <div :if={@event.categories != []} class="mt-6">
+            <.form for={@category_form} id="category-form" phx-change="switch_category">
+              <.input
+                field={@category_form[:category_id]}
+                type="select"
+                options={Enum.map(@event.categories, &{&1.name, &1.id})}
+              />
+            </.form>
+          </div>
         </div>
 
         <%!-- Tab nav --%>
-        <div class="mb-6">
-          <div class="border-b border-white/10">
-            <nav aria-label={gettext("Tabs")} class="-mb-px flex">
-              <.link
-                :for={tab <- @tabs}
-                patch={~p"/events/#{@event}?#{tab_params(@current_tab, @active_category, tab)}"}
-                class={[
-                  "w-1/4 border-b-2 px-1 py-4 text-center text-sm font-medium",
-                  if(tab == @current_tab,
-                    do: "border-indigo-400 text-indigo-400",
-                    else: "border-transparent text-gray-400 hover:border-white/20 hover:text-gray-300"
-                  )
-                ]}
-              >
-                {tab_label(tab)}
-              </.link>
-            </nav>
-          </div>
+        <div class="px-8 border-b border-slate-100">
+          <nav aria-label={gettext("Tabs")} class="flex gap-4">
+            <.link
+              :for={tab <- @tabs}
+              patch={~p"/events/#{@event}?#{tab_params(@current_tab, @active_category, tab)}"}
+              class={[
+                "border-b-4 py-2 text-center text-sm",
+                if(tab == @current_tab,
+                  do: "border-sky-400 text-sky-400 font-bold",
+                  else:
+                    "border-transparent text-slate-100/60 hover:border-white/20 hover:text-gray-300"
+                )
+              ]}
+            >
+              {tab_label(tab)}
+            </.link>
+          </nav>
         </div>
 
         <%!-- Tab: Overview --%>
-        <div :if={@current_tab == "overview"}>
+        <div :if={@current_tab == "overview"} class="p-8">
           <div :if={@is_superuser} class="mb-4 flex justify-end">
             <.button phx-click="open_new_registration" variant="primary">
               <.icon name="hero-plus" /> {gettext("Add Registration")}
@@ -73,47 +71,45 @@ defmodule T3SystemWeb.EventLive.Show do
             :if={@active_category}
             id="registrations"
             phx-update="stream"
-            class="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+            class="space-y-4"
           >
             <li
               :for={{id, reg} <- @streams.registrations}
               id={id}
-              class="flex flex-col rounded-lg bg-white/5 text-center shadow-sm"
+              class="flex items-center gap-4 rounded-sm bg-slate-800 p-4"
             >
-              <div class="flex flex-1 flex-col p-6">
-                <img
-                  :if={reg.player.picture_url}
-                  src={reg.player.picture_url}
-                  alt={reg.player.name}
-                  class="mx-auto size-24 shrink-0 rounded-full bg-gray-700 object-cover"
-                />
-                <div
-                  :if={!reg.player.picture_url}
-                  class="mx-auto flex size-24 shrink-0 items-center justify-center rounded-full bg-gray-700"
-                >
-                  <.icon name="hero-user" class="size-12 text-gray-400" />
-                </div>
-                <h3 class="mt-4 text-sm font-medium text-white">{reg.player.name}</h3>
-                <p class="mt-1 text-xs text-gray-400">{reg.club.name}</p>
+              <img
+                :if={reg.player.picture_url}
+                src={reg.player.picture_url}
+                alt={reg.player.name}
+                class="size-16 shrink-0 rounded-full bg-gray-700 object-cover"
+              />
+              <div
+                :if={!reg.player.picture_url}
+                class="flex size-16 shrink-0 items-center justify-center rounded-full bg-gray-700"
+              >
+                <.icon name="hero-user" class="size-8 text-gray-400" />
               </div>
-              <div :if={@is_superuser} class="border-t border-white/10 px-4 py-2">
-                <div class="flex justify-center gap-4">
-                  <button
-                    phx-click="open_edit_registration"
-                    phx-value-id={reg.id}
-                    class="text-xs text-indigo-400 hover:text-indigo-300"
-                  >
-                    {gettext("Edit")}
-                  </button>
-                  <button
-                    phx-click="delete_registration"
-                    phx-value-id={reg.id}
-                    data-confirm={gettext("Are you sure?")}
-                    class="text-xs text-red-400 hover:text-red-300"
-                  >
-                    {gettext("Remove")}
-                  </button>
-                </div>
+              <div class="min-w-0 flex-1">
+                <p class="font-bold text-white">{reg.player.name}</p>
+                <p class="text-sm text-indigo-400">{reg.club.name}</p>
+              </div>
+              <div :if={@is_superuser} class="flex gap-3">
+                <button
+                  phx-click="open_edit_registration"
+                  phx-value-id={reg.id}
+                  class="text-xs text-indigo-400 hover:text-indigo-300"
+                >
+                  {gettext("Edit")}
+                </button>
+                <button
+                  phx-click="delete_registration"
+                  phx-value-id={reg.id}
+                  data-confirm={gettext("Are you sure?")}
+                  class="text-xs text-red-400 hover:text-red-300"
+                >
+                  {gettext("Remove")}
+                </button>
               </div>
             </li>
           </ul>
