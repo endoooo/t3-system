@@ -456,7 +456,13 @@ defmodule T3System.Matches do
   Also updates the registration slot if standings can be resolved.
   Requires a superuser scope.
   """
-  def assign_bracket_slot(%Scope{user: %{role: "superuser"}}, %Match{} = match, slot, group_id, rank)
+  def assign_bracket_slot(
+        %Scope{user: %{role: "superuser"}},
+        %Match{} = match,
+        slot,
+        group_id,
+        rank
+      )
       when slot in [1, 2] do
     group =
       Repo.get!(Group, group_id)

@@ -603,7 +603,10 @@ defmodule T3SystemWeb.EventLive.Show do
               <%!-- Bracket visualization --%>
               <div class="overflow-x-auto pb-6 -mx-4 px-4">
                 <div class="flex min-w-max">
-                  <div :for={{round, matches} <- @bracket_rounds} style="width: 224px; flex-shrink: 0;">
+                  <div
+                    :for={{round, matches} <- @bracket_rounds}
+                    style="width: 224px; flex-shrink: 0;"
+                  >
                     <%!-- Round header --%>
                     <div class="mb-3 h-8 flex items-end pl-3 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">
                       {round_label(round, @bracket.rounds)}
@@ -638,7 +641,8 @@ defmodule T3SystemWeb.EventLive.Show do
                       <div
                         :if={round > 1}
                         style="position: absolute; left: 0; width: 12px; top: 50%; height: 2px; background-color: rgba(99,102,241,0.25);"
-                      ></div>
+                      >
+                      </div>
 
                       <%!-- Match card, vertically centered in slot --%>
                       <div style="position: absolute; top: 50%; transform: translateY(-50%); left: 12px; right: 24px;">
@@ -734,13 +738,15 @@ defmodule T3SystemWeb.EventLive.Show do
                       <div
                         :if={round < @bracket.rounds and rem(match.position, 2) == 1}
                         style="position: absolute; right: 0; width: 24px; top: 50%; height: 50%; border-top: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
-                      ></div>
+                      >
+                      </div>
 
                       <%!-- Right connector: bottom of pair (even position) — line goes right then up --%>
                       <div
                         :if={round < @bracket.rounds and rem(match.position, 2) == 0}
                         style="position: absolute; right: 0; width: 24px; top: 0; height: 50%; border-bottom: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
-                      ></div>
+                      >
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1210,7 +1216,15 @@ defmodule T3SystemWeb.EventLive.Show do
                     data-direct-target="slot1-direct-section"
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
-                    <option value="group" selected={is_nil(@assign_slot_modal.registration1_id) and not is_nil(@assign_slot_modal.source1_group_id) or (is_nil(@assign_slot_modal.registration1_id) and is_nil(@assign_slot_modal.source1_group_id))}>
+                    <option
+                      value="group"
+                      selected={
+                        (is_nil(@assign_slot_modal.registration1_id) and
+                           not is_nil(@assign_slot_modal.source1_group_id)) or
+                          (is_nil(@assign_slot_modal.registration1_id) and
+                             is_nil(@assign_slot_modal.source1_group_id))
+                      }
+                    >
                       {gettext("From group standings")}
                     </option>
                     <option value="direct" selected={not is_nil(@assign_slot_modal.registration1_id)}>
@@ -1282,7 +1296,15 @@ defmodule T3SystemWeb.EventLive.Show do
                     data-direct-target="slot2-direct-section"
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
-                    <option value="group" selected={is_nil(@assign_slot_modal.registration2_id) and not is_nil(@assign_slot_modal.source2_group_id) or (is_nil(@assign_slot_modal.registration2_id) and is_nil(@assign_slot_modal.source2_group_id))}>
+                    <option
+                      value="group"
+                      selected={
+                        (is_nil(@assign_slot_modal.registration2_id) and
+                           not is_nil(@assign_slot_modal.source2_group_id)) or
+                          (is_nil(@assign_slot_modal.registration2_id) and
+                             is_nil(@assign_slot_modal.source2_group_id))
+                      }
+                    >
                       {gettext("From group standings")}
                     </option>
                     <option value="direct" selected={not is_nil(@assign_slot_modal.registration2_id)}>
@@ -1901,7 +1923,8 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   def handle_event("close_assign_slot", _params, socket) do
-    {:noreply, assign(socket, assign_slot_modal: nil, bracket_groups: [], bracket_registrations: [])}
+    {:noreply,
+     assign(socket, assign_slot_modal: nil, bracket_groups: [], bracket_registrations: [])}
   end
 
   def handle_event("save_assign_slot", params, socket) do
