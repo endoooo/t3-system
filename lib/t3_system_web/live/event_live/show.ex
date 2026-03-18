@@ -23,9 +23,10 @@ defmodule T3SystemWeb.EventLive.Show do
           <h1 class="text-2xl font-display font-black mb-6">{@event.name}</h1>
           <div :if={@event.datetime} class="flex items-center gap-2 mb-2">
             <.icon name="hero-calendar-mini" />
-            {Calendar.strftime(@event.datetime, "%d/%m/%Y %H:%M")}
+            <span>{Calendar.strftime(@event.datetime, "%d/%m/%Y %H:%M")}</span>
           </div>
-          <div :if={@event.address} class="text-sm">{@event.address}</div>
+          <span :if={@event.address} class="text-sm">{@event.address}</span>
+          <%!-- <span :if={@event.league}>{@event.league.name}</span> --%>
 
           <%!-- Category selector --%>
           <div :if={@event.categories != []} class="mt-6">
@@ -33,6 +34,7 @@ defmodule T3SystemWeb.EventLive.Show do
               <.input
                 field={@category_form[:category_id]}
                 type="select"
+                label={gettext("Category")}
                 options={Enum.map(@event.categories, &{&1.name, &1.id})}
               />
             </.form>
@@ -76,9 +78,9 @@ defmodule T3SystemWeb.EventLive.Show do
             <li
               :for={{id, reg} <- @streams.registrations}
               id={id}
-              class="flex items-center gap-4 rounded-sm bg-slate-800 p-4"
+              class="flex items-center gap-2 p-4 rounded-sm bg-slate-800 shadow-xl"
             >
-              <img
+              <%!-- <img
                 :if={reg.player.picture_url}
                 src={reg.player.picture_url}
                 alt={reg.player.name}
@@ -89,18 +91,21 @@ defmodule T3SystemWeb.EventLive.Show do
                 class="flex size-16 shrink-0 items-center justify-center rounded-full bg-gray-700"
               >
                 <.icon name="hero-user" class="size-8 text-gray-400" />
-              </div>
+              </div> --%>
               <div class="min-w-0 flex-1">
-                <p class="font-bold text-white">{reg.player.name}</p>
-                <p class="text-sm text-indigo-400">{reg.club.name}</p>
+                <h3 class="font-display font-black text-lg">{reg.player.name}</h3>
+                <p class="mt-2 text-sm text-sky-400">{reg.club.name}</p>
               </div>
-              <div :if={@is_superuser} class="flex gap-3">
+              <div :if={@is_superuser} class="flex flex-col items-center gap-2">
                 <button
                   phx-click="open_edit_registration"
                   phx-value-id={reg.id}
                   class="text-xs text-indigo-400 hover:text-indigo-300"
                 >
-                  {gettext("Edit")}
+                  <.icon name="hero-pencil-mini" />
+                  <span class="sr-only">
+                    {gettext("Edit")}
+                  </span>
                 </button>
                 <button
                   phx-click="delete_registration"
@@ -108,7 +113,10 @@ defmodule T3SystemWeb.EventLive.Show do
                   data-confirm={gettext("Are you sure?")}
                   class="text-xs text-red-400 hover:text-red-300"
                 >
-                  {gettext("Remove")}
+                  <.icon name="hero-x-circle-mini" />
+                  <span class="sr-only">
+                    {gettext("Remove")}
+                  </span>
                 </button>
               </div>
             </li>
