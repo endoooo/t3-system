@@ -128,7 +128,7 @@ defmodule T3SystemWeb.EventLive.Show do
         </div>
 
         <%!-- Tab: Groups --%>
-        <div :if={@current_tab == "groups"}>
+        <div :if={@current_tab == "groups"} class="p-8">
           <div :if={@active_category}>
             <div :if={@is_superuser} class="mb-4 flex justify-end">
               <.button phx-click="open_new_group" variant="primary">
@@ -140,27 +140,98 @@ defmodule T3SystemWeb.EventLive.Show do
               {gettext("No groups yet.")}
             </p>
 
-            <div
-              :for={{group, standings} <- @groups_with_standings}
-              id={"group-#{group.id}"}
-              class="mb-8"
-            >
-              <div class="mb-3 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-white">{group.name}</h2>
-                <div :if={@is_superuser} class="flex gap-3">
+            <div class="space-y-4">
+              <div
+                :for={{group, standings} <- @groups_with_standings}
+                id={"group-#{group.id}"}
+                class="bg-slate-800"
+              >
+                <div class="flex items-center justify-between p-4 font-display font-bold text-sm">
+                  <h2 class="text-slate-100">{group.name}</h2>
+                  <p class="text-sky-400">{gettext("Finalizado")}</p>
+                </div>
+
+                <div :if={standings == []} class="p-4 text-sm">
+                  {gettext("No players yet.")}
+                </div>
+
+                <div :if={standings != []} class="overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead>
+                      <tr class="border-b border-white/10 text-left text-xs text-slate-100/60">
+                        <th class="w-1 pb-2 pl-4 font-normal">#</th>
+                        <th class="pb-2 px-2 font-normal">{gettext("Player")}</th>
+                        <%!-- <th class="pb-2 px-2 font-normal">{gettext("Club")}</th> --%>
+                        <%!-- <th class="pb-2 px-2 font-normal text-center font-medium">{gettext("P")}</th> --%>
+                        <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("V")}</th>
+                        <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("D")}</th>
+                        <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("S")}</th>
+                        <th class="w-1 pb-2 pl-2 pr-4 font-normal text-center">{gettext("P")}</th>
+                        <%!-- <th class="pb-2 font-medium">{gettext("Status")}</th> --%>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr :for={row <- standings} class="text-xs">
+                        <td class="w-1 py-2 pl-4">{row.rank}</td>
+                        <td class="p-2">{row.registration.player.name}</td>
+                        <%!-- <td class="p-2">{row.registration.club.name}</td> --%>
+                        <%!-- <td class="p-2 text-center text-gray-300">{row.played}</td> --%>
+                        <td class="w-1 p-2 text-center">{row.won}</td>
+                        <td class="w-1 p-2 text-center">{row.lost}</td>
+                        <td class={[
+                          "w-1 p-2 text-center",
+                          if(row.set_diff < 0, do: "text-slate-100/60")
+                        ]}>
+                          {format_diff(row.set_diff)}
+                        </td>
+                        <td class={[
+                          "w-1 pl-2 pr-4 text-center",
+                          if(row.point_diff < 0, do: "text-slate-100/60")
+                        ]}>
+                          {format_diff(row.point_diff)}
+                        </td>
+                        <%!-- <td class="py-2">
+                          <span
+                            :if={row.qualified}
+                            class="inline-flex items-center rounded-full bg-green-400/10 px-2 py-0.5 text-xs font-medium text-green-400"
+                          >
+                            {gettext("Qualified")}
+                          </span>
+                          <span
+                            :if={!row.qualified}
+                            class="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-xs font-medium text-gray-400"
+                          >
+                            {gettext("Not qualified")}
+                          </span>
+                        </td> --%>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div
+                  :if={@is_superuser}
+                  class="flex items-center justify-end gap-2 p-2 border-t border-slate-100/20"
+                >
                   <button
                     phx-click="open_manage_players"
                     phx-value-id={group.id}
                     class="text-xs text-gray-400 hover:text-gray-300"
                   >
-                    {gettext("Players")}
+                    <.icon name="hero-user-group-mini" />
+                    <span class="sr-only">
+                      {gettext("Players")}
+                    </span>
                   </button>
                   <button
                     phx-click="open_edit_group"
                     phx-value-id={group.id}
                     class="text-xs text-indigo-400 hover:text-indigo-300"
                   >
-                    {gettext("Edit")}
+                    <.icon name="hero-pencil-mini" />
+                    <span class="sr-only  ">
+                      {gettext("Edit")}
+                    </span>
                   </button>
                   <button
                     phx-click="delete_group"
@@ -168,72 +239,12 @@ defmodule T3SystemWeb.EventLive.Show do
                     data-confirm={gettext("Are you sure?")}
                     class="text-xs text-red-400 hover:text-red-300"
                   >
-                    {gettext("Delete")}
+                    <.icon name="hero-x-circle-mini" />
+                    <span class="sr-only  ">
+                      {gettext("Delete")}
+                    </span>
                   </button>
                 </div>
-              </div>
-
-              <div :if={standings == []} class="text-sm text-gray-400">
-                {gettext("No players yet.")}
-              </div>
-
-              <div :if={standings != []} class="overflow-x-auto">
-                <table class="w-full text-sm">
-                  <thead>
-                    <tr class="border-b border-white/10 text-left text-xs text-gray-400">
-                      <th class="pb-2 pr-3 font-medium">#</th>
-                      <th class="pb-2 pr-3 font-medium">{gettext("Player")}</th>
-                      <th class="pb-2 pr-3 font-medium">{gettext("Club")}</th>
-                      <th class="pb-2 pr-3 text-center font-medium">{gettext("P")}</th>
-                      <th class="pb-2 pr-3 text-center font-medium">{gettext("W")}</th>
-                      <th class="pb-2 pr-3 text-center font-medium">{gettext("L")}</th>
-                      <th class="pb-2 pr-3 text-center font-medium">{gettext("SD")}</th>
-                      <th class="pb-2 pr-3 text-center font-medium">{gettext("PD")}</th>
-                      <th class="pb-2 font-medium">{gettext("Status")}</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr
-                      :for={row <- standings}
-                      class="border-b border-white/5 last:border-0"
-                    >
-                      <td class="py-2 pr-3 text-gray-400">{row.rank}</td>
-                      <td class="py-2 pr-3 font-medium text-white">
-                        {row.registration.player.name}
-                      </td>
-                      <td class="py-2 pr-3 text-gray-400">{row.registration.club.name}</td>
-                      <td class="py-2 pr-3 text-center text-gray-300">{row.played}</td>
-                      <td class="py-2 pr-3 text-center text-gray-300">{row.won}</td>
-                      <td class="py-2 pr-3 text-center text-gray-300">{row.lost}</td>
-                      <td class={[
-                        "py-2 pr-3 text-center",
-                        if(row.set_diff >= 0, do: "text-green-400", else: "text-red-400")
-                      ]}>
-                        {format_diff(row.set_diff)}
-                      </td>
-                      <td class={[
-                        "py-2 pr-3 text-center",
-                        if(row.point_diff >= 0, do: "text-green-400", else: "text-red-400")
-                      ]}>
-                        {format_diff(row.point_diff)}
-                      </td>
-                      <td class="py-2">
-                        <span
-                          :if={row.qualified}
-                          class="inline-flex items-center rounded-full bg-green-400/10 px-2 py-0.5 text-xs font-medium text-green-400"
-                        >
-                          {gettext("Qualified")}
-                        </span>
-                        <span
-                          :if={!row.qualified}
-                          class="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-xs font-medium text-gray-400"
-                        >
-                          {gettext("Not qualified")}
-                        </span>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
               </div>
             </div>
           </div>
