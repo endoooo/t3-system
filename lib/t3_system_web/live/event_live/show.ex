@@ -934,7 +934,9 @@ defmodule T3SystemWeb.EventLive.Show do
                 </p>
                 <div class="mb-5 space-y-3">
                   <div>
-                    <label class="mb-1 block text-sm text-gray-300">{gettext("Placeholder label")}</label>
+                    <label class="mb-1 block text-sm text-gray-300">
+                      {gettext("Placeholder label")}
+                    </label>
                     <input
                       type="text"
                       name="slot1_label"
@@ -952,7 +954,10 @@ defmodule T3SystemWeb.EventLive.Show do
                       <option value="none" selected={is_nil(@assign_slot_modal.registration1_id)}>
                         {gettext("None (show label)")}
                       </option>
-                      <option value="direct" selected={not is_nil(@assign_slot_modal.registration1_id)}>
+                      <option
+                        value="direct"
+                        selected={not is_nil(@assign_slot_modal.registration1_id)}
+                      >
                         {gettext("Direct")}
                       </option>
                       <option value="bye">{gettext("Bye / WO")}</option>
@@ -979,7 +984,9 @@ defmodule T3SystemWeb.EventLive.Show do
                 </p>
                 <div class="mb-4 space-y-3">
                   <div>
-                    <label class="mb-1 block text-sm text-gray-300">{gettext("Placeholder label")}</label>
+                    <label class="mb-1 block text-sm text-gray-300">
+                      {gettext("Placeholder label")}
+                    </label>
                     <input
                       type="text"
                       name="slot2_label"
@@ -997,7 +1004,10 @@ defmodule T3SystemWeb.EventLive.Show do
                       <option value="none" selected={is_nil(@assign_slot_modal.registration2_id)}>
                         {gettext("None (show label)")}
                       </option>
-                      <option value="direct" selected={not is_nil(@assign_slot_modal.registration2_id)}>
+                      <option
+                        value="direct"
+                        selected={not is_nil(@assign_slot_modal.registration2_id)}
+                      >
                         {gettext("Direct")}
                       </option>
                       <option value="bye">{gettext("Bye / WO")}</option>
@@ -1631,7 +1641,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
       "direct" ->
         reg_id = params["slot#{n}_registration_id"]
-        registration_id = if reg_id not in ["", nil], do: String.to_integer(reg_id), else: nil
+        registration_id = if reg_id in ["", nil], do: nil, else: String.to_integer(reg_id)
         Matches.assign_bracket_slot_direct(scope, match, slot, registration_id)
 
       _ ->
@@ -1935,12 +1945,6 @@ defmodule T3SystemWeb.EventLive.Show do
       true -> gettext("TBD")
     end
   end
-
-  defp ordinal(1), do: "1st"
-  defp ordinal(2), do: "2nd"
-  defp ordinal(3), do: "3rd"
-  defp ordinal(n) when is_integer(n), do: "#{n}th"
-  defp ordinal(_), do: "?"
 
   # Height in px for one bracket slot at the given round (doubles each round).
   defp slot_height(round), do: 88 * trunc(:math.pow(2, round - 1))
