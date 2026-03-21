@@ -127,6 +127,33 @@ defmodule T3SystemWeb.EventLive.Show do
           </p>
         </div>
 
+        <%!-- Tab: Matches --%>
+        <div :if={@current_tab == "matches"} class="p-8">
+          <div :if={@active_category}>
+            <div :if={@is_superuser and @all_match_cards != []} class="mb-4 flex justify-end">
+              <.button phx-click="open_new_match" variant="primary">
+                <.icon name="hero-plus" /> {gettext("Add Match")}
+              </.button>
+            </div>
+
+            <p :if={@all_match_cards == []} class="text-gray-400 text-sm">
+              {gettext("No matches yet.")}
+            </p>
+
+            <div class="space-y-4">
+              <.match_card
+                :for={card <- @all_match_cards}
+                card={card}
+                is_superuser={@is_superuser}
+              />
+            </div>
+          </div>
+
+          <p :if={!@active_category} class="text-gray-400 text-sm">
+            {gettext("No category selected.")}
+          </p>
+        </div>
+
         <%!-- Tab: Groups --%>
         <div :if={@current_tab == "groups"} class="p-8">
           <div :if={@active_category}>
@@ -144,7 +171,7 @@ defmodule T3SystemWeb.EventLive.Show do
               <div
                 :for={{group, standings} <- @groups_with_standings}
                 id={"group-#{group.id}"}
-                class="bg-slate-800"
+                class="bg-slate-800 shadow-xl"
               >
                 <div class="flex items-center justify-between p-4 font-display font-bold text-sm">
                   <h2 class="text-slate-100">{group.name}</h2>
@@ -173,7 +200,10 @@ defmodule T3SystemWeb.EventLive.Show do
                     <tbody>
                       <tr :for={row <- standings} class="text-xs">
                         <td class="w-1 py-2 pl-4">{row.rank}</td>
-                        <td class="p-2">{row.registration.player.name}</td>
+                        <td class={["p-2", if(row.qualified, do: "font-bold")]}>
+                          {row.registration.player.name}
+                          <.icon :if={row.qualified} name="hero-check-micro" class="text-sky-400" />
+                        </td>
                         <%!-- <td class="p-2">{row.registration.club.name}</td> --%>
                         <%!-- <td class="p-2 text-center text-gray-300">{row.played}</td> --%>
                         <td class="w-1 p-2 text-center">{row.won}</td>
@@ -244,333 +274,6 @@ defmodule T3SystemWeb.EventLive.Show do
                       {gettext("Delete")}
                     </span>
                   </button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <p :if={!@active_category} class="text-gray-400 text-sm">
-            {gettext("No category selected.")}
-          </p>
-        </div>
-
-        <%!-- Tab: Matches --%>
-        <div :if={@current_tab == "matches"}>
-          <div :if={@active_category}>
-            <div :if={@is_superuser and @groups_with_standings != []} class="mb-4 flex justify-end">
-              <.button phx-click="open_new_match" variant="primary">
-                <.icon name="hero-plus" /> {gettext("Add Match")}
-              </.button>
-            </div>
-
-            <% all_matches =
-              @groups_with_standings
-              |> Enum.flat_map(fn {group, _} -> Enum.map(group.matches, &{&1, group}) end)
-              |> Enum.sort_by(fn {m, _} -> {m.scheduled_at, m.id} end) %>
-
-            <p :if={all_matches == []} class="text-gray-400 text-sm">
-              {gettext("No matches yet.")}
-            </p>
-
-            <div class="space-y-3">
-              <div
-                :for={{match, group} <- all_matches}
-                id={"match-#{match.id}"}
-                class="rounded-lg bg-white/5"
-              >
-                <% sorted_sets =
-                  case match.sets do
-                    %Ecto.Association.NotLoaded{} -> []
-                    sets -> Enum.sort_by(sets, & &1.set_number)
-                  end %>
-                <% best_of = match.best_of || group.best_of %>
-                <% sets_by_number = Map.new(sorted_sets, fn s -> {s.set_number, s} end) %>
-                <% p1_scores =
-                  Enum.map(1..best_of, fn n ->
-                    case Map.get(sets_by_number, n) do
-                      nil -> "–"
-                      s -> if is_nil(s.score1), do: "–", else: to_string(s.score1)
-                    end
-                  end) %>
-                <% p2_scores =
-                  Enum.map(1..best_of, fn n ->
-                    case Map.get(sets_by_number, n) do
-                      nil -> "–"
-                      s -> if is_nil(s.score2), do: "–", else: to_string(s.score2)
-                    end
-                  end) %>
-                <% sw1 =
-                  Enum.count(sorted_sets, fn s ->
-                    not is_nil(s.score1) and not is_nil(s.score2) and s.score1 > s.score2
-                  end) %>
-                <% sw2 =
-                  Enum.count(sorted_sets, fn s ->
-                    not is_nil(s.score1) and not is_nil(s.score2) and s.score2 > s.score1
-                  end) %>
-                <% p1_won =
-                  not is_nil(match.winner_registration_id) and
-                    match.winner_registration_id == match.registration1_id %>
-                <% p2_won =
-                  not is_nil(match.winner_registration_id) and
-                    match.winner_registration_id == match.registration2_id %>
-
-                <%!-- Card header --%>
-                <div class="flex items-start justify-between p-4 pb-3">
-                  <div>
-                    <p class="text-sm font-semibold text-white">{group.name}</p>
-                    <p :if={match.scheduled_at} class="mt-0.5 text-xs text-gray-400">
-                      {Calendar.strftime(match.scheduled_at, "%d/%m %H:%M")}
-                    </p>
-                  </div>
-                  <div :if={sorted_sets != []} class="text-xl font-bold text-indigo-400">
-                    {sw1}–{sw2}
-                  </div>
-                </div>
-
-                <%!-- Divider --%>
-                <div class="mx-4 h-px bg-indigo-500/40"></div>
-
-                <%!-- Player rows --%>
-                <div class="space-y-2 p-4 pt-3">
-                  <div class="flex items-center gap-2">
-                    <.icon
-                      :if={p1_won}
-                      name="hero-check"
-                      class="size-3.5 shrink-0 text-green-400"
-                    />
-                    <span :if={!p1_won} class="size-3.5 shrink-0"></span>
-                    <span class={[
-                      "min-w-0 flex-1 truncate text-sm",
-                      if(p1_won, do: "font-semibold text-white", else: "text-gray-300")
-                    ]}>
-                      {match_player_name(match.registration1)}
-                    </span>
-                    <span
-                      :if={sorted_sets != []}
-                      class="w-5 shrink-0 text-center text-sm font-bold text-white"
-                    >
-                      {sw1}
-                    </span>
-                    <div class="flex gap-1">
-                      <span
-                        :for={score <- p1_scores}
-                        class="w-7 text-center text-xs tabular-nums text-gray-400"
-                      >
-                        {score}
-                      </span>
-                    </div>
-                  </div>
-                  <div class="flex items-center gap-2">
-                    <.icon
-                      :if={p2_won}
-                      name="hero-check"
-                      class="size-3.5 shrink-0 text-green-400"
-                    />
-                    <span :if={!p2_won} class="size-3.5 shrink-0"></span>
-                    <span class={[
-                      "min-w-0 flex-1 truncate text-sm",
-                      if(p2_won, do: "font-semibold text-white", else: "text-gray-300")
-                    ]}>
-                      {match_player_name(match.registration2)}
-                    </span>
-                    <span
-                      :if={sorted_sets != []}
-                      class="w-5 shrink-0 text-center text-sm font-bold text-white"
-                    >
-                      {sw2}
-                    </span>
-                    <div class="flex gap-1">
-                      <span
-                        :for={score <- p2_scores}
-                        class="w-7 text-center text-xs tabular-nums text-gray-400"
-                      >
-                        {score}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <%!-- Superuser actions --%>
-                <div
-                  :if={@is_superuser}
-                  class="flex justify-end gap-3 border-t border-white/10 px-4 py-2"
-                >
-                  <button
-                    phx-click="open_edit_match"
-                    phx-value-id={match.id}
-                    class="text-xs text-indigo-400 hover:text-indigo-300"
-                  >
-                    {gettext("Edit")}
-                  </button>
-                  <button
-                    phx-click="open_score_modal"
-                    phx-value-id={match.id}
-                    class="text-xs text-indigo-400 hover:text-indigo-300"
-                  >
-                    {gettext("Scores")}
-                  </button>
-                  <button
-                    phx-click="delete_match"
-                    phx-value-id={match.id}
-                    data-confirm={gettext("Are you sure?")}
-                    class="text-xs text-red-400 hover:text-red-300"
-                  >
-                    {gettext("Delete")}
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <%!-- Bracket matches --%>
-            <div :if={@bracket}>
-              <h3 class="mb-3 mt-6 text-xs font-semibold uppercase tracking-wider text-gray-400">
-                {@bracket.name}
-              </h3>
-              <div class="space-y-3">
-                <div :for={{round, round_matches} <- @bracket_rounds}>
-                  <p class="mb-2 text-xs text-gray-500">
-                    {round_label(round, @bracket.rounds)}
-                  </p>
-                  <div
-                    :for={match <- round_matches}
-                    id={"bm-matches-#{match.id}"}
-                    class="rounded-lg bg-white/5"
-                  >
-                    <% sorted_sets =
-                      case match.sets do
-                        %Ecto.Association.NotLoaded{} -> []
-                        sets -> Enum.sort_by(sets, & &1.set_number)
-                      end %>
-                    <% best_of = match.best_of || 5 %>
-                    <% sets_by_number = Map.new(sorted_sets, fn s -> {s.set_number, s} end) %>
-                    <% p1_scores =
-                      Enum.map(1..best_of, fn n ->
-                        case Map.get(sets_by_number, n) do
-                          nil -> "–"
-                          s -> if is_nil(s.score1), do: "–", else: to_string(s.score1)
-                        end
-                      end) %>
-                    <% p2_scores =
-                      Enum.map(1..best_of, fn n ->
-                        case Map.get(sets_by_number, n) do
-                          nil -> "–"
-                          s -> if is_nil(s.score2), do: "–", else: to_string(s.score2)
-                        end
-                      end) %>
-                    <% sw1 =
-                      Enum.count(sorted_sets, fn s ->
-                        not is_nil(s.score1) and not is_nil(s.score2) and s.score1 > s.score2
-                      end) %>
-                    <% sw2 =
-                      Enum.count(sorted_sets, fn s ->
-                        not is_nil(s.score1) and not is_nil(s.score2) and s.score2 > s.score1
-                      end) %>
-                    <% p1_won =
-                      not is_nil(match.winner_registration_id) and
-                        match.winner_registration_id == match.registration1_id %>
-                    <% p2_won =
-                      not is_nil(match.winner_registration_id) and
-                        match.winner_registration_id == match.registration2_id %>
-
-                    <div class="flex items-start justify-between p-4 pb-3">
-                      <div>
-                        <p class="text-sm font-semibold text-white">
-                          {round_label(round, @bracket.rounds)}
-                          <span class="ml-1 font-normal text-gray-500">
-                            — {@bracket.name}
-                          </span>
-                        </p>
-                        <p :if={match.scheduled_at} class="mt-0.5 text-xs text-gray-400">
-                          {Calendar.strftime(match.scheduled_at, "%d/%m %H:%M")}
-                        </p>
-                      </div>
-                      <div :if={sorted_sets != []} class="text-xl font-bold text-indigo-400">
-                        {sw1}–{sw2}
-                      </div>
-                    </div>
-
-                    <div class="mx-4 h-px bg-indigo-500/40"></div>
-
-                    <div class="space-y-2 p-4 pt-3">
-                      <div class="flex items-center gap-2">
-                        <.icon
-                          :if={p1_won}
-                          name="hero-check"
-                          class="size-3.5 shrink-0 text-green-400"
-                        />
-                        <span :if={!p1_won} class="size-3.5 shrink-0"></span>
-                        <span class={[
-                          "min-w-0 flex-1 truncate text-sm",
-                          if(p1_won, do: "font-semibold text-white", else: "text-gray-300")
-                        ]}>
-                          {slot_label(match, 1)}
-                        </span>
-                        <span
-                          :if={sorted_sets != []}
-                          class="w-5 shrink-0 text-center text-sm font-bold text-white"
-                        >
-                          {sw1}
-                        </span>
-                        <div class="flex gap-1">
-                          <span
-                            :for={score <- p1_scores}
-                            class="w-7 text-center text-xs tabular-nums text-gray-400"
-                          >
-                            {score}
-                          </span>
-                        </div>
-                      </div>
-                      <div class="flex items-center gap-2">
-                        <.icon
-                          :if={p2_won}
-                          name="hero-check"
-                          class="size-3.5 shrink-0 text-green-400"
-                        />
-                        <span :if={!p2_won} class="size-3.5 shrink-0"></span>
-                        <span class={[
-                          "min-w-0 flex-1 truncate text-sm",
-                          if(p2_won, do: "font-semibold text-white", else: "text-gray-300")
-                        ]}>
-                          {slot_label(match, 2)}
-                        </span>
-                        <span
-                          :if={sorted_sets != []}
-                          class="w-5 shrink-0 text-center text-sm font-bold text-white"
-                        >
-                          {sw2}
-                        </span>
-                        <div class="flex gap-1">
-                          <span
-                            :for={score <- p2_scores}
-                            class="w-7 text-center text-xs tabular-nums text-gray-400"
-                          >
-                            {score}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div
-                      :if={@is_superuser}
-                      class="flex justify-end gap-3 border-t border-white/10 px-4 py-2"
-                    >
-                      <button
-                        phx-click="open_score_modal"
-                        phx-value-id={match.id}
-                        class="text-xs text-indigo-400 hover:text-indigo-300"
-                      >
-                        {gettext("Scores")}
-                      </button>
-                      <button
-                        phx-click="delete_bracket_match"
-                        phx-value-id={match.id}
-                        data-confirm={gettext("Are you sure?")}
-                        class="text-xs text-red-400 hover:text-red-300"
-                      >
-                        {gettext("Delete")}
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -1432,6 +1135,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:score_modal, nil)
       |> assign(:bracket, nil)
       |> assign(:bracket_rounds, [])
+      |> assign(:all_match_cards, [])
       |> assign(:bracket_modal, nil)
       |> assign(:bracket_form, nil)
       |> assign(:bracket_groups, [])
@@ -1478,6 +1182,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> load_registrations(tab, event, active_category)
       |> load_groups(tab, event, active_category)
       |> load_bracket(tab, event, active_category)
+      |> assign_all_match_cards()
 
     {:noreply, socket}
   end
@@ -2042,7 +1747,10 @@ defmodule T3SystemWeb.EventLive.Show do
     event = socket.assigns.event
     active_category = socket.assigns.active_category
     bracket = Matches.get_bracket_for_event_and_category(event.id, active_category.id)
-    assign_bracket_data(socket, bracket)
+
+    socket
+    |> assign_bracket_data(bracket)
+    |> assign_all_match_cards()
   end
 
   defp assign_bracket_data(socket, nil) do
@@ -2068,7 +1776,202 @@ defmodule T3SystemWeb.EventLive.Show do
     active_category = socket.assigns.active_category
     groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
     groups_with_standings = Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
-    assign(socket, :groups_with_standings, groups_with_standings)
+
+    socket
+    |> assign(:groups_with_standings, groups_with_standings)
+    |> assign_all_match_cards()
+  end
+
+  defp assign_all_match_cards(%{assigns: %{current_tab: "matches"}} = socket) do
+    %{groups_with_standings: groups, bracket: bracket, bracket_rounds: bracket_rounds} =
+      socket.assigns
+
+    cards = prepare_all_match_cards(groups, bracket, bracket_rounds)
+    assign(socket, :all_match_cards, cards)
+  end
+
+  defp assign_all_match_cards(socket), do: socket
+
+  defp prepare_all_match_cards(groups_with_standings, bracket, bracket_rounds) do
+    group_cards =
+      Enum.flat_map(groups_with_standings, fn {group, _standings} ->
+        ctx = %{label: group.name, best_of: group.best_of, source: :group}
+        Enum.map(group.matches, &prepare_match_card(&1, ctx))
+      end)
+
+    bracket_cards = prepare_bracket_cards(bracket, bracket_rounds)
+
+    (group_cards ++ bracket_cards)
+    |> Enum.sort_by(fn card -> {card.scheduled_at, card.id} end)
+  end
+
+  defp prepare_bracket_cards(nil, _bracket_rounds), do: []
+
+  defp prepare_bracket_cards(bracket, bracket_rounds) do
+    Enum.flat_map(bracket_rounds, fn {round, matches} ->
+      ctx = %{label: round_label(round, bracket.rounds), best_of: 5, source: :bracket}
+      Enum.map(matches, &prepare_match_card(&1, ctx))
+    end)
+  end
+
+  defp prepare_match_card(match, %{label: label, best_of: fallback_best_of, source: source}) do
+    sorted_sets = sort_sets(match.sets)
+    best_of = match.best_of || fallback_best_of
+    sets_by_number = Map.new(sorted_sets, fn s -> {s.set_number, s} end)
+    {sw1, sw2} = sets_won(sorted_sets)
+
+    %{
+      id: match.id,
+      label: label,
+      source: source,
+      scheduled_at: match.scheduled_at,
+      has_sets: sorted_sets != [],
+      p1_scores: set_scores(sets_by_number, best_of, :score1),
+      p2_scores: set_scores(sets_by_number, best_of, :score2),
+      sw1: sw1,
+      sw2: sw2,
+      p1_won:
+        match.winner_registration_id == match.registration1_id and
+          not is_nil(match.winner_registration_id),
+      p2_won:
+        match.winner_registration_id == match.registration2_id and
+          not is_nil(match.winner_registration_id),
+      p1_name: card_player_name(match, 1, source),
+      p2_name: card_player_name(match, 2, source)
+    }
+  end
+
+  defp sort_sets(%Ecto.Association.NotLoaded{}), do: []
+  defp sort_sets(sets), do: Enum.sort_by(sets, & &1.set_number)
+
+  defp set_scores(sets_by_number, best_of, score_key) do
+    Enum.map(1..best_of, fn n ->
+      case Map.get(sets_by_number, n) do
+        nil -> "–"
+        s -> Map.get(s, score_key) |> format_set_score()
+      end
+    end)
+  end
+
+  defp format_set_score(nil), do: "–"
+  defp format_set_score(score), do: to_string(score)
+
+  defp sets_won(sorted_sets) do
+    Enum.reduce(sorted_sets, {0, 0}, fn s, {w1, w2} ->
+      cond do
+        is_nil(s.score1) or is_nil(s.score2) -> {w1, w2}
+        s.score1 > s.score2 -> {w1 + 1, w2}
+        s.score2 > s.score1 -> {w1, w2 + 1}
+        true -> {w1, w2}
+      end
+    end)
+  end
+
+  defp card_player_name(match, 1, :group), do: match_player_name(match.registration1)
+  defp card_player_name(match, 2, :group), do: match_player_name(match.registration2)
+  defp card_player_name(match, slot, :bracket), do: slot_label(match, slot)
+
+  defp match_card(assigns) do
+    ~H"""
+    <div id={"match-#{@card.id}"} class="rounded-sm bg-slate-800 shadow-xl">
+      <%!-- Card header --%>
+      <div class="flex items-center justify-between p-4 pb-2 border-b border-slate-100/20">
+        <div>
+          <p class="font-display font-bold text-sm text-slate-100/60">{@card.label}</p>
+          <p :if={@card.scheduled_at} class="mt-0.5 text-xs text-slate-100">
+            {Calendar.strftime(@card.scheduled_at, "%d/%m %H:%M")}
+          </p>
+        </div>
+        <div :if={@card.has_sets} class="font-display font-bold text-sm text-cyan-400">
+          {@card.sw1} — {@card.sw2}
+        </div>
+      </div>
+
+      <%!-- Player rows --%>
+      <div class="space-y-2 p-4 pt-3">
+        <div class="flex items-center gap-2">
+          <div class="flex-1 flex items-center gap-2">
+            <span class={[
+              "min-w-0 truncate text-sm",
+              if(@card.p1_won, do: "font-bold")
+            ]}>
+              {@card.p1_name}
+            </span>
+            <.icon :if={@card.p1_won} name="hero-check-micro" class="shrink-0 text-sky-400" />
+          </div>
+          <span
+            :if={@card.has_sets}
+            class="w-5 shrink-0 text-center text-sm font-bold text-white"
+          >
+            {@card.sw1}
+          </span>
+          <div class="flex gap-1">
+            <span
+              :for={score <- @card.p1_scores}
+              class="w-7 text-center text-xs tabular-nums text-gray-400"
+            >
+              {score}
+            </span>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <div class="flex-1 flex items-center gap-2">
+            <span class={[
+              "min-w-0 truncate text-sm",
+              if(@card.p2_won, do: "font-bold")
+            ]}>
+              {@card.p2_name}
+            </span>
+            <.icon :if={@card.p2_won} name="hero-check-micro" class="shrink-0 text-sky-400" />
+          </div>
+          <span
+            :if={@card.has_sets}
+            class="w-5 shrink-0 text-center text-sm font-bold text-white"
+          >
+            {@card.sw2}
+          </span>
+          <div class="flex gap-1">
+            <span
+              :for={score <- @card.p2_scores}
+              class="w-7 text-center text-xs tabular-nums text-gray-400"
+            >
+              {score}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <%!-- Superuser actions --%>
+      <div
+        :if={@is_superuser}
+        class="flex justify-end gap-3 border-t border-white/10 px-4 py-2"
+      >
+        <button
+          :if={@card.source == :group}
+          phx-click="open_edit_match"
+          phx-value-id={@card.id}
+          class="text-xs text-indigo-400 hover:text-indigo-300"
+        >
+          {gettext("Edit")}
+        </button>
+        <button
+          phx-click="open_score_modal"
+          phx-value-id={@card.id}
+          class="text-xs text-indigo-400 hover:text-indigo-300"
+        >
+          {gettext("Scores")}
+        </button>
+        <button
+          phx-click={if(@card.source == :group, do: "delete_match", else: "delete_bracket_match")}
+          phx-value-id={@card.id}
+          data-confirm={gettext("Are you sure?")}
+          class="text-xs text-red-400 hover:text-red-300"
+        >
+          {gettext("Delete")}
+        </button>
+      </div>
+    </div>
+    """
   end
 
   defp available_registrations(category_registrations, groups_with_standings) do
