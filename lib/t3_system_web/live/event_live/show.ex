@@ -490,26 +490,28 @@ defmodule T3SystemWeb.EventLive.Show do
                 phx-change="validate"
                 phx-submit="save_registration"
               >
-                <.input
-                  field={@form[:player_id]}
-                  type="select"
-                  label={gettext("Player")}
-                  options={Enum.map(@players, &{&1.name, &1.id})}
-                  prompt={gettext("Select a player")}
-                />
-                <.input
-                  field={@form[:club_id]}
-                  type="select"
-                  label={gettext("Club")}
-                  options={Enum.map(@clubs, &{&1.name, &1.id})}
-                  prompt={gettext("Select a club")}
-                />
-                <input type="hidden" name="registration[event_id]" value={@event.id} />
-                <input
-                  type="hidden"
-                  name="registration[category_id]"
-                  value={@active_category && @active_category.id}
-                />
+                <div class="space-y-4">
+                  <.input
+                    field={@form[:player_id]}
+                    type="select"
+                    label={gettext("Player")}
+                    options={Enum.map(@players, &{&1.name, &1.id})}
+                    prompt={gettext("Select a player")}
+                  />
+                  <.input
+                    field={@form[:club_id]}
+                    type="select"
+                    label={gettext("Club")}
+                    options={Enum.map(@clubs, &{&1.name, &1.id})}
+                    prompt={gettext("Select a club")}
+                  />
+                  <input type="hidden" name="registration[event_id]" value={@event.id} />
+                  <input
+                    type="hidden"
+                    name="registration[category_id]"
+                    value={@active_category && @active_category.id}
+                  />
+                </div>
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_modal">{gettext("Cancel")}</.button>
                   <.button type="submit" variant="primary">{gettext("Save")}</.button>
@@ -633,21 +635,23 @@ defmodule T3SystemWeb.EventLive.Show do
                 phx-change="validate_group"
                 phx-submit="save_group"
               >
-                <.input
-                  field={@group_form[:name]}
-                  type="text"
-                  label={gettext("Name")}
-                />
-                <.input
-                  field={@group_form[:qualifies_count]}
-                  type="number"
-                  label={gettext("Players advancing")}
-                />
-                <input
-                  type="hidden"
-                  name="group[stage_id]"
-                  value={@current_stage && @current_stage.id}
-                />
+                <div class="space-y-4">
+                  <.input
+                    field={@group_form[:name]}
+                    type="text"
+                    label={gettext("Name")}
+                  />
+                  <.input
+                    field={@group_form[:qualifies_count]}
+                    type="number"
+                    label={gettext("Players advancing")}
+                  />
+                  <input
+                    type="hidden"
+                    name="group[stage_id]"
+                    value={@current_stage && @current_stage.id}
+                  />
+                </div>
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_group_modal">
                     {gettext("Cancel")}
@@ -1036,35 +1040,37 @@ defmodule T3SystemWeb.EventLive.Show do
                 phx-change="validate_stage"
                 phx-submit="save_stage"
               >
-                <.input
-                  field={@stage_form[:name]}
-                  type="text"
-                  label={gettext("Name")}
-                />
-                <.input
-                  :if={@stage_modal == :new}
-                  field={@stage_form[:type]}
-                  type="select"
-                  label={gettext("Type")}
-                  options={[{gettext("Group"), "group"}, {gettext("Bracket"), "bracket"}]}
-                />
-                <.input
-                  field={@stage_form[:order]}
-                  type="number"
-                  label={gettext("Order")}
-                />
-                <.input
-                  :if={to_string(@stage_form[:type].value) == "bracket"}
-                  field={@stage_form[:rounds]}
-                  type="number"
-                  label={gettext("Number of rounds (1–7)")}
-                />
-                <input type="hidden" name="stage[event_id]" value={@event.id} />
-                <input
-                  type="hidden"
-                  name="stage[category_id]"
-                  value={@active_category && @active_category.id}
-                />
+                <div class="space-y-4">
+                  <.input
+                    field={@stage_form[:name]}
+                    type="text"
+                    label={gettext("Name")}
+                  />
+                  <.input
+                    :if={@stage_modal == :new}
+                    field={@stage_form[:type]}
+                    type="select"
+                    label={gettext("Type")}
+                    options={[{gettext("Group"), "group"}, {gettext("Bracket"), "bracket"}]}
+                  />
+                  <.input
+                    field={@stage_form[:order]}
+                    type="number"
+                    label={gettext("Order")}
+                  />
+                  <.input
+                    :if={to_string(@stage_form[:type].value) == "bracket"}
+                    field={@stage_form[:rounds]}
+                    type="number"
+                    label={gettext("Number of rounds (1–7)")}
+                  />
+                  <input type="hidden" name="stage[event_id]" value={@event.id} />
+                  <input
+                    type="hidden"
+                    name="stage[category_id]"
+                    value={@active_category && @active_category.id}
+                  />
+                </div>
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_stage_modal">
                     {gettext("Cancel")}
