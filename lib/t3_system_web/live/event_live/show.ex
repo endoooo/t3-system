@@ -1036,6 +1036,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   label={gettext("Name")}
                 />
                 <.input
+                  :if={@stage_modal == :new}
                   field={@stage_form[:type]}
                   type="select"
                   label={gettext("Type")}

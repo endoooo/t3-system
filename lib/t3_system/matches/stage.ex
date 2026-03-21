@@ -43,7 +43,8 @@ defmodule T3System.Matches.Stage do
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(stage, attrs) do
     stage
-    |> cast(attrs, @required_fields ++ [:rounds])
+    |> cast(attrs, [:name, :order, :rounds])
+    |> maybe_cast_type(stage, attrs)
     |> validate_required(@required_fields)
     |> validate_inclusion(:type, ~w(group bracket))
     |> validate_number(:order, greater_than: 0)
@@ -52,6 +53,12 @@ defmodule T3System.Matches.Stage do
     |> assoc_constraint(:category)
     |> unique_constraint([:event_id, :category_id, :order])
   end
+
+  # Only allow setting type, event, and category on new (unpersisted) stages
+  defp maybe_cast_type(changeset, %{id: nil}, attrs),
+    do: cast(changeset, attrs, [:type, :event_id, :category_id])
+
+  defp maybe_cast_type(changeset, _persisted_stage, _attrs), do: changeset
 
   defp validate_bracket_rounds(changeset) do
     if get_field(changeset, :type) == "bracket" do
