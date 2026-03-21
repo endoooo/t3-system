@@ -33,8 +33,6 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> visit(~p"/events/#{event}")
       |> assert_has("h1", text: event.name)
       |> assert_has("span", text: event.address)
-
-      # |> assert_has("span", text: league.name)
     end
 
     test "displays formatted datetime", %{conn: conn} do
@@ -52,8 +50,6 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> visit(~p"/events/#{event}")
       |> assert_has("a", text: "Overview")
       |> assert_has("a", text: "Matches")
-      |> assert_has("a", text: "Groups")
-      |> assert_has("a", text: "Knockout")
     end
 
     test "shows category selector when event has categories", %{conn: conn} do
@@ -86,16 +82,6 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> visit(~p"/events/#{event}")
       |> assert_has("h3", text: player.name)
       |> assert_has("p", text: club.name)
-    end
-
-    test "knockout tab shows bracket not set up message", %{conn: conn} do
-      category = insert(:category)
-      event = insert(:event)
-      associate_category(event, category)
-
-      conn
-      |> visit(~p"/events/#{event}?tab=knockout&category_id=#{category.id}")
-      |> assert_has("p", text: "Bracket not set up yet.")
     end
 
     test "does not show add registration button for anonymous users", %{conn: conn} do
@@ -273,21 +259,30 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       category = insert(:category)
       event = insert(:event)
       associate_category(event, category)
-      group = insert(:group, event: event, category: category)
-      %{conn: log_in_user(conn, superuser), event: event, category: category, group: group}
+      stage = insert(:stage, event: event, category: category, name: "Groups", order: 1)
+      group = insert(:group, stage: stage)
+
+      %{
+        conn: log_in_user(conn, superuser),
+        event: event,
+        category: category,
+        stage: stage,
+        group: group
+      }
     end
 
-    defp groups_url(event, category),
-      do: ~p"/events/#{event}?tab=groups&category_id=#{category.id}"
+    defp stage_url(event, category, stage),
+      do: ~p"/events/#{event}?tab=stage-#{stage.id}&category_id=#{category.id}"
 
     test "opens manage players modal", %{
       conn: conn,
       event: event,
       category: category,
+      stage: stage,
       group: group
     } do
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> click_button("Players")
       |> assert_has("h2", text: "Manage Players")
       |> assert_has("h2", text: group.name)
@@ -296,10 +291,11 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     test "shows empty state when group has no players", %{
       conn: conn,
       event: event,
-      category: category
+      category: category,
+      stage: stage
     } do
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> click_button("Players")
       |> assert_has("p", text: "No players added yet.")
     end
@@ -308,6 +304,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn: conn,
       event: event,
       category: category,
+      stage: stage,
       group: group
     } do
       player = insert(:player)
@@ -319,14 +316,14 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       add_to_group(group, registration)
 
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> click_button("Players")
       |> assert_has("li", text: player.name)
     end
 
-    test "closes the modal", %{conn: conn, event: event, category: category} do
+    test "closes the modal", %{conn: conn, event: event, category: category, stage: stage} do
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> click_button("Players")
       |> assert_has("h2", text: "Manage Players")
       |> click_button("Close")
@@ -337,14 +334,14 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn: conn,
       event: event,
       category: category,
-      group: _group
+      stage: stage
     } do
       player = insert(:player)
       club = insert(:club)
       insert(:registration, event: event, category: category, player: player, club: club)
 
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> click_button("Players")
       |> select("Add Player", option: "#{player.name} — #{club.name}")
       |> assert_has("li", text: player.name)
@@ -354,14 +351,14 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn: conn,
       event: event,
       category: category,
-      group: _group
+      stage: stage
     } do
       player = insert(:player)
       club = insert(:club)
       insert(:registration, event: event, category: category, player: player, club: club)
 
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> click_button("Players")
       |> select("Add Player", option: "#{player.name} — #{club.name}")
       |> click_button("Close")
@@ -372,6 +369,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn: conn,
       event: event,
       category: category,
+      stage: stage,
       group: group
     } do
       player = insert(:player)
@@ -383,7 +381,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       add_to_group(group, registration)
 
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> click_button("Players")
       |> assert_has("li", text: player.name)
       |> click_button("Remove")
@@ -394,9 +392,10 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn: conn,
       event: event,
       category: category,
+      stage: stage,
       group: group
     } do
-      group2 = insert(:group, event: event, category: category)
+      group2 = insert(:group, stage: stage)
       player_taken = insert(:player)
       player_free = insert(:player)
       club = insert(:club)
@@ -408,7 +407,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       add_to_group(group2, reg_taken)
 
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> within("#group-#{group.id}", fn session ->
         click_button(session, "Players")
       end)
@@ -419,10 +418,11 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     test "generate matches button is disabled with fewer than 2 players", %{
       conn: conn,
       event: event,
-      category: category
+      category: category,
+      stage: stage
     } do
       conn
-      |> visit(groups_url(event, category))
+      |> visit(stage_url(event, category, stage))
       |> click_button("Players")
       |> assert_has("button[disabled]", text: "Generate")
     end

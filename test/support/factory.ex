@@ -12,6 +12,7 @@ defmodule T3System.Factory do
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.MatchSet
+  alias T3System.Matches.Stage
   alias T3System.Players.Player
   alias T3System.Registrations.Registration
 
@@ -74,11 +75,20 @@ defmodule T3System.Factory do
     }
   end
 
+  def stage_factory do
+    %Stage{
+      name: sequence(:name, &"Stage #{&1}"),
+      type: "group",
+      order: 1,
+      event: build(:event),
+      category: build(:category)
+    }
+  end
+
   def group_factory do
     %Group{
       name: sequence(:name, &"Group #{&1}"),
-      event: build(:event),
-      category: build(:category)
+      stage: build(:stage)
     }
   end
 
@@ -86,15 +96,16 @@ defmodule T3System.Factory do
     %Bracket{
       name: sequence(:name, &"Bracket #{&1}"),
       rounds: 2,
-      event: build(:event),
-      category: build(:category)
+      stage: build(:stage, type: "bracket")
     }
   end
 
   def match_factory do
+    stage = build(:stage)
+
     %Match{
-      event: build(:event),
-      group: build(:group)
+      event: stage.event,
+      group: build(:group, stage: stage)
     }
   end
 

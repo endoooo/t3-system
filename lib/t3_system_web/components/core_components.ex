@@ -293,7 +293,7 @@ defmodule T3SystemWeb.CoreComponents do
           id={@id}
           value={Phoenix.HTML.Form.normalize_value(@type, @value)}
           class={[
-            @class || "w-full input",
+            @class || "w-full appearance-none rounded-sm bg-slate-800 py-3 px-4 text-base",
             @errors != [] && (@error_class || "input-error")
           ]}
           {@rest}

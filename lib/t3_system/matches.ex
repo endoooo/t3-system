@@ -11,34 +11,114 @@ defmodule T3System.Matches do
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.MatchSet
+  alias T3System.Matches.Stage
   alias T3System.Registrations.Registration
+
+  # ---------------------------------------------------------------------------
+  # Stages
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Returns stages for the given event, ordered by order.
+  """
+  def list_stages_for_event(event_id) do
+    Stage
+    |> where([s], s.event_id == ^event_id)
+    |> order_by([s], s.order)
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns stages for the given event and category, ordered by order,
+  with groups and brackets preloaded (including their matches and registrations).
+  """
+  def list_stages_for_event_and_category(event_id, category_id) do
+    Stage
+    |> where([s], s.event_id == ^event_id and s.category_id == ^category_id)
+    |> order_by([s], s.order)
+    |> Repo.all()
+    |> Repo.preload(
+      groups: [
+        registrations: [:player, :club],
+        matches: [
+          :sets,
+          registration1: [:player, :club],
+          registration2: [:player, :club],
+          winner: [:player]
+        ]
+      ],
+      brackets: [
+        matches: [
+          :sets,
+          registration1: [:player, :club],
+          registration2: [:player, :club],
+          winner: [:player]
+        ]
+      ]
+    )
+  end
+
+  @doc """
+  Gets a single stage.
+
+  Raises `Ecto.NoResultsError` if the Stage does not exist.
+  """
+  def get_stage!(id), do: Repo.get!(Stage, id)
+
+  @doc """
+  Creates a stage. Requires a superuser scope.
+  """
+  def create_stage(%Scope{user: %{role: "superuser"}}, attrs) do
+    %Stage{}
+    |> Stage.changeset(attrs)
+    |> Repo.insert()
+  end
+
+  @doc """
+  Updates a stage. Requires a superuser scope.
+  """
+  def update_stage(%Scope{user: %{role: "superuser"}}, %Stage{} = stage, attrs) do
+    stage
+    |> Stage.changeset(attrs)
+    |> Repo.update()
+  end
+
+  @doc """
+  Deletes a stage. Requires a superuser scope.
+  """
+  def delete_stage(%Scope{user: %{role: "superuser"}}, %Stage{} = stage) do
+    Repo.delete(stage)
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for tracking stage changes.
+  """
+  def change_stage(%Stage{} = stage, attrs \\ %{}) do
+    Stage.changeset(stage, attrs)
+  end
 
   # ---------------------------------------------------------------------------
   # Groups
   # ---------------------------------------------------------------------------
 
   @doc """
-  Returns the list of groups for the given event.
-
-  ## Examples
-
-      iex> list_groups_for_event(event_id)
-      [%Group{}, ...]
-
+  Returns the list of groups for the given event (through stages).
   """
   def list_groups_for_event(event_id) do
     Group
-    |> where([g], g.event_id == ^event_id)
+    |> join(:inner, [g], s in Stage, on: g.stage_id == s.id)
+    |> where([g, s], s.event_id == ^event_id)
     |> Repo.all()
   end
 
   @doc """
-  Returns groups for the given event and category, with members and matches
-  preloaded for standings computation.
+  Returns groups for the given event and category (through stages),
+  with members and matches preloaded for standings computation.
   """
   def list_groups_for_event_and_category(event_id, category_id) do
     Group
-    |> where([g], g.event_id == ^event_id and g.category_id == ^category_id)
+    |> join(:inner, [g], s in Stage, on: g.stage_id == s.id)
+    |> where([g, s], s.event_id == ^event_id and s.category_id == ^category_id)
     |> order_by([g], g.name)
     |> Repo.all()
     |> Repo.preload(
@@ -113,7 +193,7 @@ defmodule T3System.Matches do
   Returns `{:ok, match_count}`.
   """
   def generate_group_matches(%Scope{user: %{role: "superuser"}}, %Group{} = group) do
-    group = Repo.preload(group, :registrations)
+    group = Repo.preload(group, [:registrations, :stage])
     registrations = group.registrations
 
     pairs =
@@ -133,10 +213,11 @@ defmodule T3System.Matches do
 
   defp build_match_rows(pairs, group) do
     now = DateTime.utc_now(:second)
+    event_id = group.stage.event_id
 
     Enum.map(pairs, fn {r1, r2} ->
       %{
-        event_id: group.event_id,
+        event_id: event_id,
         group_id: group.id,
         registration1_id: r1.id,
         registration2_id: r2.id,
@@ -233,47 +314,24 @@ defmodule T3System.Matches do
   Gets a single group.
 
   Raises `Ecto.NoResultsError` if the Group does not exist.
-
-  ## Examples
-
-      iex> get_group!(123)
-      %Group{}
-
-      iex> get_group!(456)
-      ** (Ecto.NoResultsError)
-
   """
   def get_group!(id), do: Repo.get!(Group, id)
 
   @doc """
   Creates a group. Requires a superuser scope.
-
-  ## Examples
-
-      iex> create_group(superuser_scope, %{field: value})
-      {:ok, %Group{}}
-
-      iex> create_group(non_superuser_scope, %{field: value})
-      ** (FunctionClauseError)
-
   """
   def create_group(%Scope{user: %{role: "superuser"}}, attrs) do
-    %Group{}
-    |> Group.changeset(attrs)
-    |> Repo.insert()
+    stage_id = attrs["stage_id"] || attrs[:stage_id]
+
+    with {:ok, _stage} <- fetch_stage_of_type(stage_id, "group") do
+      %Group{}
+      |> Group.changeset(attrs)
+      |> Repo.insert()
+    end
   end
 
   @doc """
   Updates a group. Requires a superuser scope.
-
-  ## Examples
-
-      iex> update_group(superuser_scope, group, %{field: new_value})
-      {:ok, %Group{}}
-
-      iex> update_group(non_superuser_scope, group, %{field: value})
-      ** (FunctionClauseError)
-
   """
   def update_group(%Scope{user: %{role: "superuser"}}, %Group{} = group, attrs) do
     group
@@ -283,15 +341,6 @@ defmodule T3System.Matches do
 
   @doc """
   Deletes a group. Requires a superuser scope.
-
-  ## Examples
-
-      iex> delete_group(superuser_scope, group)
-      {:ok, %Group{}}
-
-      iex> delete_group(non_superuser_scope, group)
-      ** (FunctionClauseError)
-
   """
   def delete_group(%Scope{user: %{role: "superuser"}}, %Group{} = group) do
     Repo.delete(group)
@@ -299,12 +348,6 @@ defmodule T3System.Matches do
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking group changes.
-
-  ## Examples
-
-      iex> change_group(group)
-      %Ecto.Changeset{data: %Group{}}
-
   """
   def change_group(%Group{} = group, attrs \\ %{}) do
     Group.changeset(group, attrs)
@@ -315,109 +358,54 @@ defmodule T3System.Matches do
   # ---------------------------------------------------------------------------
 
   @doc """
-  Returns the list of brackets for the given event.
-
-  ## Examples
-
-      iex> list_brackets_for_event(event_id)
-      [%Bracket{}, ...]
-
+  Returns the list of brackets for the given event (through stages).
   """
   def list_brackets_for_event(event_id) do
     Bracket
-    |> where([b], b.event_id == ^event_id)
+    |> join(:inner, [b], s in Stage, on: b.stage_id == s.id)
+    |> where([b, s], s.event_id == ^event_id)
     |> Repo.all()
-  end
-
-  @doc """
-  Returns the bracket for the given event and category with matches fully preloaded,
-  or nil if none exists.
-  """
-  def get_bracket_for_event_and_category(event_id, category_id) do
-    Bracket
-    |> where([b], b.event_id == ^event_id and b.category_id == ^category_id)
-    |> Repo.one()
-    |> case do
-      nil ->
-        nil
-
-      bracket ->
-        Repo.preload(bracket,
-          matches: [
-            :sets,
-            registration1: [:player, :club],
-            registration2: [:player, :club],
-            winner: [:player]
-          ]
-        )
-    end
   end
 
   @doc """
   Gets a single bracket.
 
   Raises `Ecto.NoResultsError` if the Bracket does not exist.
-
-  ## Examples
-
-      iex> get_bracket!(123)
-      %Bracket{}
-
-      iex> get_bracket!(456)
-      ** (Ecto.NoResultsError)
-
   """
   def get_bracket!(id), do: Repo.get!(Bracket, id)
 
   @doc """
   Creates a bracket and generates placeholder matches for all rounds.
-  Deletes any existing bracket for the same event+category first.
+  Deletes any existing brackets in the same stage first.
   Requires a superuser scope.
-
-  ## Examples
-
-      iex> create_bracket(superuser_scope, %{field: value})
-      {:ok, %Bracket{}}
-
-      iex> create_bracket(non_superuser_scope, %{field: value})
-      ** (FunctionClauseError)
-
   """
   def create_bracket(%Scope{user: %{role: "superuser"}}, attrs) do
-    event_id = attrs["event_id"] || attrs[:event_id]
-    category_id = attrs["category_id"] || attrs[:category_id]
+    stage_id = attrs["stage_id"] || attrs[:stage_id]
 
-    Repo.transaction(fn ->
-      # Delete any existing bracket for this event+category
-      if event_id && category_id do
-        from(b in Bracket,
-          where: b.event_id == ^event_id and b.category_id == ^category_id
-        )
-        |> Repo.delete_all()
-      end
+    with {:ok, _stage} <- fetch_stage_of_type(stage_id, "bracket") do
+      Repo.transaction(fn -> do_create_bracket(stage_id, attrs) end)
+    end
+  end
 
-      case %Bracket{} |> Bracket.changeset(attrs) |> Repo.insert() do
-        {:ok, bracket} ->
-          generate_bracket_matches(bracket)
-          bracket
+  defp do_create_bracket(stage_id, attrs) do
+    if stage_id do
+      from(b in Bracket, where: b.stage_id == ^stage_id)
+      |> Repo.delete_all()
+    end
 
-        {:error, changeset} ->
-          Repo.rollback(changeset)
-      end
-    end)
+    case %Bracket{} |> Bracket.changeset(attrs) |> Repo.insert() do
+      {:ok, bracket} ->
+        bracket = Repo.preload(bracket, :stage)
+        generate_bracket_matches(bracket)
+        bracket
+
+      {:error, changeset} ->
+        Repo.rollback(changeset)
+    end
   end
 
   @doc """
   Updates a bracket. Requires a superuser scope.
-
-  ## Examples
-
-      iex> update_bracket(superuser_scope, bracket, %{field: new_value})
-      {:ok, %Bracket{}}
-
-      iex> update_bracket(non_superuser_scope, bracket, %{field: value})
-      ** (FunctionClauseError)
-
   """
   def update_bracket(%Scope{user: %{role: "superuser"}}, %Bracket{} = bracket, attrs) do
     bracket
@@ -427,15 +415,6 @@ defmodule T3System.Matches do
 
   @doc """
   Deletes a bracket. Requires a superuser scope.
-
-  ## Examples
-
-      iex> delete_bracket(superuser_scope, bracket)
-      {:ok, %Bracket{}}
-
-      iex> delete_bracket(non_superuser_scope, bracket)
-      ** (FunctionClauseError)
-
   """
   def delete_bracket(%Scope{user: %{role: "superuser"}}, %Bracket{} = bracket) do
     Repo.delete(bracket)
@@ -443,12 +422,6 @@ defmodule T3System.Matches do
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking bracket changes.
-
-  ## Examples
-
-      iex> change_bracket(bracket)
-      %Ecto.Changeset{data: %Bracket{}}
-
   """
   def change_bracket(%Bracket{} = bracket, attrs \\ %{}) do
     Bracket.changeset(bracket, attrs)
@@ -480,12 +453,13 @@ defmodule T3System.Matches do
   defp generate_bracket_matches(%Bracket{} = bracket) do
     rounds = bracket.rounds
     now = DateTime.utc_now(:second)
+    event_id = bracket.stage.event_id
 
     rows =
       for r <- 1..rounds,
           p <- 1..trunc(:math.pow(2, rounds - r)) do
         %{
-          event_id: bracket.event_id,
+          event_id: event_id,
           bracket_id: bracket.id,
           round: r,
           position: p,
@@ -499,17 +473,25 @@ defmodule T3System.Matches do
   end
 
   # ---------------------------------------------------------------------------
+  # Helpers
+  # ---------------------------------------------------------------------------
+
+  defp fetch_stage_of_type(nil, _type), do: {:error, :stage_not_found}
+
+  defp fetch_stage_of_type(stage_id, expected_type) do
+    case Repo.get(Stage, stage_id) do
+      nil -> {:error, :stage_not_found}
+      %Stage{type: ^expected_type} = stage -> {:ok, stage}
+      %Stage{} -> {:error, :stage_type_mismatch}
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Matches
   # ---------------------------------------------------------------------------
 
   @doc """
   Returns the list of matches for the given event.
-
-  ## Examples
-
-      iex> list_matches_for_event(event_id)
-      [%Match{}, ...]
-
   """
   def list_matches_for_event(event_id) do
     Match
@@ -529,15 +511,6 @@ defmodule T3System.Matches do
   Gets a single match.
 
   Raises `Ecto.NoResultsError` if the Match does not exist.
-
-  ## Examples
-
-      iex> get_match!(123)
-      %Match{}
-
-      iex> get_match!(456)
-      ** (Ecto.NoResultsError)
-
   """
   def get_match!(id) do
     Repo.get!(Match, id)
@@ -553,15 +526,6 @@ defmodule T3System.Matches do
 
   @doc """
   Creates a match. Requires a superuser scope.
-
-  ## Examples
-
-      iex> create_match(superuser_scope, %{field: value})
-      {:ok, %Match{}}
-
-      iex> create_match(non_superuser_scope, %{field: value})
-      ** (FunctionClauseError)
-
   """
   def create_match(%Scope{user: %{role: "superuser"}}, attrs) do
     %Match{}
@@ -571,17 +535,6 @@ defmodule T3System.Matches do
 
   @doc """
   Updates a match. Requires a superuser scope.
-  After a successful update, if this is a bracket match and a winner was just set,
-  advances the winner to the appropriate slot in the next match.
-
-  ## Examples
-
-      iex> update_match(superuser_scope, match, %{field: new_value})
-      {:ok, %Match{}}
-
-      iex> update_match(non_superuser_scope, match, %{field: value})
-      ** (FunctionClauseError)
-
   """
   def update_match(%Scope{user: %{role: "superuser"}}, %Match{} = match, attrs) do
     match |> Match.changeset(attrs) |> Repo.update()
@@ -589,15 +542,6 @@ defmodule T3System.Matches do
 
   @doc """
   Deletes a match. Requires a superuser scope.
-
-  ## Examples
-
-      iex> delete_match(superuser_scope, match)
-      {:ok, %Match{}}
-
-      iex> delete_match(non_superuser_scope, match)
-      ** (FunctionClauseError)
-
   """
   def delete_match(%Scope{user: %{role: "superuser"}}, %Match{} = match) do
     Repo.delete(match)
@@ -605,12 +549,6 @@ defmodule T3System.Matches do
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking match changes.
-
-  ## Examples
-
-      iex> change_match(match)
-      %Ecto.Changeset{data: %Match{}}
-
   """
   def change_match(%Match{} = match, attrs \\ %{}) do
     Match.changeset(match, attrs)
@@ -622,12 +560,6 @@ defmodule T3System.Matches do
 
   @doc """
   Returns the list of sets for the given match.
-
-  ## Examples
-
-      iex> list_sets_for_match(match_id)
-      [%MatchSet{}, ...]
-
   """
   def list_sets_for_match(match_id) do
     MatchSet
@@ -640,29 +572,11 @@ defmodule T3System.Matches do
   Gets a single match set.
 
   Raises `Ecto.NoResultsError` if the MatchSet does not exist.
-
-  ## Examples
-
-      iex> get_match_set!(123)
-      %MatchSet{}
-
-      iex> get_match_set!(456)
-      ** (Ecto.NoResultsError)
-
   """
   def get_match_set!(id), do: Repo.get!(MatchSet, id)
 
   @doc """
   Creates a match set. Requires a superuser scope.
-
-  ## Examples
-
-      iex> create_match_set(superuser_scope, %{field: value})
-      {:ok, %MatchSet{}}
-
-      iex> create_match_set(non_superuser_scope, %{field: value})
-      ** (FunctionClauseError)
-
   """
   def create_match_set(%Scope{user: %{role: "superuser"}}, attrs) do
     %MatchSet{}
@@ -672,15 +586,6 @@ defmodule T3System.Matches do
 
   @doc """
   Updates a match set. Requires a superuser scope.
-
-  ## Examples
-
-      iex> update_match_set(superuser_scope, match_set, %{field: new_value})
-      {:ok, %MatchSet{}}
-
-      iex> update_match_set(non_superuser_scope, match_set, %{field: value})
-      ** (FunctionClauseError)
-
   """
   def update_match_set(%Scope{user: %{role: "superuser"}}, %MatchSet{} = match_set, attrs) do
     match_set
@@ -690,15 +595,6 @@ defmodule T3System.Matches do
 
   @doc """
   Deletes a match set. Requires a superuser scope.
-
-  ## Examples
-
-      iex> delete_match_set(superuser_scope, match_set)
-      {:ok, %MatchSet{}}
-
-      iex> delete_match_set(non_superuser_scope, match_set)
-      ** (FunctionClauseError)
-
   """
   def delete_match_set(%Scope{user: %{role: "superuser"}}, %MatchSet{} = match_set) do
     Repo.delete(match_set)
@@ -706,12 +602,6 @@ defmodule T3System.Matches do
 
   @doc """
   Returns an `%Ecto.Changeset{}` for tracking match set changes.
-
-  ## Examples
-
-      iex> change_match_set(match_set)
-      %Ecto.Changeset{data: %MatchSet{}}
-
   """
   def change_match_set(%MatchSet{} = match_set, attrs \\ %{}) do
     MatchSet.changeset(match_set, attrs)

@@ -7,11 +7,12 @@ defmodule T3SystemWeb.EventLive.Show do
   alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
+  alias T3System.Matches.Stage
   alias T3System.Players
   alias T3System.Registrations
   alias T3System.Registrations.Registration
 
-  @tabs ~w(overview matches groups knockout)
+  @fixed_tabs ~w(overview matches)
 
   @impl true
   def render(assigns) do
@@ -26,7 +27,6 @@ defmodule T3SystemWeb.EventLive.Show do
             <span>{Calendar.strftime(@event.datetime, "%d/%m/%Y %H:%M")}</span>
           </div>
           <span :if={@event.address} class="text-sm">{@event.address}</span>
-          <%!-- <span :if={@event.league}>{@event.league.name}</span> --%>
 
           <%!-- Category selector --%>
           <div :if={@event.categories != []} class="mt-6">
@@ -56,8 +56,16 @@ defmodule T3SystemWeb.EventLive.Show do
                 )
               ]}
             >
-              {tab_label(tab)}
+              {tab_label(tab, @stages)}
             </.link>
+            <%!-- Add stage button (superuser only) --%>
+            <button
+              :if={@is_superuser and @active_category}
+              phx-click="open_new_stage"
+              class="border-b-4 border-transparent py-2 text-center text-sm text-slate-100/40 hover:text-slate-100/60"
+            >
+              <.icon name="hero-plus-mini" class="size-4" />
+            </button>
           </nav>
         </div>
 
@@ -80,18 +88,6 @@ defmodule T3SystemWeb.EventLive.Show do
               id={id}
               class="flex items-center gap-2 p-4 rounded-sm bg-slate-800 shadow-xl"
             >
-              <%!-- <img
-                :if={reg.player.picture_url}
-                src={reg.player.picture_url}
-                alt={reg.player.name}
-                class="size-16 shrink-0 rounded-full bg-gray-700 object-cover"
-              />
-              <div
-                :if={!reg.player.picture_url}
-                class="flex size-16 shrink-0 items-center justify-center rounded-full bg-gray-700"
-              >
-                <.icon name="hero-user" class="size-8 text-gray-400" />
-              </div> --%>
               <div class="min-w-0 flex-1">
                 <h3 class="font-display font-black text-lg">{reg.player.name}</h3>
                 <p class="mt-2 text-sm text-sky-400">{reg.club.name}</p>
@@ -154,20 +150,48 @@ defmodule T3SystemWeb.EventLive.Show do
           </p>
         </div>
 
-        <%!-- Tab: Groups --%>
-        <div :if={@current_tab == "groups"} class="p-8">
+        <%!-- Tab: Stage (dynamic) --%>
+        <div :if={@current_stage} class="p-8">
           <div :if={@active_category}>
-            <div :if={@is_superuser} class="mb-4 flex justify-end">
-              <.button phx-click="open_new_group" variant="primary">
-                <.icon name="hero-plus" /> {gettext("Add Group")}
-              </.button>
+            <%!-- Stage header with edit/delete controls --%>
+            <div :if={@is_superuser} class="mb-4 flex items-center justify-between">
+              <div class="flex gap-3">
+                <button
+                  phx-click="open_edit_stage"
+                  class="text-xs text-indigo-400 hover:text-indigo-300"
+                >
+                  {gettext("Edit Stage")}
+                </button>
+                <button
+                  phx-click="delete_stage"
+                  data-confirm={
+                    gettext("Are you sure? This will delete all groups and brackets in this stage.")
+                  }
+                  class="text-xs text-red-400 hover:text-red-300"
+                >
+                  {gettext("Delete Stage")}
+                </button>
+              </div>
+              <div class="flex gap-2">
+                <.button
+                  :if={@current_stage.type == "group"}
+                  phx-click="open_new_group"
+                  variant="primary"
+                >
+                  <.icon name="hero-plus" /> {gettext("Add Group")}
+                </.button>
+                <.button
+                  :if={@current_stage.type == "bracket"}
+                  phx-click="open_bracket_setup"
+                  variant="primary"
+                >
+                  <.icon name="hero-plus" /> {gettext("Add Bracket")}
+                </.button>
+              </div>
             </div>
 
-            <p :if={@groups_with_standings == []} class="text-gray-400 text-sm">
-              {gettext("No groups yet.")}
-            </p>
-
-            <div class="space-y-4">
+            <%!-- Groups in this stage --%>
+            <div :if={@groups_with_standings != []} class="space-y-4 mb-8">
               <div
                 :for={{group, standings} <- @groups_with_standings}
                 id={"group-#{group.id}"}
@@ -188,13 +212,10 @@ defmodule T3SystemWeb.EventLive.Show do
                       <tr class="border-b border-white/10 text-left text-xs text-slate-100/60">
                         <th class="w-1 pb-2 pl-4 font-normal">#</th>
                         <th class="pb-2 px-2 font-normal">{gettext("Player")}</th>
-                        <%!-- <th class="pb-2 px-2 font-normal">{gettext("Club")}</th> --%>
-                        <%!-- <th class="pb-2 px-2 font-normal text-center font-medium">{gettext("P")}</th> --%>
                         <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("V")}</th>
                         <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("D")}</th>
                         <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("S")}</th>
                         <th class="w-1 pb-2 pl-2 pr-4 font-normal text-center">{gettext("P")}</th>
-                        <%!-- <th class="pb-2 font-medium">{gettext("Status")}</th> --%>
                       </tr>
                     </thead>
                     <tbody>
@@ -204,8 +225,6 @@ defmodule T3SystemWeb.EventLive.Show do
                           {row.registration.player.name}
                           <.icon :if={row.qualified} name="hero-check-micro" class="text-sky-400" />
                         </td>
-                        <%!-- <td class="p-2">{row.registration.club.name}</td> --%>
-                        <%!-- <td class="p-2 text-center text-gray-300">{row.played}</td> --%>
                         <td class="w-1 p-2 text-center">{row.won}</td>
                         <td class="w-1 p-2 text-center">{row.lost}</td>
                         <td class={[
@@ -220,20 +239,6 @@ defmodule T3SystemWeb.EventLive.Show do
                         ]}>
                           {format_diff(row.point_diff)}
                         </td>
-                        <%!-- <td class="py-2">
-                          <span
-                            :if={row.qualified}
-                            class="inline-flex items-center rounded-full bg-green-400/10 px-2 py-0.5 text-xs font-medium text-green-400"
-                          >
-                            {gettext("Qualified")}
-                          </span>
-                          <span
-                            :if={!row.qualified}
-                            class="inline-flex items-center rounded-full bg-white/5 px-2 py-0.5 text-xs font-medium text-gray-400"
-                          >
-                            {gettext("Not qualified")}
-                          </span>
-                        </td> --%>
                       </tr>
                     </tbody>
                   </table>
@@ -277,30 +282,11 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
               </div>
             </div>
-          </div>
 
-          <p :if={!@active_category} class="text-gray-400 text-sm">
-            {gettext("No category selected.")}
-          </p>
-        </div>
-
-        <%!-- Tab: Knockout --%>
-        <div :if={@current_tab == "knockout"}>
-          <div :if={@active_category}>
-            <%!-- No bracket yet --%>
-            <div :if={is_nil(@bracket)}>
-              <div :if={@is_superuser} class="mb-4 flex justify-end">
-                <.button phx-click="open_bracket_setup" variant="primary">
-                  <.icon name="hero-plus" /> {gettext("Setup Bracket")}
-                </.button>
-              </div>
-              <p class="text-gray-400 text-sm">{gettext("Bracket not set up yet.")}</p>
-            </div>
-
-            <%!-- Bracket exists --%>
-            <div :if={@bracket}>
+            <%!-- Brackets in this stage --%>
+            <div :for={bracket <- @stage_brackets} class="mb-8">
               <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-white">{@bracket.name}</h2>
+                <h2 class="text-lg font-semibold text-white">{bracket.name}</h2>
                 <div :if={@is_superuser} class="flex gap-3">
                   <button
                     phx-click="open_bracket_setup"
@@ -310,6 +296,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   </button>
                   <button
                     phx-click="delete_bracket"
+                    phx-value-id={bracket.id}
                     data-confirm={gettext("Are you sure? This will delete all bracket matches.")}
                     class="text-xs text-red-400 hover:text-red-300"
                   >
@@ -318,16 +305,17 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
               </div>
 
+              <% bracket_rounds = compute_bracket_rounds(bracket) %>
               <%!-- Bracket visualization --%>
               <div class="overflow-x-auto pb-6 -mx-4 px-4">
                 <div class="flex min-w-max">
                   <div
-                    :for={{round, matches} <- @bracket_rounds}
+                    :for={{round, matches} <- bracket_rounds}
                     style="width: 224px; flex-shrink: 0;"
                   >
                     <%!-- Round header --%>
                     <div class="mb-3 h-8 flex items-end pl-3 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">
-                      {round_label(round, @bracket.rounds)}
+                      {round_label(round, bracket.rounds)}
                     </div>
                     <%!-- Match slots --%>
                     <div
@@ -357,7 +345,7 @@ defmodule T3SystemWeb.EventLive.Show do
                         not is_nil(match.winner_registration_id) and
                           match.winner_registration_id == match.registration2_id %>
 
-                      <%!-- Left connector: horizontal line from right edge of prev column to card --%>
+                      <%!-- Left connector --%>
                       <div
                         :if={round > 1}
                         style="position: absolute; left: 0; width: 12px; top: 50%; height: 2px; background-color: rgba(99,102,241,0.25);"
@@ -454,16 +442,16 @@ defmodule T3SystemWeb.EventLive.Show do
                         </div>
                       </div>
 
-                      <%!-- Right connector: top of pair (odd position) — line goes right then down --%>
+                      <%!-- Right connector: top of pair (odd position) --%>
                       <div
-                        :if={round < @bracket.rounds and rem(match.position, 2) == 1}
+                        :if={round < bracket.rounds and rem(match.position, 2) == 1}
                         style="position: absolute; right: 0; width: 24px; top: 50%; height: 50%; border-top: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
                       >
                       </div>
 
-                      <%!-- Right connector: bottom of pair (even position) — line goes right then up --%>
+                      <%!-- Right connector: bottom of pair (even position) --%>
                       <div
-                        :if={round < @bracket.rounds and rem(match.position, 2) == 0}
+                        :if={round < bracket.rounds and rem(match.position, 2) == 0}
                         style="position: absolute; right: 0; width: 24px; top: 0; height: 50%; border-bottom: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
                       >
                       </div>
@@ -472,6 +460,13 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
               </div>
             </div>
+
+            <p
+              :if={@groups_with_standings == [] and @stage_brackets == []}
+              class="text-gray-400 text-sm"
+            >
+              {gettext("No groups or brackets in this stage yet.")}
+            </p>
           </div>
 
           <p :if={!@active_category} class="text-gray-400 text-sm">
@@ -481,9 +476,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
         <%!-- Registration modal --%>
         <div :if={@modal != nil} class="fixed inset-0 z-50">
-          <%!-- Backdrop: sibling to content so clicks inside don't bubble here --%>
           <div class="absolute inset-0 bg-black/60" phx-click="close_modal"></div>
-          <%!-- Content: positioned above backdrop, pointer-events on inner div only --%>
           <div class="relative flex h-full items-center justify-center pointer-events-none">
             <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
               <div class="mb-4 flex items-center justify-between">
@@ -657,11 +650,10 @@ defmodule T3SystemWeb.EventLive.Show do
                   type="number"
                   label={gettext("Players advancing")}
                 />
-                <input type="hidden" name="group[event_id]" value={@event.id} />
                 <input
                   type="hidden"
-                  name="group[category_id]"
-                  value={@active_category && @active_category.id}
+                  name="group[stage_id]"
+                  value={@current_stage && @current_stage.id}
                 />
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_group_modal">
@@ -896,11 +888,10 @@ defmodule T3SystemWeb.EventLive.Show do
                   type="number"
                   label={gettext("Number of rounds (1–7)")}
                 />
-                <input type="hidden" name="bracket[event_id]" value={@event.id} />
                 <input
                   type="hidden"
-                  name="bracket[category_id]"
-                  value={@active_category && @active_category.id}
+                  name="bracket[stage_id]"
+                  value={@current_stage && @current_stage.id}
                 />
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_bracket_modal">
@@ -1038,6 +1029,62 @@ defmodule T3SystemWeb.EventLive.Show do
             </div>
           </div>
         </div>
+
+        <%!-- Stage modal --%>
+        <div :if={@stage_modal != nil} class="fixed inset-0 z-50">
+          <div class="absolute inset-0 bg-black/60" phx-click="close_stage_modal"></div>
+          <div class="relative flex h-full items-center justify-center pointer-events-none">
+            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">
+                  {if @stage_modal == :new,
+                    do: gettext("Add Stage"),
+                    else: gettext("Edit Stage")}
+                </h2>
+                <button phx-click="close_stage_modal" class="text-gray-400 hover:text-white">
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+
+              <.form
+                :if={@stage_form}
+                for={@stage_form}
+                id="stage-form"
+                phx-change="validate_stage"
+                phx-submit="save_stage"
+              >
+                <.input
+                  field={@stage_form[:name]}
+                  type="text"
+                  label={gettext("Name")}
+                />
+                <.input
+                  field={@stage_form[:type]}
+                  type="select"
+                  label={gettext("Type")}
+                  options={[{gettext("Group"), "group"}, {gettext("Bracket"), "bracket"}]}
+                />
+                <.input
+                  field={@stage_form[:order]}
+                  type="number"
+                  label={gettext("Order")}
+                />
+                <input type="hidden" name="stage[event_id]" value={@event.id} />
+                <input
+                  type="hidden"
+                  name="stage[category_id]"
+                  value={@active_category && @active_category.id}
+                />
+                <div class="mt-4 flex justify-end gap-2">
+                  <.button type="button" phx-click="close_stage_modal">
+                    {gettext("Cancel")}
+                  </.button>
+                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                </div>
+              </.form>
+            </div>
+          </div>
+        </div>
       </div>
     </Layouts.app>
     """
@@ -1052,9 +1099,12 @@ defmodule T3SystemWeb.EventLive.Show do
       socket
       |> assign(:page_title, event.name)
       |> assign(:event, event)
-      |> assign(:tabs, @tabs)
       |> assign(:is_superuser, is_superuser)
       |> assign(:category_form, to_form(%{"category_id" => nil}, as: :category))
+      |> assign(:tabs, @fixed_tabs)
+      |> assign(:stages, [])
+      |> assign(:current_stage, nil)
+      |> assign(:stage_brackets, [])
       |> assign(:modal, nil)
       |> assign(:form, nil)
       |> assign(:group_modal, nil)
@@ -1068,13 +1118,13 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:match_group_regs, [])
       |> assign(:score_modal, nil)
       |> assign(:score_set_count, 3)
-      |> assign(:bracket, nil)
-      |> assign(:bracket_rounds, [])
       |> assign(:all_match_cards, [])
       |> assign(:bracket_modal, nil)
       |> assign(:bracket_form, nil)
       |> assign(:bracket_registrations, [])
       |> assign(:assign_slot_modal, nil)
+      |> assign(:stage_modal, nil)
+      |> assign(:stage_form, nil)
       |> stream(:registrations, [])
 
     socket =
@@ -1094,13 +1144,10 @@ defmodule T3SystemWeb.EventLive.Show do
   @impl true
   def handle_params(params, _uri, socket) do
     event = socket.assigns.event
-    tab = if params["tab"] in @tabs, do: params["tab"], else: "overview"
-
-    active_category =
-      case Integer.parse(params["category_id"] || "") do
-        {id, ""} -> Enum.find(event.categories, &(&1.id == id))
-        _ -> List.first(event.categories)
-      end
+    active_category = resolve_category(event, params["category_id"])
+    stages = load_stages(event, active_category)
+    {tabs, tab} = resolve_tabs(stages, params["tab"])
+    current_stage = find_current_stage(tab, stages)
 
     category_form =
       to_form(%{"category_id" => active_category && to_string(active_category.id)}, as: :category)
@@ -1110,12 +1157,11 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:current_tab, tab)
       |> assign(:active_category, active_category)
       |> assign(:category_form, category_form)
-
-    socket =
-      socket
+      |> assign(:tabs, tabs)
+      |> assign(:stages, stages)
+      |> assign(:current_stage, current_stage)
       |> load_registrations(tab, event, active_category)
-      |> load_groups(tab, event, active_category)
-      |> load_bracket(tab, event, active_category)
+      |> load_stage_data(current_stage)
       |> assign_all_match_cards()
 
     {:noreply, socket}
@@ -1123,9 +1169,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
   @impl true
   def handle_event("switch_category", %{"category" => %{"category_id" => id}}, socket) do
+    # When switching categories, go back to overview since stage tabs will change
     {:noreply,
      push_patch(socket,
-       to: ~p"/events/#{socket.assigns.event}?tab=#{socket.assigns.current_tab}&category_id=#{id}"
+       to: ~p"/events/#{socket.assigns.event}?tab=overview&category_id=#{id}"
      )}
   end
 
@@ -1192,6 +1239,83 @@ defmodule T3SystemWeb.EventLive.Show do
     {:noreply, stream_delete(socket, :registrations, reg)}
   end
 
+  # Stage management (superuser only)
+
+  def handle_event("open_new_stage", _params, socket) do
+    next_order =
+      case socket.assigns.stages do
+        [] -> 1
+        stages -> List.last(stages).order + 1
+      end
+
+    form =
+      Matches.change_stage(%Stage{order: next_order})
+      |> to_form()
+
+    {:noreply, assign(socket, stage_modal: :new, stage_form: form)}
+  end
+
+  def handle_event("open_edit_stage", _params, socket) do
+    stage = socket.assigns.current_stage
+
+    form =
+      Matches.change_stage(stage)
+      |> to_form()
+
+    {:noreply, assign(socket, stage_modal: {:edit, stage}, stage_form: form)}
+  end
+
+  def handle_event("close_stage_modal", _params, socket) do
+    {:noreply, assign(socket, stage_modal: nil, stage_form: nil)}
+  end
+
+  def handle_event("validate_stage", %{"stage" => attrs}, socket) do
+    form =
+      case socket.assigns.stage_modal do
+        {:edit, stage} -> Matches.change_stage(stage, attrs)
+        _ -> Matches.change_stage(%Stage{}, attrs)
+      end
+      |> Map.put(:action, :validate)
+      |> to_form()
+
+    {:noreply, assign(socket, :stage_form, form)}
+  end
+
+  def handle_event("save_stage", %{"stage" => attrs}, socket) do
+    scope = socket.assigns.current_scope
+
+    result =
+      case socket.assigns.stage_modal do
+        {:edit, stage} -> Matches.update_stage(scope, stage, attrs)
+        _ -> Matches.create_stage(scope, attrs)
+      end
+
+    case result do
+      {:ok, stage} ->
+        {:noreply,
+         socket
+         |> assign(stage_modal: nil, stage_form: nil)
+         |> push_patch(
+           to:
+             ~p"/events/#{socket.assigns.event}?tab=stage-#{stage.id}&category_id=#{socket.assigns.active_category.id}"
+         )}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :stage_form, to_form(changeset))}
+    end
+  end
+
+  def handle_event("delete_stage", _params, socket) do
+    stage = socket.assigns.current_stage
+    {:ok, _} = Matches.delete_stage(socket.assigns.current_scope, stage)
+
+    {:noreply,
+     push_patch(socket,
+       to:
+         ~p"/events/#{socket.assigns.event}?tab=overview&category_id=#{socket.assigns.active_category.id}"
+     )}
+  end
+
   # Group management (superuser only)
 
   def handle_event("open_new_group", _params, socket) do
@@ -1241,7 +1365,7 @@ defmodule T3SystemWeb.EventLive.Show do
       {:ok, _group} ->
         {:noreply,
          socket
-         |> reload_groups_with_standings()
+         |> reload_stage_data()
          |> assign(group_modal: nil, group_form: nil)}
 
       {:error, changeset} ->
@@ -1252,7 +1376,7 @@ defmodule T3SystemWeb.EventLive.Show do
   def handle_event("delete_group", %{"id" => id}, socket) do
     group = Matches.get_group!(id)
     {:ok, _} = Matches.delete_group(socket.assigns.current_scope, group)
-    {:noreply, reload_groups_with_standings(socket)}
+    {:noreply, reload_stage_data(socket)}
   end
 
   # Group player management (superuser only)
@@ -1294,7 +1418,7 @@ defmodule T3SystemWeb.EventLive.Show do
     {:noreply,
      socket
      |> assign(:players_modal, updated_group)
-     |> reload_groups_with_standings()}
+     |> reload_stage_data()}
   end
 
   def handle_event("remove_from_group", %{"registration_id" => reg_id}, socket) do
@@ -1311,14 +1435,14 @@ defmodule T3SystemWeb.EventLive.Show do
     {:noreply,
      socket
      |> assign(:players_modal, updated_group)
-     |> reload_groups_with_standings()}
+     |> reload_stage_data()}
   end
 
   def handle_event("generate_matches", _params, socket) do
     {:ok, _count} =
       Matches.generate_group_matches(socket.assigns.current_scope, socket.assigns.players_modal)
 
-    {:noreply, reload_groups_with_standings(socket)}
+    {:noreply, reload_stage_data(socket)}
   end
 
   # Match management (superuser only)
@@ -1418,7 +1542,7 @@ defmodule T3SystemWeb.EventLive.Show do
       {:ok, _match} ->
         {:noreply,
          socket
-         |> reload_groups_with_standings()
+         |> reload_stage_data()
          |> assign(match_modal: nil, match_form: nil, match_group: nil, match_group_regs: [])}
 
       {:error, changeset} ->
@@ -1429,7 +1553,7 @@ defmodule T3SystemWeb.EventLive.Show do
   def handle_event("delete_match", %{"id" => id}, socket) do
     match = Matches.get_match!(id)
     {:ok, _} = Matches.delete_match(socket.assigns.current_scope, match)
-    {:noreply, reload_groups_with_standings(socket)}
+    {:noreply, reload_stage_data(socket)}
   end
 
   # Score management (superuser only)
@@ -1438,18 +1562,8 @@ defmodule T3SystemWeb.EventLive.Show do
     match_id = String.to_integer(id)
 
     score_modal =
-      Enum.find_value(socket.assigns.groups_with_standings, fn {g, _} ->
-        case Enum.find(g.matches, &(&1.id == match_id)) do
-          nil -> nil
-          match -> {match, g}
-        end
-      end) ||
-        Enum.find_value(socket.assigns.bracket_rounds, fn {_round, matches} ->
-          case Enum.find(matches, &(&1.id == match_id)) do
-            nil -> nil
-            match -> {match, :bracket}
-          end
-        end)
+      find_match_in_groups(match_id, socket.assigns.groups_with_standings) ||
+        find_match_in_brackets(match_id, socket.assigns.stage_brackets)
 
     score_set_count =
       case score_modal do
@@ -1469,7 +1583,7 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   def handle_event("save_scores", params, socket) do
-    {match, context} = socket.assigns.score_modal
+    {match, _context} = socket.assigns.score_modal
     scope = socket.assigns.current_scope
 
     filtered_sets =
@@ -1487,19 +1601,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
     case Matches.update_match(scope, match, match_attrs) do
       {:ok, _} ->
-        socket =
-          cond do
-            socket.assigns.current_tab == "matches" ->
-              socket |> reload_groups_with_standings() |> reload_bracket()
-
-            context == :bracket ->
-              reload_bracket(socket)
-
-            true ->
-              reload_groups_with_standings(socket)
-          end
-
-        {:noreply, assign(socket, :score_modal, nil)}
+        {:noreply,
+         socket
+         |> reload_stage_data()
+         |> assign(:score_modal, nil)}
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Could not save scores."))}
@@ -1509,10 +1614,8 @@ defmodule T3SystemWeb.EventLive.Show do
   # Bracket management (superuser only)
 
   def handle_event("open_bracket_setup", _params, socket) do
-    bracket = socket.assigns.bracket
-
     form =
-      (bracket || %Bracket{})
+      %Bracket{}
       |> Matches.change_bracket()
       |> to_form()
 
@@ -1525,7 +1628,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
   def handle_event("validate_bracket", %{"bracket" => attrs}, socket) do
     form =
-      (socket.assigns.bracket || %Bracket{})
+      %Bracket{}
       |> Matches.change_bracket(attrs)
       |> Map.put(:action, :validate)
       |> to_form()
@@ -1538,7 +1641,7 @@ defmodule T3SystemWeb.EventLive.Show do
       {:ok, _bracket} ->
         {:noreply,
          socket
-         |> reload_bracket()
+         |> reload_stage_data()
          |> assign(bracket_modal: nil, bracket_form: nil)}
 
       {:error, changeset} ->
@@ -1546,28 +1649,24 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
-  def handle_event("delete_bracket", _params, socket) do
-    bracket = socket.assigns.bracket
+  def handle_event("delete_bracket", %{"id" => id}, socket) do
+    bracket = Matches.get_bracket!(id)
     {:ok, _} = Matches.delete_bracket(socket.assigns.current_scope, bracket)
-
-    {:noreply,
-     socket
-     |> assign(:bracket, nil)
-     |> assign(:bracket_rounds, [])}
+    {:noreply, reload_stage_data(socket)}
   end
 
   def handle_event("delete_bracket_match", %{"id" => id}, socket) do
     match = Matches.get_match!(id)
     {:ok, _} = Matches.delete_match(socket.assigns.current_scope, match)
-    {:noreply, reload_bracket(socket)}
+    {:noreply, reload_stage_data(socket)}
   end
 
   def handle_event("open_assign_slot", %{"id" => id}, socket) do
     match_id = String.to_integer(id)
 
     match =
-      Enum.find_value(socket.assigns.bracket_rounds, fn {_round, matches} ->
-        Enum.find(matches, &(&1.id == match_id))
+      Enum.find_value(socket.assigns.stage_brackets, fn bracket ->
+        Enum.find(bracket.matches, &(&1.id == match_id))
       end)
 
     bracket_registrations =
@@ -1613,12 +1712,41 @@ defmodule T3SystemWeb.EventLive.Show do
       _ ->
         {:noreply,
          socket
-         |> reload_bracket()
+         |> reload_stage_data()
          |> assign(assign_slot_modal: nil, bracket_registrations: [])}
     end
   end
 
   # Private helpers
+
+  defp resolve_category(event, category_id_param) do
+    case Integer.parse(category_id_param || "") do
+      {id, ""} -> Enum.find(event.categories, &(&1.id == id))
+      _ -> List.first(event.categories)
+    end
+  end
+
+  defp load_stages(_event, nil), do: []
+
+  defp load_stages(event, category) do
+    Matches.list_stages_for_event_and_category(event.id, category.id)
+  end
+
+  defp resolve_tabs(stages, tab_param) do
+    stage_tabs = Enum.map(stages, fn s -> "stage-#{s.id}" end)
+    tabs = @fixed_tabs ++ stage_tabs
+    tab = if tab_param in tabs, do: tab_param, else: "overview"
+    {tabs, tab}
+  end
+
+  defp find_current_stage("stage-" <> id_str, stages) do
+    case Integer.parse(id_str) do
+      {stage_id, ""} -> Enum.find(stages, &(&1.id == stage_id))
+      _ -> nil
+    end
+  end
+
+  defp find_current_stage(_tab, _stages), do: nil
 
   defp load_registrations(socket, "overview", event, active_category)
        when not is_nil(active_category) do
@@ -1649,97 +1777,96 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
-  defp load_groups(socket, tab, event, active_category)
-       when tab in ["groups", "matches"] and not is_nil(active_category) do
-    groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
-    groups_with_standings = Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
-    assign(socket, :groups_with_standings, groups_with_standings)
-  end
-
-  defp load_groups(socket, _tab, _event, _active_category) do
-    assign(socket, :groups_with_standings, [])
-  end
-
-  defp load_bracket(socket, tab, event, active_category)
-       when tab in ["knockout", "matches"] and not is_nil(active_category) do
-    bracket = Matches.get_bracket_for_event_and_category(event.id, active_category.id)
-    assign_bracket_data(socket, bracket)
-  end
-
-  defp load_bracket(socket, _tab, _event, _active_category) do
+  defp load_stage_data(socket, nil) do
     socket
-    |> assign(:bracket, nil)
-    |> assign(:bracket_rounds, [])
+    |> assign(:groups_with_standings, [])
+    |> assign(:stage_brackets, [])
   end
 
-  defp reload_bracket(socket) do
-    event = socket.assigns.event
-    active_category = socket.assigns.active_category
-    bracket = Matches.get_bracket_for_event_and_category(event.id, active_category.id)
-
-    socket
-    |> assign_bracket_data(bracket)
-    |> assign_all_match_cards()
-  end
-
-  defp assign_bracket_data(socket, nil) do
-    socket
-    |> assign(:bracket, nil)
-    |> assign(:bracket_rounds, [])
-  end
-
-  defp assign_bracket_data(socket, bracket) do
-    bracket_rounds =
-      bracket.matches
-      |> Enum.group_by(& &1.round)
-      |> Enum.sort_by(fn {round, _} -> round end)
-      |> Enum.map(fn {round, matches} -> {round, Enum.sort_by(matches, & &1.position)} end)
-
-    socket
-    |> assign(:bracket, bracket)
-    |> assign(:bracket_rounds, bracket_rounds)
-  end
-
-  defp reload_groups_with_standings(socket) do
-    event = socket.assigns.event
-    active_category = socket.assigns.active_category
-    groups = Matches.list_groups_for_event_and_category(event.id, active_category.id)
-    groups_with_standings = Enum.map(groups, fn g -> {g, Matches.compute_group_standings(g)} end)
+  defp load_stage_data(socket, stage) do
+    # Groups with standings
+    groups_with_standings =
+      Enum.map(stage.groups, fn g -> {g, Matches.compute_group_standings(g)} end)
 
     socket
     |> assign(:groups_with_standings, groups_with_standings)
-    |> assign_all_match_cards()
+    |> assign(:stage_brackets, stage.brackets)
+  end
+
+  defp reload_stage_data(socket) do
+    event = socket.assigns.event
+    active_category = socket.assigns.active_category
+
+    if active_category do
+      stages = Matches.list_stages_for_event_and_category(event.id, active_category.id)
+      current_stage_id = socket.assigns.current_stage && socket.assigns.current_stage.id
+      current_stage = Enum.find(stages, &(&1.id == current_stage_id))
+
+      socket
+      |> assign(:stages, stages)
+      |> load_stage_data(current_stage)
+      |> assign(:current_stage, current_stage)
+      |> assign_all_match_cards()
+    else
+      socket
+    end
   end
 
   defp assign_all_match_cards(%{assigns: %{current_tab: "matches"}} = socket) do
-    %{groups_with_standings: groups, bracket: bracket, bracket_rounds: bracket_rounds} =
-      socket.assigns
+    cards =
+      socket.assigns.stages
+      |> Enum.flat_map(&stage_match_cards/1)
+      |> Enum.sort_by(fn card -> {card.scheduled_at, card.id} end)
 
-    cards = prepare_all_match_cards(groups, bracket, bracket_rounds)
     assign(socket, :all_match_cards, cards)
   end
 
   defp assign_all_match_cards(socket), do: socket
 
-  defp prepare_all_match_cards(groups_with_standings, bracket, bracket_rounds) do
+  defp stage_match_cards(stage) do
     group_cards =
-      Enum.flat_map(groups_with_standings, fn {group, _standings} ->
-        ctx = %{label: group.name, source: :group}
+      Enum.flat_map(stage.groups, fn group ->
+        ctx = %{label: "#{stage.name} — #{group.name}", source: :group}
         Enum.map(group.matches, &prepare_match_card(&1, ctx))
       end)
 
-    bracket_cards = prepare_bracket_cards(bracket, bracket_rounds)
+    bracket_cards =
+      Enum.flat_map(stage.brackets, fn bracket ->
+        Enum.flat_map(compute_bracket_rounds(bracket), fn {round, matches} ->
+          ctx = %{
+            label: "#{stage.name} — #{round_label(round, bracket.rounds)}",
+            source: :bracket
+          }
 
-    (group_cards ++ bracket_cards)
-    |> Enum.sort_by(fn card -> {card.scheduled_at, card.id} end)
+          Enum.map(matches, &prepare_match_card(&1, ctx))
+        end)
+      end)
+
+    group_cards ++ bracket_cards
   end
 
-  defp prepare_bracket_cards(nil, _bracket_rounds), do: []
+  defp compute_bracket_rounds(bracket) do
+    bracket.matches
+    |> Enum.group_by(& &1.round)
+    |> Enum.sort_by(fn {round, _} -> round end)
+    |> Enum.map(fn {round, matches} -> {round, Enum.sort_by(matches, & &1.position)} end)
+  end
 
-  defp prepare_bracket_cards(bracket, bracket_rounds) do
-    Enum.flat_map(bracket_rounds, fn {round, matches} ->
-      ctx = %{label: round_label(round, bracket.rounds), source: :bracket}
-      Enum.map(matches, &prepare_match_card(&1, ctx))
+  defp find_match_in_groups(match_id, groups_with_standings) do
+    Enum.find_value(groups_with_standings, fn {g, _} ->
+      case Enum.find(g.matches, &(&1.id == match_id)) do
+        nil -> nil
+        match -> {match, g}
+      end
+    end)
+  end
+
+  defp find_match_in_brackets(match_id, brackets) do
+    Enum.find_value(brackets, fn bracket ->
+      case Enum.find(bracket.matches, &(&1.id == match_id)) do
+        nil -> nil
+        match -> {match, :bracket}
+      end
     end)
   end
 
@@ -1896,19 +2023,27 @@ defmodule T3SystemWeb.EventLive.Show do
   defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
   defp superuser?(_), do: false
 
-  defp tab_label("overview"), do: gettext("Overview")
-  defp tab_label("matches"), do: gettext("Matches")
-  defp tab_label("groups"), do: gettext("Groups")
-  defp tab_label("knockout"), do: gettext("Knockout")
+  defp tab_label("overview", _stages), do: gettext("Overview")
+  defp tab_label("matches", _stages), do: gettext("Matches")
 
-  defp tab_params(current_tab, active_category, tab) do
+  defp tab_label("stage-" <> id_str, stages) do
+    case Integer.parse(id_str) do
+      {stage_id, ""} ->
+        case Enum.find(stages, &(&1.id == stage_id)) do
+          nil -> "?"
+          stage -> stage.name
+        end
+
+      _ ->
+        "?"
+    end
+  end
+
+  defp tab_label(_tab, _stages), do: "?"
+
+  defp tab_params(_current_tab, active_category, tab) do
     base = %{"tab" => tab}
-
-    category_id =
-      if tab == current_tab,
-        do: active_category && active_category.id,
-        else: active_category && active_category.id
-
+    category_id = active_category && active_category.id
     if category_id, do: Map.put(base, "category_id", category_id), else: base
   end
 
