@@ -295,20 +295,26 @@ defmodule T3SystemWeb.EventLive.Show do
 
               <%!-- Bracket visualization --%>
               <div class="overflow-x-auto pb-6 -mx-4 px-4">
-                <div class="flex min-w-max">
-                  <div
-                    :for={{round, matches} <- @stage_bracket_rounds}
-                    style="width: 224px; flex-shrink: 0;"
-                  >
-                    <%!-- Round header --%>
-                    <div class="mb-3 h-8 flex items-end pl-3 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">
+                <div class="min-w-max">
+                  <%!-- Round headers --%>
+                  <div class="flex">
+                    <div
+                      :for={round <- 1..@current_stage.rounds}
+                      class="shrink-0 w-56 mb-3 h-8 flex items-end pl-3 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400"
+                    >
                       {round_label(round, @current_stage.rounds)}
                     </div>
-                    <%!-- Match slots --%>
+                  </div>
+                  <%!-- Bracket grid --%>
+                  <% grid_rows = trunc(:math.pow(2, @current_stage.rounds - 1)) %>
+                  <% all_matches =
+                    Enum.flat_map(@stage_bracket_rounds, fn {_round, matches} -> matches end) %>
+                  <div style={"display: grid; grid-template-columns: repeat(#{@current_stage.rounds}, 14rem); grid-template-rows: repeat(#{grid_rows}, auto);"}>
                     <div
-                      :for={match <- matches}
+                      :for={match <- all_matches}
                       id={"bracket-match-#{match.id}"}
-                      style={"position: relative; height: #{slot_height(round)}px;"}
+                      class="relative flex items-center py-3"
+                      style={bracket_grid_style(match)}
                     >
                       <% sorted_sets =
                         case match.sets do
@@ -334,64 +340,65 @@ defmodule T3SystemWeb.EventLive.Show do
 
                       <%!-- Left connector --%>
                       <div
-                        :if={round > 1}
-                        style="position: absolute; left: 0; width: 12px; top: 50%; height: 2px; background-color: rgba(99,102,241,0.25);"
+                        :if={match.round > 1}
+                        class="absolute left-0 top-1/2 h-0.5 w-3 bg-sky-400/60"
                       >
                       </div>
 
-                      <%!-- Match card, vertically centered in slot --%>
-                      <div style="position: absolute; top: 50%; transform: translateY(-50%); left: 12px; right: 24px;">
-                        <div class="overflow-hidden rounded-lg bg-white/5">
+                      <%!-- Match card --%>
+                      <div class="w-full pl-3 pr-6">
+                        <div class="overflow-hidden rounded-sm bg-slate-800">
                           <%!-- Player 1 --%>
                           <div class={[
-                            "flex items-center gap-1.5 px-2.5 py-2",
-                            if(p1_won, do: "bg-white/5")
+                            "flex items-center gap-2 px-4 py-2",
+                            if(p1_won, do: "bg-sky-400/10")
                           ]}>
-                            <.icon
-                              :if={p1_won}
-                              name="hero-check"
-                              class="size-3 shrink-0 text-green-400"
-                            />
-                            <span :if={!p1_won} class="size-3 shrink-0"></span>
-                            <span class={[
-                              "min-w-0 flex-1 truncate text-sm",
-                              if(p1_won, do: "font-semibold text-white", else: "text-gray-300")
-                            ]}>
-                              {slot_label(match, 1)}
-                            </span>
+                            <div class="flex-1 flex items-center gap-2">
+                              <span class={[
+                                "min-w-0 truncate text-sm",
+                                if(p1_won, do: "font-bold")
+                              ]}>
+                                {slot_label(match, 1)}
+                              </span>
+                              <.icon
+                                :if={p1_won}
+                                name="hero-check-mini"
+                                class="shrink-0 text-sky-400"
+                              />
+                            </div>
                             <span
                               :if={sorted_sets != []}
                               class={[
-                                "tabular-nums text-sm font-bold",
-                                if(p1_won, do: "text-white", else: "text-gray-400")
+                                "tabular-nums text-sm",
+                                if(p1_won, do: "font-bold")
                               ]}
                             >
                               {sw1}
                             </span>
                           </div>
-                          <div class="h-px bg-white/10"></div>
                           <%!-- Player 2 --%>
                           <div class={[
-                            "flex items-center gap-1.5 px-2.5 py-2",
-                            if(p2_won, do: "bg-white/5")
+                            "flex items-center gap-2 px-4 py-2",
+                            if(p2_won, do: "bg-sky-400/10")
                           ]}>
-                            <.icon
-                              :if={p2_won}
-                              name="hero-check"
-                              class="size-3 shrink-0 text-green-400"
-                            />
-                            <span :if={!p2_won} class="size-3 shrink-0"></span>
-                            <span class={[
-                              "min-w-0 flex-1 truncate text-sm",
-                              if(p2_won, do: "font-semibold text-white", else: "text-gray-300")
-                            ]}>
-                              {slot_label(match, 2)}
-                            </span>
+                            <div class="flex-1 flex items-center gap-2">
+                              <span class={[
+                                "min-w-0 truncate text-sm",
+                                if(p2_won, do: "font-bold")
+                              ]}>
+                                {slot_label(match, 2)}
+                              </span>
+                              <.icon
+                                :if={p2_won}
+                                name="hero-check-mini"
+                                class="shrink-0 text-sky-400"
+                              />
+                            </div>
                             <span
                               :if={sorted_sets != []}
                               class={[
-                                "tabular-nums text-sm font-bold",
-                                if(p2_won, do: "text-white", else: "text-gray-400")
+                                "tabular-nums text-sm",
+                                if(p2_won, do: "font-bold")
                               ]}
                             >
                               {sw2}
@@ -403,7 +410,6 @@ defmodule T3SystemWeb.EventLive.Show do
                             class="flex justify-end gap-2 border-t border-white/5 px-2.5 py-1"
                           >
                             <button
-                              :if={round == 1}
                               phx-click="open_assign_slot"
                               phx-value-id={match.id}
                               class="text-xs text-gray-500 hover:text-gray-400"
@@ -431,15 +437,15 @@ defmodule T3SystemWeb.EventLive.Show do
 
                       <%!-- Right connector: top of pair (odd position) --%>
                       <div
-                        :if={round < @current_stage.rounds and rem(match.position, 2) == 1}
-                        style="position: absolute; right: 0; width: 24px; top: 50%; height: 50%; border-top: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
+                        :if={match.round < @current_stage.rounds and rem(match.position, 2) == 1}
+                        class="absolute right-0 top-1/2 h-1/2 w-6 border-t-2 border-r-2 border-sky-400/60"
                       >
                       </div>
 
                       <%!-- Right connector: bottom of pair (even position) --%>
                       <div
-                        :if={round < @current_stage.rounds and rem(match.position, 2) == 0}
-                        style="position: absolute; right: 0; width: 24px; top: 0; height: 50%; border-bottom: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
+                        :if={match.round < @current_stage.rounds and rem(match.position, 2) == 0}
+                        class="absolute right-0 top-0 h-1/2 w-6 border-b-2 border-r-2 border-sky-400/60"
                       >
                       </div>
                     </div>
@@ -2092,7 +2098,11 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   # Height in px for one bracket slot at the given round (doubles each round).
-  defp slot_height(round), do: 88 * trunc(:math.pow(2, round - 1))
+  defp bracket_grid_style(match) do
+    span = trunc(:math.pow(2, match.round - 1))
+    start = (match.position - 1) * span + 1
+    "grid-column: #{match.round}; grid-row: #{start} / span #{span};"
+  end
 
   defp match_player_name(%{player: %{name: name}}), do: name
   defp match_player_name(_), do: gettext("TBD")
