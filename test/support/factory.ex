@@ -8,7 +8,6 @@ defmodule T3System.Factory do
   alias T3System.Clubs.Club
   alias T3System.Events.Event
   alias T3System.Events.League
-  alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.MatchSet
@@ -89,14 +88,6 @@ defmodule T3System.Factory do
     %Group{
       name: sequence(:name, &"Group #{&1}"),
       stage: build(:stage)
-    }
-  end
-
-  def bracket_factory do
-    %Bracket{
-      name: sequence(:name, &"Bracket #{&1}"),
-      rounds: 2,
-      stage: build(:stage, type: "bracket")
     }
   end
 

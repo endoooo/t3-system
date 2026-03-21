@@ -3,7 +3,6 @@ defmodule T3System.MatchesTest do
 
   alias T3System.Accounts.Scope
   alias T3System.Matches
-  alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.MatchSet
@@ -30,7 +29,7 @@ defmodule T3System.MatchesTest do
       assert second.id == s2.id
     end
 
-    test "create_stage/2 with valid data creates a stage" do
+    test "create_stage/2 with valid data creates a group stage" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
       category = insert(:category)
@@ -47,6 +46,31 @@ defmodule T3System.MatchesTest do
       assert stage.name == "Groups"
       assert stage.type == "group"
       assert stage.order == 1
+      assert stage.rounds == nil
+    end
+
+    test "create_stage/2 with bracket type and rounds creates stage with matches" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      category = insert(:category)
+
+      assert {:ok, %Stage{} = stage} =
+               Matches.create_stage(scope, %{
+                 name: "Knockout",
+                 type: "bracket",
+                 order: 1,
+                 rounds: 2,
+                 event_id: event.id,
+                 category_id: category.id
+               })
+
+      assert stage.type == "bracket"
+      assert stage.rounds == 2
+
+      # 2^2 - 1 = 3 matches
+      matches = Matches.list_matches_for_event(event.id)
+      assert length(matches) == 3
+      assert Enum.all?(matches, &(&1.stage_id == stage.id))
     end
 
     test "create_stage/2 with non-superuser scope raises" do
@@ -62,6 +86,39 @@ defmodule T3System.MatchesTest do
       stage = insert(:stage)
       assert {:ok, %Stage{}} = Matches.delete_stage(scope, stage)
       assert_raise Ecto.NoResultsError, fn -> Matches.get_stage!(stage.id) end
+    end
+
+    test "reconfigure_stage_bracket/3 regenerates bracket matches" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      category = insert(:category)
+
+      {:ok, stage} =
+        Matches.create_stage(scope, %{
+          name: "Knockout",
+          type: "bracket",
+          order: 1,
+          rounds: 2,
+          event_id: event.id,
+          category_id: category.id
+        })
+
+      # Initially 3 matches (2 rounds)
+      assert length(Matches.list_matches_for_event(event.id)) == 3
+
+      # Reconfigure to 3 rounds → 7 matches
+      {:ok, updated} = Matches.reconfigure_stage_bracket(scope, stage, 3)
+      assert updated.rounds == 3
+      assert length(Matches.list_matches_for_event(event.id)) == 7
+    end
+
+    test "reconfigure_stage_bracket/3 with non-superuser scope raises" do
+      scope = Scope.for_user(insert(:user))
+      stage = insert(:stage, type: "bracket", rounds: 2)
+
+      assert_raise FunctionClauseError, fn ->
+        Matches.reconfigure_stage_bracket(scope, stage, 3)
+      end
     end
   end
 
@@ -177,121 +234,6 @@ defmodule T3System.MatchesTest do
   end
 
   # ---------------------------------------------------------------------------
-  # Brackets
-  # ---------------------------------------------------------------------------
-
-  describe "brackets" do
-    test "list_brackets_for_event/1 returns brackets for the event" do
-      bracket = insert(:bracket)
-      _other_bracket = insert(:bracket)
-
-      stage = T3System.Repo.preload(bracket, :stage).stage
-      results = Matches.list_brackets_for_event(stage.event_id)
-      assert length(results) == 1
-      assert hd(results).id == bracket.id
-    end
-
-    test "get_bracket!/1 returns the bracket with given id" do
-      bracket = insert(:bracket)
-      result = Matches.get_bracket!(bracket.id)
-      assert result.id == bracket.id
-    end
-
-    test "get_bracket!/1 raises for non-existent id" do
-      assert_raise Ecto.NoResultsError, fn -> Matches.get_bracket!(0) end
-    end
-
-    test "create_bracket/2 with valid data creates a bracket" do
-      scope = Scope.for_user(insert(:superuser))
-      stage = insert(:stage, type: "bracket")
-
-      assert {:ok, %Bracket{} = bracket} =
-               Matches.create_bracket(scope, %{
-                 name: "Main Draw",
-                 stage_id: stage.id,
-                 rounds: 2
-               })
-
-      assert bracket.name == "Main Draw"
-      assert bracket.rounds == 2
-    end
-
-    test "create_bracket/2 with invalid data returns error changeset" do
-      scope = Scope.for_user(insert(:superuser))
-      stage = insert(:stage, type: "bracket")
-
-      assert {:error, %Ecto.Changeset{}} =
-               Matches.create_bracket(scope, %{stage_id: stage.id})
-    end
-
-    test "create_bracket/2 with non-superuser scope raises" do
-      scope = Scope.for_user(insert(:user))
-      stage = insert(:stage, type: "bracket")
-
-      assert_raise FunctionClauseError, fn ->
-        Matches.create_bracket(scope, %{name: "Main Draw", stage_id: stage.id})
-      end
-    end
-
-    test "create_bracket/2 on a group-type stage returns error" do
-      scope = Scope.for_user(insert(:superuser))
-      stage = insert(:stage, type: "group")
-
-      assert {:error, :stage_type_mismatch} =
-               Matches.create_bracket(scope, %{
-                 name: "Main Draw",
-                 stage_id: stage.id,
-                 rounds: 2
-               })
-    end
-
-    test "update_bracket/3 with valid data updates the bracket" do
-      scope = Scope.for_user(insert(:superuser))
-      bracket = insert(:bracket)
-
-      assert {:ok, %Bracket{} = updated} =
-               Matches.update_bracket(scope, bracket, %{name: "Consolation"})
-
-      assert updated.name == "Consolation"
-    end
-
-    test "update_bracket/3 with invalid data returns error changeset" do
-      scope = Scope.for_user(insert(:superuser))
-      bracket = insert(:bracket)
-
-      assert {:error, %Ecto.Changeset{}} = Matches.update_bracket(scope, bracket, %{name: nil})
-    end
-
-    test "update_bracket/3 with non-superuser scope raises" do
-      scope = Scope.for_user(insert(:user))
-      bracket = insert(:bracket)
-
-      assert_raise FunctionClauseError, fn ->
-        Matches.update_bracket(scope, bracket, %{name: "Consolation"})
-      end
-    end
-
-    test "delete_bracket/2 deletes the bracket" do
-      scope = Scope.for_user(insert(:superuser))
-      bracket = insert(:bracket)
-      assert {:ok, %Bracket{}} = Matches.delete_bracket(scope, bracket)
-      assert_raise Ecto.NoResultsError, fn -> Matches.get_bracket!(bracket.id) end
-    end
-
-    test "delete_bracket/2 with non-superuser scope raises" do
-      scope = Scope.for_user(insert(:user))
-      bracket = insert(:bracket)
-
-      assert_raise FunctionClauseError, fn -> Matches.delete_bracket(scope, bracket) end
-    end
-
-    test "change_bracket/1 returns a bracket changeset" do
-      bracket = insert(:bracket)
-      assert %Ecto.Changeset{} = Matches.change_bracket(bracket)
-    end
-  end
-
-  # ---------------------------------------------------------------------------
   # Matches
   # ---------------------------------------------------------------------------
 
@@ -328,18 +270,17 @@ defmodule T3System.MatchesTest do
       assert {:ok, %Match{} = match} = Matches.create_match(scope, attrs)
       assert match.group_id == group.id
       assert match.event_id == stage.event_id
-      assert match.bracket_id == nil
+      assert match.stage_id == nil
     end
 
-    test "create_match/2 with bracket context creates a match" do
+    test "create_match/2 with bracket stage context creates a match" do
       scope = Scope.for_user(insert(:superuser))
-      stage = insert(:stage, type: "bracket")
-      bracket = insert(:bracket, stage: stage)
+      stage = insert(:stage, type: "bracket", rounds: 2)
 
-      attrs = %{event_id: stage.event_id, bracket_id: bracket.id, round: 1, position: 1}
+      attrs = %{event_id: stage.event_id, stage_id: stage.id, round: 1, position: 1}
 
       assert {:ok, %Match{} = match} = Matches.create_match(scope, attrs)
-      assert match.bracket_id == bracket.id
+      assert match.stage_id == stage.id
       assert match.round == 1
       assert match.position == 1
       assert match.group_id == nil
@@ -367,7 +308,7 @@ defmodule T3System.MatchesTest do
       assert match.scheduled_at == ~U[2026-06-01 10:00:00Z]
     end
 
-    test "create_match/2 without group or bracket returns error changeset" do
+    test "create_match/2 without group or stage returns error changeset" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
 
@@ -377,20 +318,19 @@ defmodule T3System.MatchesTest do
       assert %{base: [_]} = errors_on(changeset)
     end
 
-    test "create_match/2 with both group and bracket returns error changeset" do
+    test "create_match/2 with both group and stage returns error changeset" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
       category = insert(:category)
       group_stage = insert(:stage, event: event, category: category, type: "group", order: 1)
       bracket_stage = insert(:stage, event: event, category: category, type: "bracket", order: 2)
       group = insert(:group, stage: group_stage)
-      bracket = insert(:bracket, stage: bracket_stage)
 
       assert {:error, %Ecto.Changeset{} = changeset} =
                Matches.create_match(scope, %{
                  event_id: event.id,
                  group_id: group.id,
-                 bracket_id: bracket.id
+                 stage_id: bracket_stage.id
                })
 
       assert %{base: [_]} = errors_on(changeset)
@@ -467,21 +407,27 @@ defmodule T3System.MatchesTest do
       assert_raise Ecto.NoResultsError, fn -> Matches.get_match!(match.id) end
     end
 
-    test "deleting a bracket cascades to its matches" do
+    test "deleting a bracket stage cascades to its matches" do
       scope = Scope.for_user(insert(:superuser))
-      stage = insert(:stage, type: "bracket")
-      bracket = insert(:bracket, stage: stage)
+      event = insert(:event)
+      category = insert(:category)
 
-      match =
-        insert(:match,
-          event: T3System.Repo.preload(stage, :event).event,
-          bracket: bracket,
-          group: nil
-        )
+      {:ok, stage} =
+        Matches.create_stage(scope, %{
+          name: "Knockout",
+          type: "bracket",
+          order: 1,
+          rounds: 2,
+          event_id: event.id,
+          category_id: category.id
+        })
 
-      Matches.delete_bracket(scope, bracket)
+      matches = Matches.list_matches_for_event(event.id)
+      assert length(matches) == 3
 
-      assert_raise Ecto.NoResultsError, fn -> Matches.get_match!(match.id) end
+      Matches.delete_stage(scope, stage)
+
+      assert Matches.list_matches_for_event(event.id) == []
     end
 
     test "create_match/2 with winner sets winner_registration_id" do

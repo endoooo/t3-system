@@ -7,7 +7,6 @@ defmodule T3System.Matches do
   alias T3System.Repo
 
   alias T3System.Accounts.Scope
-  alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.MatchSet
@@ -30,7 +29,7 @@ defmodule T3System.Matches do
 
   @doc """
   Returns stages for the given event and category, ordered by order,
-  with groups and brackets preloaded (including their matches and registrations).
+  with groups and bracket matches preloaded (including registrations).
   """
   def list_stages_for_event_and_category(event_id, category_id) do
     Stage
@@ -47,13 +46,11 @@ defmodule T3System.Matches do
           winner: [:player]
         ]
       ],
-      brackets: [
-        matches: [
-          :sets,
-          registration1: [:player, :club],
-          registration2: [:player, :club],
-          winner: [:player]
-        ]
+      matches: [
+        :sets,
+        registration1: [:player, :club],
+        registration2: [:player, :club],
+        winner: [:player]
       ]
     )
   end
@@ -67,11 +64,32 @@ defmodule T3System.Matches do
 
   @doc """
   Creates a stage. Requires a superuser scope.
+  When type is "bracket" and rounds is provided, auto-generates bracket matches.
   """
   def create_stage(%Scope{user: %{role: "superuser"}}, attrs) do
-    %Stage{}
-    |> Stage.changeset(attrs)
-    |> Repo.insert()
+    type = attrs["type"] || attrs[:type]
+    rounds = attrs["rounds"] || attrs[:rounds]
+
+    if type == "bracket" and rounds do
+      create_bracket_stage(attrs)
+    else
+      %Stage{}
+      |> Stage.changeset(attrs)
+      |> Repo.insert()
+    end
+  end
+
+  defp create_bracket_stage(attrs) do
+    Repo.transaction(fn ->
+      case %Stage{} |> Stage.changeset(attrs) |> Repo.insert() do
+        {:ok, stage} ->
+          generate_bracket_matches(stage)
+          stage
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
   end
 
   @doc """
@@ -95,6 +113,29 @@ defmodule T3System.Matches do
   """
   def change_stage(%Stage{} = stage, attrs \\ %{}) do
     Stage.changeset(stage, attrs)
+  end
+
+  @doc """
+  Reconfigures a bracket stage by updating rounds and regenerating matches.
+  Deletes existing bracket matches first. Requires a superuser scope.
+  """
+  def reconfigure_stage_bracket(
+        %Scope{user: %{role: "superuser"}},
+        %Stage{type: "bracket"} = stage,
+        rounds
+      ) do
+    Repo.transaction(fn ->
+      from(m in Match, where: m.stage_id == ^stage.id) |> Repo.delete_all()
+
+      case stage |> Stage.changeset(%{rounds: rounds}) |> Repo.update() do
+        {:ok, stage} ->
+          generate_bracket_matches(stage)
+          stage
+
+        {:error, changeset} ->
+          Repo.rollback(changeset)
+      end
+    end)
   end
 
   # ---------------------------------------------------------------------------
@@ -354,78 +395,8 @@ defmodule T3System.Matches do
   end
 
   # ---------------------------------------------------------------------------
-  # Brackets
+  # Bracket slot assignment
   # ---------------------------------------------------------------------------
-
-  @doc """
-  Returns the list of brackets for the given event (through stages).
-  """
-  def list_brackets_for_event(event_id) do
-    Bracket
-    |> join(:inner, [b], s in Stage, on: b.stage_id == s.id)
-    |> where([b, s], s.event_id == ^event_id)
-    |> Repo.all()
-  end
-
-  @doc """
-  Gets a single bracket.
-
-  Raises `Ecto.NoResultsError` if the Bracket does not exist.
-  """
-  def get_bracket!(id), do: Repo.get!(Bracket, id)
-
-  @doc """
-  Creates a bracket and generates placeholder matches for all rounds.
-  Deletes any existing brackets in the same stage first.
-  Requires a superuser scope.
-  """
-  def create_bracket(%Scope{user: %{role: "superuser"}}, attrs) do
-    stage_id = attrs["stage_id"] || attrs[:stage_id]
-
-    with {:ok, _stage} <- fetch_stage_of_type(stage_id, "bracket") do
-      Repo.transaction(fn -> do_create_bracket(stage_id, attrs) end)
-    end
-  end
-
-  defp do_create_bracket(stage_id, attrs) do
-    if stage_id do
-      from(b in Bracket, where: b.stage_id == ^stage_id)
-      |> Repo.delete_all()
-    end
-
-    case %Bracket{} |> Bracket.changeset(attrs) |> Repo.insert() do
-      {:ok, bracket} ->
-        bracket = Repo.preload(bracket, :stage)
-        generate_bracket_matches(bracket)
-        bracket
-
-      {:error, changeset} ->
-        Repo.rollback(changeset)
-    end
-  end
-
-  @doc """
-  Updates a bracket. Requires a superuser scope.
-  """
-  def update_bracket(%Scope{user: %{role: "superuser"}}, %Bracket{} = bracket, attrs) do
-    bracket
-    |> Bracket.changeset(attrs)
-    |> Repo.update()
-  end
-
-  @doc """
-  Deletes a bracket. Requires a superuser scope.
-  """
-  def delete_bracket(%Scope{user: %{role: "superuser"}}, %Bracket{} = bracket) do
-    Repo.delete(bracket)
-  end
-
-  @doc """
-  Returns an `%Ecto.Changeset{}` for tracking bracket changes.
-  """
-  def change_bracket(%Bracket{} = bracket, attrs \\ %{}) do
-    Bracket.changeset(bracket, attrs)
-  end
 
   @doc """
   Directly assigns a registration (or nil for bye/WO) to a slot on a bracket match.
@@ -449,18 +420,17 @@ defmodule T3System.Matches do
     |> Repo.update()
   end
 
-  # Generates 2^rounds - 1 placeholder matches for a bracket.
-  defp generate_bracket_matches(%Bracket{} = bracket) do
-    rounds = bracket.rounds
+  # Generates 2^rounds - 1 placeholder matches for a bracket stage.
+  defp generate_bracket_matches(%Stage{type: "bracket"} = stage) do
+    rounds = stage.rounds
     now = DateTime.utc_now(:second)
-    event_id = bracket.stage.event_id
 
     rows =
       for r <- 1..rounds,
           p <- 1..trunc(:math.pow(2, rounds - r)) do
         %{
-          event_id: event_id,
-          bracket_id: bracket.id,
+          event_id: stage.event_id,
+          stage_id: stage.id,
           round: r,
           position: p,
           inserted_at: now,
@@ -499,7 +469,7 @@ defmodule T3System.Matches do
     |> Repo.all()
     |> Repo.preload([
       :group,
-      :bracket,
+      :stage,
       :sets,
       registration1: [:player],
       registration2: [:player],
@@ -516,7 +486,7 @@ defmodule T3System.Matches do
     Repo.get!(Match, id)
     |> Repo.preload([
       :group,
-      :bracket,
+      :stage,
       :sets,
       registration1: [:player],
       registration2: [:player],

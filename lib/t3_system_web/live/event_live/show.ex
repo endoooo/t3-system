@@ -4,7 +4,6 @@ defmodule T3SystemWeb.EventLive.Show do
   alias T3System.Clubs
   alias T3System.Events
   alias T3System.Matches
-  alias T3System.Matches.Bracket
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.Stage
@@ -165,7 +164,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 <button
                   phx-click="delete_stage"
                   data-confirm={
-                    gettext("Are you sure? This will delete all groups and brackets in this stage.")
+                    gettext("Are you sure? This will delete all groups and matches in this stage.")
                   }
                   class="text-xs text-red-400 hover:text-red-300"
                 >
@@ -181,11 +180,11 @@ defmodule T3SystemWeb.EventLive.Show do
                   <.icon name="hero-plus" /> {gettext("Add Group")}
                 </.button>
                 <.button
-                  :if={@current_stage.type == "bracket"}
+                  :if={@current_stage.type == "bracket" and @current_stage.rounds == nil}
                   phx-click="open_bracket_setup"
                   variant="primary"
                 >
-                  <.icon name="hero-plus" /> {gettext("Add Bracket")}
+                  <.icon name="hero-cog-6-tooth" /> {gettext("Configure Bracket")}
                 </.button>
               </div>
             </div>
@@ -283,39 +282,27 @@ defmodule T3SystemWeb.EventLive.Show do
               </div>
             </div>
 
-            <%!-- Brackets in this stage --%>
-            <div :for={bracket <- @stage_brackets} class="mb-8">
-              <div class="mb-4 flex items-center justify-between">
-                <h2 class="text-lg font-semibold text-white">{bracket.name}</h2>
-                <div :if={@is_superuser} class="flex gap-3">
-                  <button
-                    phx-click="open_bracket_setup"
-                    class="text-xs text-indigo-400 hover:text-indigo-300"
-                  >
-                    {gettext("Reconfigure")}
-                  </button>
-                  <button
-                    phx-click="delete_bracket"
-                    phx-value-id={bracket.id}
-                    data-confirm={gettext("Are you sure? This will delete all bracket matches.")}
-                    class="text-xs text-red-400 hover:text-red-300"
-                  >
-                    {gettext("Delete")}
-                  </button>
-                </div>
+            <%!-- Bracket in this stage --%>
+            <div :if={@current_stage.type == "bracket" and @current_stage.rounds != nil} class="mb-8">
+              <div :if={@is_superuser} class="mb-4 flex items-center justify-end">
+                <button
+                  phx-click="open_bracket_setup"
+                  class="text-xs text-indigo-400 hover:text-indigo-300"
+                >
+                  {gettext("Reconfigure")}
+                </button>
               </div>
 
-              <% bracket_rounds = compute_bracket_rounds(bracket) %>
               <%!-- Bracket visualization --%>
               <div class="overflow-x-auto pb-6 -mx-4 px-4">
                 <div class="flex min-w-max">
                   <div
-                    :for={{round, matches} <- bracket_rounds}
+                    :for={{round, matches} <- @stage_bracket_rounds}
                     style="width: 224px; flex-shrink: 0;"
                   >
                     <%!-- Round header --%>
                     <div class="mb-3 h-8 flex items-end pl-3 pb-1 text-xs font-bold uppercase tracking-wider text-gray-400">
-                      {round_label(round, bracket.rounds)}
+                      {round_label(round, @current_stage.rounds)}
                     </div>
                     <%!-- Match slots --%>
                     <div
@@ -444,14 +431,14 @@ defmodule T3SystemWeb.EventLive.Show do
 
                       <%!-- Right connector: top of pair (odd position) --%>
                       <div
-                        :if={round < bracket.rounds and rem(match.position, 2) == 1}
+                        :if={round < @current_stage.rounds and rem(match.position, 2) == 1}
                         style="position: absolute; right: 0; width: 24px; top: 50%; height: 50%; border-top: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
                       >
                       </div>
 
                       <%!-- Right connector: bottom of pair (even position) --%>
                       <div
-                        :if={round < bracket.rounds and rem(match.position, 2) == 0}
+                        :if={round < @current_stage.rounds and rem(match.position, 2) == 0}
                         style="position: absolute; right: 0; width: 24px; top: 0; height: 50%; border-bottom: 2px solid rgba(99,102,241,0.3); border-right: 2px solid rgba(99,102,241,0.3);"
                       >
                       </div>
@@ -462,7 +449,7 @@ defmodule T3SystemWeb.EventLive.Show do
             </div>
 
             <p
-              :if={@groups_with_standings == [] and @stage_brackets == []}
+              :if={@groups_with_standings == [] and @stage_bracket_rounds == []}
               class="text-gray-400 text-sm"
             >
               {gettext("No groups or brackets in this stage yet.")}
@@ -864,7 +851,7 @@ defmodule T3SystemWeb.EventLive.Show do
             <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
-                  {gettext("Setup Bracket")}
+                  {gettext("Configure Bracket")}
                 </h2>
                 <button phx-click="close_bracket_modal" class="text-gray-400 hover:text-white">
                   <.icon name="hero-x-mark" class="size-5" />
@@ -879,19 +866,9 @@ defmodule T3SystemWeb.EventLive.Show do
                 phx-submit="save_bracket"
               >
                 <.input
-                  field={@bracket_form[:name]}
-                  type="text"
-                  label={gettext("Name")}
-                />
-                <.input
                   field={@bracket_form[:rounds]}
                   type="number"
                   label={gettext("Number of rounds (1–7)")}
-                />
-                <input
-                  type="hidden"
-                  name="bracket[stage_id]"
-                  value={@current_stage && @current_stage.id}
                 />
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_bracket_modal">
@@ -959,7 +936,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     >
                       <option value="">{gettext("Select player")}</option>
                       <option
-                        :for={r <- @bracket_registrations}
+                        :for={r <- @stage_bracket_registrations}
                         value={r.id}
                         selected={@assign_slot_modal.registration1_id == r.id}
                       >
@@ -1009,7 +986,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     >
                       <option value="">{gettext("Select player")}</option>
                       <option
-                        :for={r <- @bracket_registrations}
+                        :for={r <- @stage_bracket_registrations}
                         value={r.id}
                         selected={@assign_slot_modal.registration2_id == r.id}
                       >
@@ -1069,6 +1046,12 @@ defmodule T3SystemWeb.EventLive.Show do
                   type="number"
                   label={gettext("Order")}
                 />
+                <.input
+                  :if={to_string(@stage_form[:type].value) == "bracket"}
+                  field={@stage_form[:rounds]}
+                  type="number"
+                  label={gettext("Number of rounds (1–7)")}
+                />
                 <input type="hidden" name="stage[event_id]" value={@event.id} />
                 <input
                   type="hidden"
@@ -1104,7 +1087,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:tabs, @fixed_tabs)
       |> assign(:stages, [])
       |> assign(:current_stage, nil)
-      |> assign(:stage_brackets, [])
+      |> assign(:stage_bracket_rounds, [])
       |> assign(:modal, nil)
       |> assign(:form, nil)
       |> assign(:group_modal, nil)
@@ -1121,7 +1104,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:all_match_cards, [])
       |> assign(:bracket_modal, nil)
       |> assign(:bracket_form, nil)
-      |> assign(:bracket_registrations, [])
+      |> assign(:stage_bracket_registrations, [])
       |> assign(:assign_slot_modal, nil)
       |> assign(:stage_modal, nil)
       |> assign(:stage_form, nil)
@@ -1563,7 +1546,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
     score_modal =
       find_match_in_groups(match_id, socket.assigns.groups_with_standings) ||
-        find_match_in_brackets(match_id, socket.assigns.stage_brackets)
+        find_match_in_stage(match_id, socket.assigns.current_stage)
 
     score_set_count =
       case score_modal do
@@ -1614,10 +1597,12 @@ defmodule T3SystemWeb.EventLive.Show do
   # Bracket management (superuser only)
 
   def handle_event("open_bracket_setup", _params, socket) do
+    stage = socket.assigns.current_stage
+
     form =
-      %Bracket{}
-      |> Matches.change_bracket()
-      |> to_form()
+      stage
+      |> Matches.change_stage(%{})
+      |> to_form(as: "bracket")
 
     {:noreply, assign(socket, bracket_modal: :setup, bracket_form: form)}
   end
@@ -1627,32 +1612,46 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   def handle_event("validate_bracket", %{"bracket" => attrs}, socket) do
+    stage = socket.assigns.current_stage
+
     form =
-      %Bracket{}
-      |> Matches.change_bracket(attrs)
+      stage
+      |> Matches.change_stage(attrs)
       |> Map.put(:action, :validate)
-      |> to_form()
+      |> to_form(as: "bracket")
 
     {:noreply, assign(socket, :bracket_form, form)}
   end
 
   def handle_event("save_bracket", %{"bracket" => attrs}, socket) do
-    case Matches.create_bracket(socket.assigns.current_scope, attrs) do
-      {:ok, _bracket} ->
+    stage = socket.assigns.current_stage
+    scope = socket.assigns.current_scope
+    rounds = attrs["rounds"]
+
+    result =
+      if stage.rounds do
+        Matches.reconfigure_stage_bracket(scope, stage, rounds)
+      else
+        Matches.update_stage(scope, stage, %{rounds: rounds})
+        |> case do
+          {:ok, updated_stage} ->
+            Matches.reconfigure_stage_bracket(scope, updated_stage, rounds)
+
+          error ->
+            error
+        end
+      end
+
+    case result do
+      {:ok, _stage} ->
         {:noreply,
          socket
          |> reload_stage_data()
          |> assign(bracket_modal: nil, bracket_form: nil)}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, :bracket_form, to_form(changeset))}
+        {:noreply, assign(socket, :bracket_form, to_form(changeset, as: "bracket"))}
     end
-  end
-
-  def handle_event("delete_bracket", %{"id" => id}, socket) do
-    bracket = Matches.get_bracket!(id)
-    {:ok, _} = Matches.delete_bracket(socket.assigns.current_scope, bracket)
-    {:noreply, reload_stage_data(socket)}
   end
 
   def handle_event("delete_bracket_match", %{"id" => id}, socket) do
@@ -1663,13 +1662,11 @@ defmodule T3SystemWeb.EventLive.Show do
 
   def handle_event("open_assign_slot", %{"id" => id}, socket) do
     match_id = String.to_integer(id)
+    stage = socket.assigns.current_stage
 
-    match =
-      Enum.find_value(socket.assigns.stage_brackets, fn bracket ->
-        Enum.find(bracket.matches, &(&1.id == match_id))
-      end)
+    match = Enum.find(stage.matches, &(&1.id == match_id))
 
-    bracket_registrations =
+    registrations =
       Registrations.list_registrations_by_event_and_category(
         socket.assigns.event.id,
         socket.assigns.active_category
@@ -1678,11 +1675,11 @@ defmodule T3SystemWeb.EventLive.Show do
     {:noreply,
      socket
      |> assign(:assign_slot_modal, match)
-     |> assign(:bracket_registrations, bracket_registrations)}
+     |> assign(:stage_bracket_registrations, registrations)}
   end
 
   def handle_event("close_assign_slot", _params, socket) do
-    {:noreply, assign(socket, assign_slot_modal: nil, bracket_registrations: [])}
+    {:noreply, assign(socket, assign_slot_modal: nil, stage_bracket_registrations: [])}
   end
 
   def handle_event("save_assign_slot", params, socket) do
@@ -1713,7 +1710,7 @@ defmodule T3SystemWeb.EventLive.Show do
         {:noreply,
          socket
          |> reload_stage_data()
-         |> assign(assign_slot_modal: nil, bracket_registrations: [])}
+         |> assign(assign_slot_modal: nil, stage_bracket_registrations: [])}
     end
   end
 
@@ -1780,7 +1777,7 @@ defmodule T3SystemWeb.EventLive.Show do
   defp load_stage_data(socket, nil) do
     socket
     |> assign(:groups_with_standings, [])
-    |> assign(:stage_brackets, [])
+    |> assign(:stage_bracket_rounds, [])
   end
 
   defp load_stage_data(socket, stage) do
@@ -1788,9 +1785,17 @@ defmodule T3SystemWeb.EventLive.Show do
     groups_with_standings =
       Enum.map(stage.groups, fn g -> {g, Matches.compute_group_standings(g)} end)
 
+    # Bracket rounds (for bracket-type stages)
+    bracket_rounds =
+      if stage.type == "bracket" and stage.rounds do
+        compute_bracket_rounds(stage)
+      else
+        []
+      end
+
     socket
     |> assign(:groups_with_standings, groups_with_standings)
-    |> assign(:stage_brackets, stage.brackets)
+    |> assign(:stage_bracket_rounds, bracket_rounds)
   end
 
   defp reload_stage_data(socket) do
@@ -1831,22 +1836,24 @@ defmodule T3SystemWeb.EventLive.Show do
       end)
 
     bracket_cards =
-      Enum.flat_map(stage.brackets, fn bracket ->
-        Enum.flat_map(compute_bracket_rounds(bracket), fn {round, matches} ->
+      if stage.type == "bracket" and stage.rounds do
+        Enum.flat_map(compute_bracket_rounds(stage), fn {round, matches} ->
           ctx = %{
-            label: "#{stage.name} — #{round_label(round, bracket.rounds)}",
+            label: "#{stage.name} — #{round_label(round, stage.rounds)}",
             source: :bracket
           }
 
           Enum.map(matches, &prepare_match_card(&1, ctx))
         end)
-      end)
+      else
+        []
+      end
 
     group_cards ++ bracket_cards
   end
 
-  defp compute_bracket_rounds(bracket) do
-    bracket.matches
+  defp compute_bracket_rounds(stage) do
+    stage.matches
     |> Enum.group_by(& &1.round)
     |> Enum.sort_by(fn {round, _} -> round end)
     |> Enum.map(fn {round, matches} -> {round, Enum.sort_by(matches, & &1.position)} end)
@@ -1861,13 +1868,15 @@ defmodule T3SystemWeb.EventLive.Show do
     end)
   end
 
-  defp find_match_in_brackets(match_id, brackets) do
-    Enum.find_value(brackets, fn bracket ->
-      case Enum.find(bracket.matches, &(&1.id == match_id)) do
+  defp find_match_in_stage(match_id, stage) do
+    if stage && stage.type == "bracket" do
+      case Enum.find(stage.matches, &(&1.id == match_id)) do
         nil -> nil
         match -> {match, :bracket}
       end
-    end)
+    else
+      nil
+    end
   end
 
   defp prepare_match_card(match, %{label: label, source: source}) do
