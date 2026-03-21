@@ -341,13 +341,15 @@ defmodule T3SystemWeb.EventLive.Show do
                           sets -> Enum.sort_by(sets, & &1.set_number)
                         end %>
                       <% sw1 =
-                        Enum.count(sorted_sets, fn s ->
-                          not is_nil(s.score1) and not is_nil(s.score2) and s.score1 > s.score2
-                        end) %>
+                        Enum.count(
+                          sorted_sets,
+                          &(&1.winner_registration_id == match.registration1_id)
+                        ) %>
                       <% sw2 =
-                        Enum.count(sorted_sets, fn s ->
-                          not is_nil(s.score1) and not is_nil(s.score2) and s.score2 > s.score1
-                        end) %>
+                        Enum.count(
+                          sorted_sets,
+                          &(&1.winner_registration_id == match.registration2_id)
+                        ) %>
                       <% p1_won =
                         not is_nil(match.winner_registration_id) and
                           match.winner_registration_id == match.registration1_id %>
@@ -655,16 +657,6 @@ defmodule T3SystemWeb.EventLive.Show do
                   type="number"
                   label={gettext("Players advancing")}
                 />
-                <.input
-                  field={@group_form[:best_of]}
-                  type="number"
-                  label={gettext("Best of")}
-                />
-                <.input
-                  field={@group_form[:points_per_set]}
-                  type="number"
-                  label={gettext("Points per set")}
-                />
                 <input type="hidden" name="group[event_id]" value={@event.id} />
                 <input
                   type="hidden"
@@ -741,16 +733,6 @@ defmodule T3SystemWeb.EventLive.Show do
                   type="datetime-local"
                   label={gettext("When")}
                 />
-                <.input
-                  field={@match_form[:best_of]}
-                  type="number"
-                  label={gettext("Best of")}
-                />
-                <.input
-                  field={@match_form[:points_per_set]}
-                  type="number"
-                  label={gettext("Points per set")}
-                />
                 <input type="hidden" name="match[event_id]" value={@event.id} />
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_match_modal">
@@ -768,12 +750,7 @@ defmodule T3SystemWeb.EventLive.Show do
           <div class="absolute inset-0 bg-black/60" phx-click="close_score_modal"></div>
           <div class="relative flex h-full items-center justify-center pointer-events-none">
             <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
-              <% {sm_match, sm_context} = @score_modal %>
-              <% sm_best_of =
-                case sm_context do
-                  :bracket -> sm_match.best_of || 5
-                  sm_group -> sm_match.best_of || sm_group.best_of
-                end %>
+              <% {sm_match, _sm_context} = @score_modal %>
               <% sm_sets_by_num = Map.new(sm_match.sets, &{&1.set_number, &1}) %>
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
@@ -795,9 +772,12 @@ defmodule T3SystemWeb.EventLive.Show do
                   <span class="flex-1 truncate text-center font-medium">
                     {slot_label(sm_match, 2)}
                   </span>
+                  <span class="w-16 shrink-0 text-center font-medium">
+                    {gettext("W")}
+                  </span>
                 </div>
                 <%!-- Set rows --%>
-                <div :for={n <- 1..sm_best_of} class="mb-1.5 flex items-center gap-2">
+                <div :for={n <- 1..@score_set_count} class="mb-1.5 flex items-center gap-2">
                   <% sm_set = Map.get(sm_sets_by_num, n) %>
                   <input :if={sm_set} type="hidden" name={"sets[#{n - 1}][id]"} value={sm_set.id} />
                   <input type="hidden" name={"sets[#{n - 1}][set_number]"} value={n} />
@@ -819,11 +799,39 @@ defmodule T3SystemWeb.EventLive.Show do
                     min="0"
                     class="flex-1 rounded border border-white/10 bg-gray-800 px-2 py-1 text-center text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
+                  <select
+                    name={"sets[#{n - 1}][winner_registration_id]"}
+                    class="w-16 shrink-0 rounded border border-white/10 bg-gray-800 px-1 py-1 text-center text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">–</option>
+                    <option
+                      :if={is_struct(sm_match.registration1, Registration)}
+                      value={sm_match.registration1_id}
+                      selected={sm_set && sm_set.winner_registration_id == sm_match.registration1_id}
+                    >
+                      P1
+                    </option>
+                    <option
+                      :if={is_struct(sm_match.registration2, Registration)}
+                      value={sm_match.registration2_id}
+                      selected={sm_set && sm_set.winner_registration_id == sm_match.registration2_id}
+                    >
+                      P2
+                    </option>
+                  </select>
                 </div>
-                <%!-- Winner --%>
+                <%!-- Add set button --%>
+                <button
+                  type="button"
+                  phx-click="add_score_row"
+                  class="mt-1 text-xs text-indigo-400 hover:text-indigo-300"
+                >
+                  + {gettext("Add set")}
+                </button>
+                <%!-- Match Winner --%>
                 <div class="mt-3">
                   <label class="mb-1 block text-sm font-medium text-gray-300">
-                    {gettext("Winner")}
+                    {gettext("Match Winner")}
                   </label>
                   <select
                     name="winner_registration_id"
@@ -1133,6 +1141,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:match_group, nil)
       |> assign(:match_group_regs, [])
       |> assign(:score_modal, nil)
+      |> assign(:score_set_count, 3)
       |> assign(:bracket, nil)
       |> assign(:bracket_rounds, [])
       |> assign(:all_match_cards, [])
@@ -1517,11 +1526,21 @@ defmodule T3SystemWeb.EventLive.Show do
           end
         end)
 
-    {:noreply, assign(socket, :score_modal, score_modal)}
+    score_set_count =
+      case score_modal do
+        {match, _} -> max(length(match.sets), 3)
+        nil -> 3
+      end
+
+    {:noreply, assign(socket, score_modal: score_modal, score_set_count: score_set_count)}
   end
 
   def handle_event("close_score_modal", _params, socket) do
-    {:noreply, assign(socket, :score_modal, nil)}
+    {:noreply, assign(socket, score_modal: nil, score_set_count: 3)}
+  end
+
+  def handle_event("add_score_row", _params, socket) do
+    {:noreply, update(socket, :score_set_count, &(&1 + 1))}
   end
 
   def handle_event("save_scores", params, socket) do
@@ -1530,7 +1549,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
     filtered_sets =
       (params["sets"] || %{})
-      |> Enum.reject(fn {_, s} -> s["score1"] in [nil, ""] and s["score2"] in [nil, ""] end)
+      |> Enum.reject(fn {_, s} ->
+        s["score1"] in [nil, ""] and s["score2"] in [nil, ""] and
+          s["winner_registration_id"] in [nil, ""]
+      end)
       |> Map.new()
 
     match_attrs = %{
@@ -1795,7 +1817,7 @@ defmodule T3SystemWeb.EventLive.Show do
   defp prepare_all_match_cards(groups_with_standings, bracket, bracket_rounds) do
     group_cards =
       Enum.flat_map(groups_with_standings, fn {group, _standings} ->
-        ctx = %{label: group.name, best_of: group.best_of, source: :group}
+        ctx = %{label: group.name, source: :group}
         Enum.map(group.matches, &prepare_match_card(&1, ctx))
       end)
 
@@ -1809,16 +1831,16 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp prepare_bracket_cards(bracket, bracket_rounds) do
     Enum.flat_map(bracket_rounds, fn {round, matches} ->
-      ctx = %{label: round_label(round, bracket.rounds), best_of: 5, source: :bracket}
+      ctx = %{label: round_label(round, bracket.rounds), source: :bracket}
       Enum.map(matches, &prepare_match_card(&1, ctx))
     end)
   end
 
-  defp prepare_match_card(match, %{label: label, best_of: fallback_best_of, source: source}) do
+  defp prepare_match_card(match, %{label: label, source: source}) do
     sorted_sets = sort_sets(match.sets)
-    best_of = match.best_of || fallback_best_of
-    sets_by_number = Map.new(sorted_sets, fn s -> {s.set_number, s} end)
-    {sw1, sw2} = sets_won(sorted_sets)
+
+    sw1 = Enum.count(sorted_sets, &(&1.winner_registration_id == match.registration1_id))
+    sw2 = Enum.count(sorted_sets, &(&1.winner_registration_id == match.registration2_id))
 
     %{
       id: match.id,
@@ -1826,8 +1848,8 @@ defmodule T3SystemWeb.EventLive.Show do
       source: source,
       scheduled_at: match.scheduled_at,
       has_sets: sorted_sets != [],
-      p1_scores: set_scores(sets_by_number, best_of, :score1),
-      p2_scores: set_scores(sets_by_number, best_of, :score2),
+      p1_scores: Enum.map(sorted_sets, &format_set_score(&1.score1)),
+      p2_scores: Enum.map(sorted_sets, &format_set_score(&1.score2)),
       sw1: sw1,
       sw2: sw2,
       p1_won:
@@ -1844,28 +1866,8 @@ defmodule T3SystemWeb.EventLive.Show do
   defp sort_sets(%Ecto.Association.NotLoaded{}), do: []
   defp sort_sets(sets), do: Enum.sort_by(sets, & &1.set_number)
 
-  defp set_scores(sets_by_number, best_of, score_key) do
-    Enum.map(1..best_of, fn n ->
-      case Map.get(sets_by_number, n) do
-        nil -> "–"
-        s -> Map.get(s, score_key) |> format_set_score()
-      end
-    end)
-  end
-
   defp format_set_score(nil), do: "–"
   defp format_set_score(score), do: to_string(score)
-
-  defp sets_won(sorted_sets) do
-    Enum.reduce(sorted_sets, {0, 0}, fn s, {w1, w2} ->
-      cond do
-        is_nil(s.score1) or is_nil(s.score2) -> {w1, w2}
-        s.score1 > s.score2 -> {w1 + 1, w2}
-        s.score2 > s.score1 -> {w1, w2 + 1}
-        true -> {w1, w2}
-      end
-    end)
-  end
 
   defp card_player_name(match, 1, :group), do: match_player_name(match.registration1)
   defp card_player_name(match, 2, :group), do: match_player_name(match.registration2)

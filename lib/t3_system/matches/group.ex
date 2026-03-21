@@ -10,8 +10,6 @@ defmodule T3System.Matches.Group do
   @type t :: %__MODULE__{
           id: pos_integer(),
           name: String.t(),
-          best_of: pos_integer(),
-          points_per_set: pos_integer(),
           qualifies_count: pos_integer(),
           event_id: pos_integer(),
           category_id: pos_integer(),
@@ -25,8 +23,6 @@ defmodule T3System.Matches.Group do
 
   schema "groups" do
     field :name, :string
-    field :best_of, :integer, default: 5
-    field :points_per_set, :integer, default: 11
     field :qualifies_count, :integer, default: 2
 
     belongs_to :event, Event
@@ -38,7 +34,7 @@ defmodule T3System.Matches.Group do
   end
 
   @required_fields [:name, :event_id, :category_id]
-  @optional_fields [:best_of, :points_per_set, :qualifies_count]
+  @optional_fields [:qualifies_count]
 
   @doc false
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
@@ -46,8 +42,6 @@ defmodule T3System.Matches.Group do
     group
     |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
-    |> validate_number(:best_of, greater_than: 0)
-    |> validate_number(:points_per_set, greater_than: 0)
     |> validate_number(:qualifies_count, greater_than: 0)
     |> assoc_constraint(:event)
     |> assoc_constraint(:category)

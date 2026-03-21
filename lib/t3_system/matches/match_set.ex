@@ -3,6 +3,7 @@ defmodule T3System.Matches.MatchSet do
   import Ecto.Changeset
 
   alias T3System.Matches.Match
+  alias T3System.Registrations.Registration
 
   @type t :: %__MODULE__{
           id: pos_integer(),
@@ -10,7 +11,9 @@ defmodule T3System.Matches.MatchSet do
           set_number: pos_integer(),
           score1: non_neg_integer() | nil,
           score2: non_neg_integer() | nil,
+          winner_registration_id: pos_integer() | nil,
           match: Match.t() | Ecto.Association.NotLoaded.t(),
+          winner: Registration.t() | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -21,18 +24,17 @@ defmodule T3System.Matches.MatchSet do
     field :score2, :integer
 
     belongs_to :match, Match
+    belongs_to :winner, Registration, foreign_key: :winner_registration_id
 
     timestamps(type: :utc_datetime)
   end
 
   @required_fields [:set_number]
-  @optional_fields [:match_id, :score1, :score2]
+  @optional_fields [:match_id, :score1, :score2, :winner_registration_id]
 
   @doc false
-  @spec changeset(t() | Ecto.Changeset.t(), map(), keyword()) :: Ecto.Changeset.t()
-  def changeset(match_set, attrs, opts \\ []) do
-    points_per_set = Keyword.get(opts, :points_per_set)
-
+  @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
+  def changeset(match_set, attrs) do
     match_set
     |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
@@ -40,55 +42,7 @@ defmodule T3System.Matches.MatchSet do
     |> validate_number(:score1, greater_than_or_equal_to: 0)
     |> validate_number(:score2, greater_than_or_equal_to: 0)
     |> assoc_constraint(:match)
+    |> assoc_constraint(:winner)
     |> unique_constraint([:match_id, :set_number])
-    |> validate_set_score(points_per_set)
-  end
-
-  defp validate_set_score(changeset, nil), do: changeset
-
-  defp validate_set_score(changeset, points_per_set) do
-    score1 = get_field(changeset, :score1)
-    score2 = get_field(changeset, :score2)
-
-    if is_nil(score1) or is_nil(score2) do
-      changeset
-    else
-      validate_complete_set_score(changeset, score1, score2, points_per_set)
-    end
-  end
-
-  defp validate_complete_set_score(changeset, score1, score2, points_per_set) do
-    max_score = max(score1, score2)
-    min_score = min(score1, score2)
-
-    if max_score >= points_per_set do
-      validate_winning_score(changeset, max_score, min_score, points_per_set)
-    else
-      changeset
-    end
-  end
-
-  defp validate_winning_score(changeset, max_score, min_score, points_per_set) do
-    if min_score >= points_per_set - 1 do
-      validate_deuce_score(changeset, max_score, min_score)
-    else
-      validate_normal_win_score(changeset, max_score, points_per_set)
-    end
-  end
-
-  defp validate_deuce_score(changeset, max_score, min_score) do
-    if max_score - min_score >= 2 do
-      changeset
-    else
-      add_error(changeset, :score1, "deuce: winner needs a 2-point lead")
-    end
-  end
-
-  defp validate_normal_win_score(changeset, max_score, points_per_set) do
-    if max_score == points_per_set do
-      changeset
-    else
-      add_error(changeset, :score1, "winner cannot exceed #{points_per_set} points outside deuce")
-    end
   end
 end

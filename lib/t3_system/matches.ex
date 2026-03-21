@@ -205,6 +205,13 @@ defmodule T3System.Matches do
   end
 
   defp accumulate_set_stats(m, reg_id, {sw, sl, pw, pl}) do
+    sw2 = Enum.count(m.sets, &(&1.winner_registration_id == reg_id))
+
+    sl2 =
+      Enum.count(m.sets, fn s ->
+        not is_nil(s.winner_registration_id) and s.winner_registration_id != reg_id
+      end)
+
     {my_scores, opp_scores} =
       if m.registration1_id == reg_id do
         {Enum.map(m.sets, & &1.score1), Enum.map(m.sets, & &1.score2)}
@@ -212,14 +219,12 @@ defmodule T3System.Matches do
         {Enum.map(m.sets, & &1.score2), Enum.map(m.sets, & &1.score1)}
       end
 
-    valid_sets =
+    valid_score_pairs =
       Enum.zip(my_scores, opp_scores)
       |> Enum.filter(fn {a, b} -> not is_nil(a) and not is_nil(b) end)
 
-    sw2 = Enum.count(valid_sets, fn {a, b} -> a > b end)
-    sl2 = Enum.count(valid_sets, fn {a, b} -> b > a end)
-    pw2 = Enum.sum(Enum.map(valid_sets, fn {a, _} -> a end))
-    pl2 = Enum.sum(Enum.map(valid_sets, fn {_, b} -> b end))
+    pw2 = Enum.sum(Enum.map(valid_score_pairs, fn {a, _} -> a end))
+    pl2 = Enum.sum(Enum.map(valid_score_pairs, fn {_, b} -> b end))
 
     {sw + sw2, sl + sl2, pw + pw2, pl + pl2}
   end
@@ -762,9 +767,6 @@ defmodule T3System.Matches do
   @doc """
   Creates a match set. Requires a superuser scope.
 
-  Resolves `points_per_set` from the match's group (for group matches) or
-  from the match itself (for bracket matches) to apply deuce validation.
-
   ## Examples
 
       iex> create_match_set(superuser_scope, %{field: value})
@@ -775,10 +777,8 @@ defmodule T3System.Matches do
 
   """
   def create_match_set(%Scope{user: %{role: "superuser"}}, attrs) do
-    points_per_set = resolve_points_per_set(attrs)
-
     %MatchSet{}
-    |> MatchSet.changeset(attrs, points_per_set: points_per_set)
+    |> MatchSet.changeset(attrs)
     |> Repo.insert()
   end
 
@@ -795,10 +795,8 @@ defmodule T3System.Matches do
 
   """
   def update_match_set(%Scope{user: %{role: "superuser"}}, %MatchSet{} = match_set, attrs) do
-    points_per_set = resolve_points_per_set_for_set(match_set, attrs)
-
     match_set
-    |> MatchSet.changeset(attrs, points_per_set: points_per_set)
+    |> MatchSet.changeset(attrs)
     |> Repo.update()
   end
 
@@ -827,31 +825,7 @@ defmodule T3System.Matches do
       %Ecto.Changeset{data: %MatchSet{}}
 
   """
-  def change_match_set(%MatchSet{} = match_set, attrs \\ %{}, opts \\ []) do
-    MatchSet.changeset(match_set, attrs, opts)
-  end
-
-  # Resolves points_per_set from attrs (for new sets): loads the match and its group if needed.
-  defp resolve_points_per_set(attrs) do
-    match_id = attrs[:match_id] || attrs["match_id"]
-    resolve_points_per_set_from_match_id(match_id)
-  end
-
-  # Resolves points_per_set for an existing set (update): uses the set's match.
-  defp resolve_points_per_set_for_set(%MatchSet{} = match_set, attrs) do
-    match_id = attrs[:match_id] || attrs["match_id"] || match_set.match_id
-    resolve_points_per_set_from_match_id(match_id)
-  end
-
-  defp resolve_points_per_set_from_match_id(nil), do: nil
-
-  defp resolve_points_per_set_from_match_id(match_id) do
-    match = Repo.get(Match, match_id) |> Repo.preload(:group)
-
-    cond do
-      match && match.group_id && match.group -> match.group.points_per_set
-      match && match.points_per_set -> match.points_per_set
-      true -> nil
-    end
+  def change_match_set(%MatchSet{} = match_set, attrs \\ %{}) do
+    MatchSet.changeset(match_set, attrs)
   end
 end

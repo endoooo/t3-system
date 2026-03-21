@@ -23,8 +23,6 @@ defmodule T3System.Matches.Match do
           source2_rank: pos_integer() | nil,
           round: pos_integer() | nil,
           position: pos_integer() | nil,
-          best_of: pos_integer() | nil,
-          points_per_set: pos_integer() | nil,
           scheduled_at: DateTime.t() | nil,
           event: Event.t() | Ecto.Association.NotLoaded.t(),
           group: Group.t() | Ecto.Association.NotLoaded.t(),
@@ -43,8 +41,6 @@ defmodule T3System.Matches.Match do
   schema "matches" do
     field :round, :integer
     field :position, :integer
-    field :best_of, :integer
-    field :points_per_set, :integer
     field :scheduled_at, :utc_datetime
     field :source1_rank, :integer
     field :source2_rank, :integer
@@ -77,8 +73,6 @@ defmodule T3System.Matches.Match do
     :source2_rank,
     :round,
     :position,
-    :best_of,
-    :points_per_set,
     :scheduled_at
   ]
 
@@ -92,8 +86,7 @@ defmodule T3System.Matches.Match do
     |> validate_winner()
     |> validate_different_registrations()
     |> cast_assoc(:sets, with: &MatchSet.changeset/2)
-    |> validate_number(:best_of, greater_than: 0)
-    |> validate_number(:points_per_set, greater_than: 0)
+    |> validate_set_winners()
     |> assoc_constraint(:event)
     |> assoc_constraint(:group)
     |> assoc_constraint(:bracket)
@@ -129,6 +122,30 @@ defmodule T3System.Matches.Match do
       add_error(changeset, :registration2_id, "must be different from player 1")
     else
       changeset
+    end
+  end
+
+  defp validate_set_winners(changeset) do
+    case get_change(changeset, :sets) do
+      nil ->
+        changeset
+
+      set_changesets ->
+        reg1_id = get_field(changeset, :registration1_id)
+        reg2_id = get_field(changeset, :registration2_id)
+        valid_ids = Enum.reject([reg1_id, reg2_id], &is_nil/1)
+
+        has_invalid =
+          Enum.any?(set_changesets, fn set_cs ->
+            wid = get_field(set_cs, :winner_registration_id)
+            not is_nil(wid) and wid not in valid_ids
+          end)
+
+        if has_invalid do
+          add_error(changeset, :sets, "set winner must be one of the match participants")
+        else
+          changeset
+        end
     end
   end
 

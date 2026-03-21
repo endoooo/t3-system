@@ -462,73 +462,6 @@ defmodule T3System.MatchesTest do
       assert {:error, %Ecto.Changeset{} = changeset} = Matches.create_match(scope, attrs)
       assert %{winner_registration_id: [_]} = errors_on(changeset)
     end
-
-    test "create_match/2 in bracket sets best_of and points_per_set" do
-      scope = Scope.for_user(insert(:superuser))
-      bracket = insert(:bracket)
-
-      attrs = %{
-        event_id: bracket.event_id,
-        bracket_id: bracket.id,
-        best_of: 7,
-        points_per_set: 11
-      }
-
-      assert {:ok, %Match{} = match} = Matches.create_match(scope, attrs)
-      assert match.best_of == 7
-      assert match.points_per_set == 11
-    end
-  end
-
-  # ---------------------------------------------------------------------------
-  # Groups: setup fields
-  # ---------------------------------------------------------------------------
-
-  describe "group setup" do
-    test "create_group/2 with custom best_of and points_per_set" do
-      scope = Scope.for_user(insert(:superuser))
-      event = insert(:event)
-      category = insert(:category)
-
-      assert {:ok, %Group{} = group} =
-               Matches.create_group(scope, %{
-                 name: "Group A",
-                 event_id: event.id,
-                 category_id: category.id,
-                 best_of: 7,
-                 points_per_set: 7
-               })
-
-      assert group.best_of == 7
-      assert group.points_per_set == 7
-    end
-
-    test "create_group/2 uses default best_of and points_per_set" do
-      scope = Scope.for_user(insert(:superuser))
-      event = insert(:event)
-      category = insert(:category)
-
-      assert {:ok, %Group{} = group} =
-               Matches.create_group(scope, %{
-                 name: "Group B",
-                 event_id: event.id,
-                 category_id: category.id
-               })
-
-      assert group.best_of == 5
-      assert group.points_per_set == 11
-    end
-
-    test "update_group/3 updates best_of and points_per_set" do
-      scope = Scope.for_user(insert(:superuser))
-      group = insert(:group)
-
-      assert {:ok, %Group{} = updated} =
-               Matches.update_group(scope, group, %{best_of: 3, points_per_set: 7})
-
-      assert updated.best_of == 3
-      assert updated.points_per_set == 7
-    end
   end
 
   # ---------------------------------------------------------------------------
@@ -582,108 +515,31 @@ defmodule T3System.MatchesTest do
       end
     end
 
-    test "create_match_set/2 validates deuce for group match (11-point)" do
+    test "create_match_set/2 with winner_registration_id" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
-      group = insert(:group, event: event, points_per_set: 11)
-      match = insert(:match, event: event, group: group)
-
-      # 11-10 is invalid (deuce reached, need 2-point lead)
-      assert {:error, %Ecto.Changeset{} = changeset} =
-               Matches.create_match_set(scope, %{
-                 match_id: match.id,
-                 set_number: 1,
-                 score1: 11,
-                 score2: 10
-               })
-
-      assert %{score1: [_]} = errors_on(changeset)
-    end
-
-    test "create_match_set/2 accepts valid deuce score for group match" do
-      scope = Scope.for_user(insert(:superuser))
-      event = insert(:event)
-      group = insert(:group, event: event, points_per_set: 11)
-      match = insert(:match, event: event, group: group)
-
-      # 12-10 is valid (deuce, 2-point lead)
-      assert {:ok, %MatchSet{}} =
-               Matches.create_match_set(scope, %{
-                 match_id: match.id,
-                 set_number: 1,
-                 score1: 12,
-                 score2: 10
-               })
-    end
-
-    test "create_match_set/2 rejects over-scoring outside deuce" do
-      scope = Scope.for_user(insert(:superuser))
-      event = insert(:event)
-      group = insert(:group, event: event, points_per_set: 11)
-      match = insert(:match, event: event, group: group)
-
-      # 12-5 is invalid (no deuce, winner should stop at 11)
-      assert {:error, %Ecto.Changeset{} = changeset} =
-               Matches.create_match_set(scope, %{
-                 match_id: match.id,
-                 set_number: 1,
-                 score1: 12,
-                 score2: 5
-               })
-
-      assert %{score1: [_]} = errors_on(changeset)
-    end
-
-    test "create_match_set/2 validates deuce for bracket match (7-point)" do
-      scope = Scope.for_user(insert(:superuser))
-      bracket = insert(:bracket)
+      group = insert(:group, event: event)
+      reg1 = insert(:registration, event: event)
+      reg2 = insert(:registration, event: event)
 
       match =
-        insert(:match, event: bracket.event, bracket: bracket, group: nil, points_per_set: 7)
+        insert(:match,
+          event: event,
+          group: group,
+          registration1: reg1,
+          registration2: reg2
+        )
 
-      # 7-6 is invalid (deuce, need 2-point lead)
-      assert {:error, %Ecto.Changeset{} = changeset} =
-               Matches.create_match_set(scope, %{
-                 match_id: match.id,
-                 set_number: 1,
-                 score1: 7,
-                 score2: 6
-               })
+      attrs = %{
+        match_id: match.id,
+        set_number: 1,
+        score1: 11,
+        score2: 7,
+        winner_registration_id: reg1.id
+      }
 
-      assert %{score1: [_]} = errors_on(changeset)
-    end
-
-    test "create_match_set/2 accepts valid score for bracket match (7-point)" do
-      scope = Scope.for_user(insert(:superuser))
-      bracket = insert(:bracket)
-
-      match =
-        insert(:match, event: bracket.event, bracket: bracket, group: nil, points_per_set: 7)
-
-      # 7-3 is valid
-      assert {:ok, %MatchSet{}} =
-               Matches.create_match_set(scope, %{
-                 match_id: match.id,
-                 set_number: 1,
-                 score1: 7,
-                 score2: 3
-               })
-    end
-
-    test "create_match_set/2 allows partial (in-progress) scores" do
-      scope = Scope.for_user(insert(:superuser))
-      event = insert(:event)
-      group = insert(:group, event: event, points_per_set: 11)
-      match = insert(:match, event: event, group: group)
-
-      # 5-3 is a valid in-progress score
-      assert {:ok, %MatchSet{}} =
-               Matches.create_match_set(scope, %{
-                 match_id: match.id,
-                 set_number: 1,
-                 score1: 5,
-                 score2: 3
-               })
+      assert {:ok, %MatchSet{} = set} = Matches.create_match_set(scope, attrs)
+      assert set.winner_registration_id == reg1.id
     end
 
     test "update_match_set/3 updates scores" do
