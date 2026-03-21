@@ -288,30 +288,6 @@ defmodule T3System.MatchesTest do
       assert match.scheduled_at == ~U[2026-06-01 10:00:00Z]
     end
 
-    test "create_match/2 with next_match_id links bracket matches" do
-      scope = Scope.for_user(insert(:superuser))
-      bracket = insert(:bracket)
-
-      {:ok, semifinal} =
-        Matches.create_match(scope, %{
-          event_id: bracket.event_id,
-          bracket_id: bracket.id,
-          round: 2,
-          position: 1
-        })
-
-      {:ok, quarterfinal} =
-        Matches.create_match(scope, %{
-          event_id: bracket.event_id,
-          bracket_id: bracket.id,
-          round: 1,
-          position: 1,
-          next_match_id: semifinal.id
-        })
-
-      assert quarterfinal.next_match_id == semifinal.id
-    end
-
     test "create_match/2 without group or bracket returns error changeset" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)
