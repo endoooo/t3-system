@@ -10,6 +10,8 @@ defmodule T3System.Matches.Group do
           id: pos_integer(),
           name: String.t(),
           qualifies_count: pos_integer(),
+          is_finished: boolean(),
+          position: integer(),
           stage_id: pos_integer(),
           stage: Stage.t() | Ecto.Association.NotLoaded.t(),
           matches: [Match.t()] | Ecto.Association.NotLoaded.t(),
@@ -21,6 +23,8 @@ defmodule T3System.Matches.Group do
   schema "groups" do
     field :name, :string
     field :qualifies_count, :integer, default: 2
+    field :is_finished, :boolean, default: false
+    field :position, :integer, default: 0
 
     belongs_to :stage, Stage
     has_many :matches, Match
@@ -30,7 +34,7 @@ defmodule T3System.Matches.Group do
   end
 
   @required_fields [:name, :stage_id]
-  @optional_fields [:qualifies_count]
+  @optional_fields [:qualifies_count, :is_finished, :position]
 
   @doc false
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()

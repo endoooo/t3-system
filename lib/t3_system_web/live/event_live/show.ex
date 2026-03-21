@@ -198,7 +198,8 @@ defmodule T3SystemWeb.EventLive.Show do
               >
                 <div class="flex items-center justify-between p-4 font-display font-bold text-sm">
                   <h2 class="text-slate-100">{group.name}</h2>
-                  <p class="text-sky-400">{gettext("Finalizado")}</p>
+                  <p :if={group.is_finished} class="text-sky-400">{gettext("Finalizado")}</p>
+                  <p :if={!group.is_finished} class="text-slate-100/60">{gettext("Em andamento")}</p>
                 </div>
 
                 <div :if={standings == []} class="p-4 text-sm">
@@ -642,9 +643,19 @@ defmodule T3SystemWeb.EventLive.Show do
                     label={gettext("Name")}
                   />
                   <.input
+                    field={@group_form[:position]}
+                    type="number"
+                    label={gettext("Position")}
+                  />
+                  <.input
                     field={@group_form[:qualifies_count]}
                     type="number"
                     label={gettext("Players advancing")}
+                  />
+                  <.input
+                    field={@group_form[:is_finished]}
+                    type="checkbox"
+                    label={gettext("Finished")}
                   />
                   <input
                     type="hidden"

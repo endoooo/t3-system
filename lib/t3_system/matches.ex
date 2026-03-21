@@ -37,7 +37,7 @@ defmodule T3System.Matches do
     |> order_by([s], s.order)
     |> Repo.all()
     |> Repo.preload(
-      groups: [
+      groups: {from(g in Group, order_by: g.position), [
         registrations: [:player, :club],
         matches: [
           :sets,
@@ -45,7 +45,7 @@ defmodule T3System.Matches do
           registration2: [:player, :club],
           winner: [:player]
         ]
-      ],
+      ]},
       matches: [
         :sets,
         registration1: [:player, :club],
@@ -149,6 +149,7 @@ defmodule T3System.Matches do
     Group
     |> join(:inner, [g], s in Stage, on: g.stage_id == s.id)
     |> where([g, s], s.event_id == ^event_id)
+    |> order_by([g], g.position)
     |> Repo.all()
   end
 
@@ -160,7 +161,7 @@ defmodule T3System.Matches do
     Group
     |> join(:inner, [g], s in Stage, on: g.stage_id == s.id)
     |> where([g, s], s.event_id == ^event_id and s.category_id == ^category_id)
-    |> order_by([g], g.name)
+    |> order_by([g], g.position)
     |> Repo.all()
     |> Repo.preload(
       registrations: [:player, :club],
@@ -322,7 +323,7 @@ defmodule T3System.Matches do
     |> Enum.sort_by(fn s -> {-s.won, -s.set_diff, -s.point_diff} end)
     |> Enum.with_index(1)
     |> Enum.map(fn {s, rank} ->
-      Map.merge(s, %{rank: rank, qualified: rank <= qualifies_count})
+      Map.merge(s, %{rank: rank, qualified: group.is_finished and rank <= qualifies_count})
     end)
   end
 
