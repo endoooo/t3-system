@@ -38,6 +38,15 @@ defmodule T3SystemWeb.Layouts do
     <main>
       {render_slot(@inner_block)}
     </main>
+    <div
+      :if={@current_scope}
+      class="flex items-center justify-center gap-4 w-full p-4 text-center text-sm text-slate-100/60 bg-slate-900"
+    >
+      Logged in as {@current_scope.user.email}
+      <.link href={~p"/users/log-out"} method="delete" class="hover:text-slate-100">
+        Log out
+      </.link>
+    </div>
 
     <.flash_group flash={@flash} />
     """
@@ -144,12 +153,12 @@ defmodule T3SystemWeb.Layouts do
             </div>
             
     <!-- Sidebar component, swap this element with another sidebar if you like -->
-            <div class="relative flex grow flex-col gap-y-5 overflow-y-auto bg-white px-6 pb-2">
+            <div class="relative flex grow flex-col gap-y-5 overflow-y-auto bg-slate-900 px-6 pb-2">
               <div class="relative flex h-16 shrink-0 items-center">
                 <img
-                  src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
-                  alt="Your Company"
-                  class="h-8 w-auto"
+                  src="/images/logo.svg"
+                  alt="T3"
+                  class="size-8"
                 />
               </div>
               <nav class="relative flex flex-1 flex-col">
@@ -348,12 +357,12 @@ defmodule T3SystemWeb.Layouts do
     <!-- Static sidebar for desktop -->
     <div class="hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
       <!-- Sidebar component, swap this element with another sidebar if you like -->
-      <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-white px-6">
+      <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-slate-900 px-6">
         <div class="flex h-16 shrink-0 items-center">
           <img
-            src="https://tailwindcss.com/plus-assets/img/logos/mark.svg?color=indigo&shade=600"
-            alt="Your Company"
-            class="h-8 w-auto"
+            src="/images/logo.svg"
+            alt="T3"
+            class="size-12"
           />
         </div>
         <nav class="flex flex-1 flex-col">
@@ -625,15 +634,15 @@ defmodule T3SystemWeb.Layouts do
         class={[
           "group flex gap-x-3 rounded-md p-2 text-sm/6 font-semibold",
           if(@is_active,
-            do: "bg-gray-50 text-indigo-600",
-            else: "text-gray-700 hover:bg-gray-50 hover:text-indigo-600"
+            do: "bg-sky-400/20",
+            else: "hover:bg-sky-400/5"
           )
         ]}
       >
-        <span class="flex size-6 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-[0.625rem] font-medium text-gray-400 group-hover:border-indigo-600 group-hover:text-indigo-600">
+        <span class="flex size-6 shrink-0 items-center justify-center rounded-lg border border-slate-100 text-[0.625rem] font-medium group-hover:border-sky-400 group-hover:text-sky-400">
           {@item_char}
         </span>
-        <span class="truncate">{@item_name}</span>
+        <span class={["truncate", if(@is_active, do: "text-sky-400")]}>{@item_name}</span>
       </.link>
     </li>
     """

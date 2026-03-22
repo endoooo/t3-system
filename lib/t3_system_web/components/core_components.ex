@@ -375,26 +375,28 @@ defmodule T3SystemWeb.CoreComponents do
       end
 
     ~H"""
-    <table class="table table-zebra">
+    <table class="relative min-w-full divide-y divide-white/15">
       <thead>
         <tr>
-          <th :for={col <- @col}>{col[:label]}</th>
+          <th :for={col <- @col} class="px-3 py-3.5 text-sm text-left font-semibold">
+            {col[:label]}
+          </th>
           <th :if={@action != []}>
             <span class="sr-only">{gettext("Actions")}</span>
           </th>
         </tr>
       </thead>
       <tbody id={@id} phx-update={is_struct(@rows, Phoenix.LiveView.LiveStream) && "stream"}>
-        <tr :for={row <- @rows} id={@row_id && @row_id.(row)}>
+        <tr :for={row <- @rows} id={@row_id && @row_id.(row)} class="even:bg-slate-100/5">
           <td
             :for={col <- @col}
             phx-click={@row_click && @row_click.(row)}
-            class={@row_click && "hover:cursor-pointer"}
+            class={["px-3 py-4 text-sm", @row_click && "hover:cursor-pointer"]}
           >
             {render_slot(col, @row_item.(row))}
           </td>
           <td :if={@action != []} class="w-0 font-semibold">
-            <div class="flex gap-4">
+            <div class="flex gap-4 px-3 py-4 text-sm">
               <%= for action <- @action do %>
                 {render_slot(action, @row_item.(row))}
               <% end %>

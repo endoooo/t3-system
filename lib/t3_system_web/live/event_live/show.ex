@@ -17,7 +17,7 @@ defmodule T3SystemWeb.EventLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto max-w-4xl">
         <%!-- Event header --%>
         <div class="p-8">
@@ -43,7 +43,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
         <%!-- Tab nav --%>
         <div class="border-b border-slate-100 overflow-x-auto">
-          <nav aria-label={gettext("Tabs")} class="flex gap-4 pl-8 whitespace-nowrap after:content-[''] after:shrink-0 after:w-8">
+          <nav
+            aria-label={gettext("Tabs")}
+            class="flex gap-4 pl-8 whitespace-nowrap after:content-[''] after:shrink-0 after:w-8"
+          >
             <.link
               :for={tab <- @tabs}
               patch={~p"/events/#{@event}?#{tab_params(@current_tab, @active_category, tab)}"}

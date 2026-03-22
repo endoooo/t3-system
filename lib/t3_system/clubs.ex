@@ -19,7 +19,9 @@ defmodule T3System.Clubs do
 
   """
   def list_clubs do
-    Repo.all(Club)
+    Club
+    |> order_by(:name)
+    |> Repo.all()
   end
 
   @doc """

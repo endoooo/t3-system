@@ -19,7 +19,9 @@ defmodule T3System.Players do
 
   """
   def list_player do
-    Repo.all(Player)
+    Player
+    |> order_by(:name)
+    |> Repo.all()
   end
 
   @doc """

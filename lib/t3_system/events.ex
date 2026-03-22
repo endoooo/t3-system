@@ -20,7 +20,9 @@ defmodule T3System.Events do
 
   """
   def list_leagues do
-    Repo.all(League)
+    League
+    |> order_by(:name)
+    |> Repo.all()
   end
 
   @doc """
@@ -116,7 +118,10 @@ defmodule T3System.Events do
 
   """
   def list_events do
-    Repo.all(Event) |> Repo.preload([:categories, :league])
+    Event
+    |> order_by(:datetime)
+    |> Repo.all()
+    |> Repo.preload([:categories, :league])
   end
 
   @doc """
