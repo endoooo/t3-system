@@ -626,4 +626,153 @@ defmodule T3System.MatchesTest do
       assert hd(result.sets).set_number == 1
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Dashboard metrics
+  # ---------------------------------------------------------------------------
+
+  describe "count_matches_per_category/1" do
+    test "returns counts grouped by category name" do
+      event = insert(:event)
+      cat_a = insert(:category, name: "Alpha")
+      cat_b = insert(:category, name: "Beta")
+      stage_a = insert(:stage, event: event, category: cat_a, order: 1)
+      stage_b = insert(:stage, event: event, category: cat_b, order: 2)
+      group_a = insert(:group, stage: stage_a)
+      group_b = insert(:group, stage: stage_b)
+
+      insert(:match, event: event, group: group_a)
+      insert(:match, event: event, group: group_a)
+      insert(:match, event: event, group: group_b)
+
+      result = Matches.count_matches_per_category(event.id)
+
+      assert [%{category_name: "Alpha", count: 2}, %{category_name: "Beta", count: 1}] = result
+    end
+
+    test "includes bracket matches" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      category = insert(:category, name: "Singles")
+
+      {:ok, _stage} =
+        Matches.create_stage(scope, %{
+          name: "Knockout",
+          type: "bracket",
+          order: 1,
+          rounds: 2,
+          event_id: event.id,
+          category_id: category.id
+        })
+
+      result = Matches.count_matches_per_category(event.id)
+
+      assert [%{category_name: "Singles", count: 3}] = result
+    end
+
+    test "returns empty list for event with no matches" do
+      event = insert(:event)
+      assert Matches.count_matches_per_category(event.id) == []
+    end
+
+    test "ignores matches from other events" do
+      event = insert(:event)
+      other_event = insert(:event)
+      cat = insert(:category, name: "Cat")
+      stage = insert(:stage, event: event, category: cat, order: 1)
+      other_stage = insert(:stage, event: other_event, category: cat, order: 1)
+      group = insert(:group, stage: stage)
+      other_group = insert(:group, stage: other_stage)
+
+      insert(:match, event: event, group: group)
+      insert(:match, event: other_event, group: other_group)
+
+      result = Matches.count_matches_per_category(event.id)
+      assert [%{category_name: "Cat", count: 1}] = result
+    end
+  end
+
+  describe "count_matches_by_status/1" do
+    test "returns finished and unfinished counts" do
+      event = insert(:event)
+      stage = insert(:stage, event: event)
+      group = insert(:group, stage: stage)
+      reg1 = insert(:registration, event: event)
+      reg2 = insert(:registration, event: event)
+
+      # Finished match
+      insert(:match,
+        event: event,
+        group: group,
+        registration1: reg1,
+        registration2: reg2,
+        winner: reg1
+      )
+
+      # Unfinished matches
+      insert(:match, event: event, group: group)
+      insert(:match, event: event, group: group)
+
+      result = Matches.count_matches_by_status(event.id)
+      assert result == %{finished: 1, unfinished: 2}
+    end
+
+    test "returns zeros for event with no matches" do
+      event = insert(:event)
+      result = Matches.count_matches_by_status(event.id)
+      assert result == %{finished: 0, unfinished: 0}
+    end
+  end
+
+  describe "count_matches_per_table/1" do
+    test "returns per-table counts and unassigned count" do
+      event = insert(:event)
+      table1 = insert(:table, event: event)
+      table2 = insert(:table, event: event)
+      stage = insert(:stage, event: event)
+      group = insert(:group, stage: stage)
+      reg1 = insert(:registration, event: event)
+      reg2 = insert(:registration, event: event)
+
+      # Table 1: 1 finished, 1 unfinished
+      insert(:match,
+        event: event,
+        group: group,
+        table: table1,
+        registration1: reg1,
+        registration2: reg2,
+        winner: reg1
+      )
+
+      insert(:match, event: event, group: group, table: table1)
+
+      # Table 2: 1 unfinished
+      insert(:match, event: event, group: group, table: table2)
+
+      # Unassigned: 2 unfinished, 1 finished (finished should not count)
+      insert(:match, event: event, group: group)
+      insert(:match, event: event, group: group)
+
+      insert(:match,
+        event: event,
+        group: group,
+        registration1: reg1,
+        registration2: reg2,
+        winner: reg2
+      )
+
+      {table_counts, unassigned} = Matches.count_matches_per_table(event.id)
+
+      assert table_counts[table1.id] == %{finished: 1, unfinished: 1}
+      assert table_counts[table2.id] == %{finished: 0, unfinished: 1}
+      assert unassigned == 2
+    end
+
+    test "returns empty map and zero for event with no matches" do
+      event = insert(:event)
+      {table_counts, unassigned} = Matches.count_matches_per_table(event.id)
+      assert table_counts == %{}
+      assert unassigned == 0
+    end
+  end
 end

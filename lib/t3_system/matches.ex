@@ -7,6 +7,7 @@ defmodule T3System.Matches do
   alias T3System.Repo
 
   alias T3System.Accounts.Scope
+  alias T3System.Categories.Category
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.MatchSet
@@ -580,5 +581,80 @@ defmodule T3System.Matches do
   """
   def change_match_set(%MatchSet{} = match_set, attrs \\ %{}) do
     MatchSet.changeset(match_set, attrs)
+  end
+
+  # ---------------------------------------------------------------------------
+  # Dashboard metrics
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Returns match counts per category for a given event.
+  """
+  @spec count_matches_per_category(pos_integer()) :: [
+          %{category_name: String.t(), count: integer()}
+        ]
+  def count_matches_per_category(event_id) do
+    Match
+    |> where([m], m.event_id == ^event_id)
+    |> join(:left, [m], g in Group, on: m.group_id == g.id)
+    |> join(:inner, [m, g], s in Stage, on: s.id == coalesce(m.stage_id, g.stage_id))
+    |> join(:inner, [m, g, s], c in Category, on: c.id == s.category_id)
+    |> group_by([m, g, s, c], c.name)
+    |> select([m, g, s, c], %{category_name: c.name, count: count(m.id)})
+    |> order_by([m, g, s, c], c.name)
+    |> Repo.all()
+  end
+
+  @doc """
+  Returns finished vs unfinished match counts for a given event.
+  """
+  @spec count_matches_by_status(pos_integer()) :: %{
+          finished: integer(),
+          unfinished: integer()
+        }
+  def count_matches_by_status(event_id) do
+    result =
+      Match
+      |> where([m], m.event_id == ^event_id)
+      |> select([m], %{
+        finished: count() |> filter(not is_nil(m.winner_registration_id)),
+        unfinished: count() |> filter(is_nil(m.winner_registration_id))
+      })
+      |> Repo.one()
+
+    result || %{finished: 0, unfinished: 0}
+  end
+
+  @doc """
+  Returns match counts per table and unassigned unfinished count for a given event.
+  """
+  @spec count_matches_per_table(pos_integer()) ::
+          {%{pos_integer() => %{finished: integer(), unfinished: integer()}}, integer()}
+  def count_matches_per_table(event_id) do
+    rows =
+      Match
+      |> where([m], m.event_id == ^event_id)
+      |> group_by([m], m.table_id)
+      |> select([m], %{
+        table_id: m.table_id,
+        finished: count() |> filter(not is_nil(m.winner_registration_id)),
+        unfinished: count() |> filter(is_nil(m.winner_registration_id))
+      })
+      |> Repo.all()
+
+    {unassigned_rows, table_rows} = Enum.split_with(rows, &is_nil(&1.table_id))
+
+    table_counts =
+      Map.new(table_rows, fn row ->
+        {row.table_id, %{finished: row.finished, unfinished: row.unfinished}}
+      end)
+
+    unassigned =
+      case unassigned_rows do
+        [row] -> row.unfinished
+        [] -> 0
+      end
+
+    {table_counts, unassigned}
   end
 end

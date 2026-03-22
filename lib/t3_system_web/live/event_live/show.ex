@@ -74,6 +74,90 @@ defmodule T3SystemWeb.EventLive.Show do
 
         <%!-- Tab: Management --%>
         <div :if={@current_tab == "management" and @is_superuser} class="p-8">
+          <%!-- Dashboard Metrics --%>
+          <div class="mb-8 space-y-4">
+            <%!-- Games per category --%>
+            <div class="rounded-lg bg-slate-800 p-4">
+              <h3 class="text-sm font-semibold text-slate-300 mb-3">
+                {gettext("Jogos por categoria")}
+              </h3>
+              <div :if={@dashboard_metrics.per_category == []} class="text-sm text-slate-500">
+                {gettext("Nenhum jogo registrado.")}
+              </div>
+              <div class="space-y-2">
+                <div
+                  :for={row <- @dashboard_metrics.per_category}
+                  class="flex items-center gap-3"
+                >
+                  <span class="w-28 shrink-0 truncate text-sm text-slate-300">
+                    {row.category_name}
+                  </span>
+                  <div class="flex-1 h-5 rounded bg-slate-700 overflow-hidden">
+                    <div
+                      class="h-full rounded bg-sky-500"
+                      style={"width: #{bar_pct(row.count, max_count(@dashboard_metrics.per_category))}%"}
+                    >
+                    </div>
+                  </div>
+                  <span class="w-8 text-right text-sm font-mono text-slate-400">{row.count}</span>
+                </div>
+              </div>
+            </div>
+
+            <%!-- Finished vs unfinished --%>
+            <div class="rounded-lg bg-slate-800 p-4">
+              <h3 class="text-sm font-semibold text-slate-300 mb-3">
+                {gettext("Jogos finalizados vs. pendentes")}
+              </h3>
+              <% total =
+                @dashboard_metrics.by_status.finished + @dashboard_metrics.by_status.unfinished %>
+              <div :if={total == 0} class="text-sm text-slate-500">
+                {gettext("Nenhum jogo registrado.")}
+              </div>
+              <div :if={total > 0} class="space-y-2">
+                <div class="flex items-center gap-3">
+                  <span class="w-28 shrink-0 text-sm text-slate-300">{gettext("Finalizados")}</span>
+                  <div class="flex-1 h-5 rounded bg-slate-700 overflow-hidden">
+                    <div
+                      class="h-full rounded bg-green-500"
+                      style={"width: #{bar_pct(@dashboard_metrics.by_status.finished, total)}%"}
+                    >
+                    </div>
+                  </div>
+                  <span class="w-8 text-right text-sm font-mono text-slate-400">
+                    {@dashboard_metrics.by_status.finished}
+                  </span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="w-28 shrink-0 text-sm text-slate-300">{gettext("Pendentes")}</span>
+                  <div class="flex-1 h-5 rounded bg-slate-700 overflow-hidden">
+                    <div
+                      class="h-full rounded bg-amber-500"
+                      style={"width: #{bar_pct(@dashboard_metrics.by_status.unfinished, total)}%"}
+                    >
+                    </div>
+                  </div>
+                  <span class="w-8 text-right text-sm font-mono text-slate-400">
+                    {@dashboard_metrics.by_status.unfinished}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <%!-- Unassigned games warning --%>
+            <div
+              :if={@dashboard_metrics.unassigned_count > 0}
+              class="flex items-center gap-2 rounded-lg bg-amber-900/30 px-4 py-3 text-sm text-amber-300"
+            >
+              <.icon name="hero-exclamation-triangle-mini" class="size-4 shrink-0" />
+              {ngettext(
+                "%{count} jogo pendente sem mesa",
+                "%{count} jogos pendentes sem mesa",
+                @dashboard_metrics.unassigned_count
+              )}
+            </div>
+          </div>
+
           <div class="mb-4 flex items-center justify-between">
             <h2 class="text-lg font-semibold">{gettext("Mesas")}</h2>
             <.button phx-click="open_new_table" variant="primary">
@@ -87,7 +171,22 @@ defmodule T3SystemWeb.EventLive.Show do
               id={dom_id}
               class="flex items-center justify-between rounded-lg bg-slate-800 px-4 py-3"
             >
-              <span>{table.name}</span>
+              <div class="flex items-center gap-3">
+                <span>{table.name}</span>
+                <% counts =
+                  Map.get(@dashboard_metrics.per_table, table.id, %{
+                    finished: 0,
+                    unfinished: 0
+                  }) %>
+                <span class="text-xs text-green-400" title={gettext("Finalizados")}>
+                  <.icon name="hero-check-circle-mini" class="size-3.5 inline" />
+                  {counts.finished}
+                </span>
+                <span class="text-xs text-amber-400" title={gettext("Pendentes")}>
+                  <.icon name="hero-clock-mini" class="size-3.5 inline" />
+                  {counts.unfinished}
+                </span>
+              </div>
               <div class="flex gap-2">
                 <button
                   phx-click="open_edit_table"
@@ -1200,6 +1299,12 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:assign_slot_modal, nil)
       |> assign(:stage_modal, nil)
       |> assign(:stage_form, nil)
+      |> assign(:dashboard_metrics, %{
+        per_category: [],
+        by_status: %{finished: 0, unfinished: 0},
+        per_table: %{},
+        unassigned_count: 0
+      })
       |> stream(:registrations, [])
       |> stream(:tables, [])
 
@@ -1887,7 +1992,16 @@ defmodule T3SystemWeb.EventLive.Show do
   defp load_registrations(socket, _tab, _event, _active_category), do: socket
 
   defp load_tables(socket, "management", event) do
-    stream(socket, :tables, Tables.list_tables_for_event(event.id), reset: true)
+    {table_counts, unassigned} = Matches.count_matches_per_table(event.id)
+
+    socket
+    |> stream(:tables, Tables.list_tables_for_event(event.id), reset: true)
+    |> assign(:dashboard_metrics, %{
+      per_category: Matches.count_matches_per_category(event.id),
+      by_status: Matches.count_matches_by_status(event.id),
+      per_table: table_counts,
+      unassigned_count: unassigned
+    })
   end
 
   defp load_tables(socket, _tab, _event), do: socket
@@ -2312,4 +2426,9 @@ defmodule T3SystemWeb.EventLive.Show do
       _ -> nil
     end
   end
+
+  defp bar_pct(_value, 0), do: 0
+  defp bar_pct(value, max), do: round(value / max * 100)
+
+  defp max_count(rows), do: Enum.reduce(rows, 0, fn row, acc -> max(row.count, acc) end)
 end
