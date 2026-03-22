@@ -180,7 +180,7 @@ defmodule T3System.Matches do
   Returns a group with its registrations (including player and club) preloaded.
   """
   def get_group_with_registrations!(id) do
-    Repo.get!(Group, id) |> Repo.preload(registrations: [:player, :club])
+    Repo.get!(Group, id) |> Repo.preload([:matches, registrations: [:player, :club]])
   end
 
   @doc """
