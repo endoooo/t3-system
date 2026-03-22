@@ -887,9 +887,9 @@ defmodule T3SystemWeb.EventLive.Show do
               </div>
 
               <form id="score-form" phx-submit="save_scores">
-                <div class="grid grid-cols-[min-content_minmax(0,1fr)_min-content_minmax(0,1fr)_min-content_min-content] gap-2 w-full text-center">
+                <div class="grid grid-cols-[min-content_minmax(0,1fr)_min-content_minmax(0,1fr)_min-content] gap-2 w-full text-center">
                   <%!-- Column headers --%>
-                  <div class="col-span-6 grid grid-cols-subgrid items-center text-xs text-slate-100/60">
+                  <div class="col-span-5 grid grid-cols-subgrid items-center text-xs text-slate-100/60">
                     <span>{gettext("Set")}</span>
                     <span class="truncate text-center text-slate-100">
                       <span class="font-bold text-slate-100/60">P1</span> {slot_label(sm_match, 1)}
@@ -898,14 +898,11 @@ defmodule T3SystemWeb.EventLive.Show do
                     <span class="truncate text-center text-slate-100">
                       <span class="font-bold text-slate-100/60">P2</span> {slot_label(sm_match, 2)}
                     </span>
-                    <span class="text-center text-slate-100">
-                      {gettext("W")}
-                    </span>
                   </div>
                   <%!-- Set rows --%>
                   <div
                     :for={n <- 1..@score_set_count}
-                    class="col-span-6 grid grid-cols-subgrid items-center"
+                    class="col-span-5 grid grid-cols-subgrid items-center"
                   >
                     <% sm_set = Map.get(sm_sets_by_num, n) %>
                     <input :if={sm_set} type="hidden" name={"sets[#{n - 1}][id]"} value={sm_set.id} />
@@ -926,30 +923,6 @@ defmodule T3SystemWeb.EventLive.Show do
                       min="0"
                       class="appearance-none rounded-sm bg-slate-800 py-3 px-4 text-base"
                     />
-                    <select
-                      name={"sets[#{n - 1}][winner_registration_id]"}
-                      class="shrink-0 appearance-none rounded-sm bg-slate-800 py-3 px-4 text-base"
-                    >
-                      <option value="">–</option>
-                      <option
-                        :if={is_struct(sm_match.registration1, Registration)}
-                        value={sm_match.registration1_id}
-                        selected={
-                          sm_set && sm_set.winner_registration_id == sm_match.registration1_id
-                        }
-                      >
-                        P1
-                      </option>
-                      <option
-                        :if={is_struct(sm_match.registration2, Registration)}
-                        value={sm_match.registration2_id}
-                        selected={
-                          sm_set && sm_set.winner_registration_id == sm_match.registration2_id
-                        }
-                      >
-                        P2
-                      </option>
-                    </select>
                     <button
                       :if={@score_set_count > 1}
                       type="button"
@@ -1754,8 +1727,10 @@ defmodule T3SystemWeb.EventLive.Show do
     filtered_sets =
       (params["sets"] || %{})
       |> Enum.reject(fn {_, s} ->
-        s["score1"] in [nil, ""] and s["score2"] in [nil, ""] and
-          s["winner_registration_id"] in [nil, ""]
+        s["score1"] in [nil, ""] and s["score2"] in [nil, ""]
+      end)
+      |> Enum.map(fn {k, s} ->
+        {k, Map.put(s, "winner_registration_id", infer_set_winner(s, match))}
       end)
       |> Map.new()
 
@@ -2393,6 +2368,19 @@ defmodule T3SystemWeb.EventLive.Show do
       5 -> gettext("R64")
       6 -> gettext("R128")
       _ -> gettext("R%{n}", n: round)
+    end
+  end
+
+  defp infer_set_winner(set_params, match) do
+    with {s1, ""} <- Integer.parse(set_params["score1"] || ""),
+         {s2, ""} <- Integer.parse(set_params["score2"] || "") do
+      cond do
+        s1 > s2 -> match.registration1_id
+        s2 > s1 -> match.registration2_id
+        true -> nil
+      end
+    else
+      _ -> nil
     end
   end
 

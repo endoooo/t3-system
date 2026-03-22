@@ -833,7 +833,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       view
       |> form("#score-form", %{
         "sets" => %{
-          "0" => %{"score1" => "11", "score2" => "8", "winner_registration_id" => reg1.id}
+          "0" => %{"score1" => "11", "score2" => "8"}
         },
         "winner_registration_id" => reg1.id
       })
