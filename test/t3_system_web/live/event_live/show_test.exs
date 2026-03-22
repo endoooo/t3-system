@@ -1,6 +1,7 @@
 defmodule T3SystemWeb.EventLive.ShowTest do
   use T3SystemWeb.ConnCase
 
+  import Phoenix.LiveViewTest
   import PhoenixTest
   import T3System.Factory
 
@@ -479,6 +480,111 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("li", text: "To Delete")
       |> click_button("Delete")
       |> refute_has("li", text: "To Delete")
+    end
+  end
+
+  describe "superuser - matches tab scoring" do
+    setup %{conn: conn} do
+      superuser = insert(:superuser)
+      category = insert(:category)
+      event = insert(:event)
+      associate_category(event, category)
+      stage = insert(:stage, event: event, category: category, name: "Groups", order: 1)
+      group = insert(:group, stage: stage)
+
+      player1 = insert(:player)
+      player2 = insert(:player)
+      club = insert(:club)
+      reg1 = insert(:registration, event: event, category: category, player: player1, club: club)
+      reg2 = insert(:registration, event: event, category: category, player: player2, club: club)
+      add_to_group(group, reg1)
+      add_to_group(group, reg2)
+
+      match =
+        insert(:match,
+          event: event,
+          group: group,
+          stage: nil,
+          registration1: reg1,
+          registration2: reg2
+        )
+
+      %{
+        conn: log_in_user(conn, superuser),
+        event: event,
+        category: category,
+        match: match,
+        reg1: reg1,
+        reg2: reg2,
+        player1: player1,
+        player2: player2
+      }
+    end
+
+    test "opens score modal from matches tab and saves scores", %{
+      conn: conn,
+      event: event,
+      category: category,
+      match: match,
+      reg1: reg1,
+      player1: player1,
+      player2: player2
+    } do
+      {:ok, view, _html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      # Verify match card is displayed
+      html = render(view)
+      assert html =~ player1.name
+      assert html =~ player2.name
+
+      # Open score modal
+      html = view |> element("button", "Scores") |> render_click()
+      assert html =~ "Edit Scores"
+
+      # Submit scores
+      view
+      |> form("#score-form", %{
+        "sets" => %{
+          "0" => %{"score1" => "11", "score2" => "8", "winner_registration_id" => reg1.id}
+        },
+        "winner_registration_id" => reg1.id
+      })
+      |> render_submit()
+
+      # Modal should be closed
+      refute render(view) =~ "Edit Scores"
+
+      # Verify scores persisted
+      updated_match = T3System.Matches.get_match!(match.id)
+      assert updated_match.winner_registration_id == reg1.id
+      assert [set] = updated_match.sets
+      assert set.score1 == 11
+      assert set.score2 == 8
+    end
+
+    test "can remove a score set row from the modal", %{
+      conn: conn,
+      event: event,
+      category: category
+    } do
+      {:ok, view, _html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      # Open score modal (default 3 set rows)
+      view |> element("button", "Scores") |> render_click()
+
+      # Should have remove buttons (score_set_count > 1)
+      assert has_element?(view, "button[phx-click=remove_score_row]")
+
+      # Remove rows until only 1 remains
+      render_click(view, "remove_score_row")
+      assert has_element?(view, "button[phx-click=remove_score_row]")
+
+      render_click(view, "remove_score_row")
+
+      # At 1 row, remove buttons should be hidden
+      refute has_element?(view, "button[phx-click=remove_score_row]")
     end
   end
 end

@@ -842,74 +842,89 @@ defmodule T3SystemWeb.EventLive.Show do
               </div>
 
               <form id="score-form" phx-submit="save_scores">
-                <%!-- Column headers --%>
-                <div class="mb-1 flex items-center gap-2 text-xs text-gray-400">
-                  <span class="w-14 shrink-0"></span>
-                  <span class="flex-1 truncate text-center font-medium">
-                    {slot_label(sm_match, 1)}
-                  </span>
-                  <span class="w-4 shrink-0 text-center text-gray-600">vs</span>
-                  <span class="flex-1 truncate text-center font-medium">
-                    {slot_label(sm_match, 2)}
-                  </span>
-                  <span class="w-16 shrink-0 text-center font-medium">
-                    {gettext("W")}
-                  </span>
-                </div>
-                <%!-- Set rows --%>
-                <div :for={n <- 1..@score_set_count} class="mb-1.5 flex items-center gap-2">
-                  <% sm_set = Map.get(sm_sets_by_num, n) %>
-                  <input :if={sm_set} type="hidden" name={"sets[#{n - 1}][id]"} value={sm_set.id} />
-                  <input type="hidden" name={"sets[#{n - 1}][set_number]"} value={n} />
-                  <span class="w-14 shrink-0 text-xs text-gray-400">
-                    {gettext("Set %{n}", n: n)}
-                  </span>
-                  <input
-                    type="number"
-                    name={"sets[#{n - 1}][score1]"}
-                    value={sm_set && sm_set.score1}
-                    min="0"
-                    class="flex-1 rounded border border-white/10 bg-gray-800 px-2 py-1 text-center text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <span class="w-4 shrink-0 text-center text-xs text-gray-600">–</span>
-                  <input
-                    type="number"
-                    name={"sets[#{n - 1}][score2]"}
-                    value={sm_set && sm_set.score2}
-                    min="0"
-                    class="flex-1 rounded border border-white/10 bg-gray-800 px-2 py-1 text-center text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <select
-                    name={"sets[#{n - 1}][winner_registration_id]"}
-                    class="w-16 shrink-0 rounded border border-white/10 bg-gray-800 px-1 py-1 text-center text-xs text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                <div class="grid grid-cols-[min-content_minmax(0,1fr)_min-content_minmax(0,1fr)_min-content_min-content] gap-2 w-full text-center">
+                  <%!-- Column headers --%>
+                  <div class="col-span-6 grid grid-cols-subgrid items-center text-xs text-slate-100/60">
+                    <span>{gettext("Set")}</span>
+                    <span class="truncate text-center text-slate-100">
+                      <span class="font-bold text-slate-100/60">P1</span> {slot_label(sm_match, 1)}
+                    </span>
+                    <span class="text-center">vs</span>
+                    <span class="truncate text-center text-slate-100">
+                      <span class="font-bold text-slate-100/60">P2</span> {slot_label(sm_match, 2)}
+                    </span>
+                    <span class="text-center text-slate-100">
+                      {gettext("W")}
+                    </span>
+                  </div>
+                  <%!-- Set rows --%>
+                  <div
+                    :for={n <- 1..@score_set_count}
+                    class="col-span-6 grid grid-cols-subgrid items-center"
                   >
-                    <option value="">–</option>
-                    <option
-                      :if={is_struct(sm_match.registration1, Registration)}
-                      value={sm_match.registration1_id}
-                      selected={sm_set && sm_set.winner_registration_id == sm_match.registration1_id}
+                    <% sm_set = Map.get(sm_sets_by_num, n) %>
+                    <input :if={sm_set} type="hidden" name={"sets[#{n - 1}][id]"} value={sm_set.id} />
+                    <input type="hidden" name={"sets[#{n - 1}][set_number]"} value={n} />
+                    <span class="text-xs">{n}</span>
+                    <input
+                      type="number"
+                      name={"sets[#{n - 1}][score1]"}
+                      value={sm_set && sm_set.score1}
+                      min="0"
+                      class="appearance-none rounded-sm bg-slate-800 py-3 px-4 text-base"
+                    />
+                    <span class="text-center">—</span>
+                    <input
+                      type="number"
+                      name={"sets[#{n - 1}][score2]"}
+                      value={sm_set && sm_set.score2}
+                      min="0"
+                      class="appearance-none rounded-sm bg-slate-800 py-3 px-4 text-base"
+                    />
+                    <select
+                      name={"sets[#{n - 1}][winner_registration_id]"}
+                      class="shrink-0 appearance-none rounded-sm bg-slate-800 py-3 px-4 text-base"
                     >
-                      P1
-                    </option>
-                    <option
-                      :if={is_struct(sm_match.registration2, Registration)}
-                      value={sm_match.registration2_id}
-                      selected={sm_set && sm_set.winner_registration_id == sm_match.registration2_id}
+                      <option value="">–</option>
+                      <option
+                        :if={is_struct(sm_match.registration1, Registration)}
+                        value={sm_match.registration1_id}
+                        selected={
+                          sm_set && sm_set.winner_registration_id == sm_match.registration1_id
+                        }
+                      >
+                        P1
+                      </option>
+                      <option
+                        :if={is_struct(sm_match.registration2, Registration)}
+                        value={sm_match.registration2_id}
+                        selected={
+                          sm_set && sm_set.winner_registration_id == sm_match.registration2_id
+                        }
+                      >
+                        P2
+                      </option>
+                    </select>
+                    <button
+                      :if={@score_set_count > 1}
+                      type="button"
+                      phx-click="remove_score_row"
+                      class="text-gray-400 hover:text-red-400"
                     >
-                      P2
-                    </option>
-                  </select>
+                      <.icon name="hero-x-circle-mini" class="size-5" />
+                    </button>
+                  </div>
                 </div>
                 <%!-- Add set button --%>
                 <button
                   type="button"
                   phx-click="add_score_row"
-                  class="mt-1 text-xs text-indigo-400 hover:text-indigo-300"
+                  class="mt-4 text-xs text-indigo-400 hover:text-indigo-300"
                 >
                   + {gettext("Add set")}
                 </button>
                 <%!-- Match Winner --%>
-                <div class="mt-3">
+                <div class="mt-4">
                   <label class="mb-1 block text-sm font-medium text-gray-300">
                     {gettext("Match Winner")}
                   </label>
@@ -1716,9 +1731,7 @@ defmodule T3SystemWeb.EventLive.Show do
   def handle_event("open_score_modal", %{"id" => id}, socket) do
     match_id = String.to_integer(id)
 
-    score_modal =
-      find_match_in_groups(match_id, socket.assigns.groups_with_standings) ||
-        find_match_in_stage(match_id, socket.assigns.current_stage)
+    score_modal = find_match_across_stages(match_id, socket.assigns.stages)
 
     score_set_count =
       case score_modal do
@@ -1735,6 +1748,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
   def handle_event("add_score_row", _params, socket) do
     {:noreply, update(socket, :score_set_count, &(&1 + 1))}
+  end
+
+  def handle_event("remove_score_row", _params, socket) do
+    {:noreply, update(socket, :score_set_count, &max(&1 - 1, 1))}
   end
 
   def handle_event("save_scores", params, socket) do
@@ -2042,8 +2059,15 @@ defmodule T3SystemWeb.EventLive.Show do
     |> Enum.map(fn {round, matches} -> {round, Enum.sort_by(matches, & &1.position)} end)
   end
 
-  defp find_match_in_groups(match_id, groups_with_standings) do
-    Enum.find_value(groups_with_standings, fn {g, _} ->
+  defp find_match_across_stages(match_id, stages) do
+    Enum.find_value(stages, fn stage ->
+      find_match_in_groups(match_id, stage.groups) ||
+        find_match_in_stage(match_id, stage)
+    end)
+  end
+
+  defp find_match_in_groups(match_id, groups) do
+    Enum.find_value(groups, fn g ->
       case Enum.find(g.matches, &(&1.id == match_id)) do
         nil -> nil
         match -> {match, g}
