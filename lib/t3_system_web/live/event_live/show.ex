@@ -432,13 +432,18 @@ defmodule T3SystemWeb.EventLive.Show do
                             "flex items-center gap-2 px-4 py-2",
                             if(p1_won, do: "bg-sky-400/10")
                           ]}>
-                            <div class="flex-1 flex items-center gap-2">
-                              <span class={[
+                            <div class="flex-1 flex items-center gap-2 min-w-0">
+                              <%!-- <span class={[
                                 "min-w-0 truncate text-sm",
                                 if(p1_won, do: "font-bold")
                               ]}>
                                 {slot_label(match, 1)}
-                              </span>
+                              </span> --%>
+                              <.label_and_player
+                                registration={match.registration1}
+                                label={match.slot1_label}
+                                won={p1_won}
+                              />
                               <.icon
                                 :if={p1_won}
                                 name="hero-check-mini"
@@ -460,13 +465,18 @@ defmodule T3SystemWeb.EventLive.Show do
                             "flex items-center gap-2 px-4 py-2",
                             if(p2_won, do: "bg-sky-400/10")
                           ]}>
-                            <div class="flex-1 flex items-center gap-2">
-                              <span class={[
+                            <div class="flex-1 flex items-center gap-2 min-w-0">
+                              <%!-- <span class={[
                                 "min-w-0 truncate text-sm",
                                 if(p2_won, do: "font-bold")
                               ]}>
                                 {slot_label(match, 2)}
-                              </span>
+                              </span> --%>
+                              <.label_and_player
+                                registration={match.registration2}
+                                label={match.slot2_label}
+                                won={p2_won}
+                              />
                               <.icon
                                 :if={p2_won}
                                 name="hero-check-mini"
@@ -1009,7 +1019,6 @@ defmodule T3SystemWeb.EventLive.Show do
 
               <form
                 id="assign-slot-form"
-                phx-change="change_assign_slot"
                 phx-submit="save_assign_slot"
               >
                 <%!-- Slot 1 --%>
@@ -1017,32 +1026,12 @@ defmodule T3SystemWeb.EventLive.Show do
                   {gettext("Jogador 1")}
                 </p>
                 <div class="mb-5 space-y-2">
-                  <label class="mb-1 block text-sm text-gray-300">{gettext("Atribuição")}</label>
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Jogador")}</label>
                   <select
-                    name="slot1_type"
-                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="none" selected={@slot1_type == "none"}>
-                      {gettext("Nenhuma (mostrar texto)")}
-                    </option>
-                    <option value="direct" selected={@slot1_type == "direct"}>
-                      {gettext("Direta")}
-                    </option>
-                  </select>
-                  <input
-                    :if={@slot1_type == "none"}
-                    type="text"
-                    name="slot1_label"
-                    value={@assign_slot_modal.slot1_label}
-                    placeholder={gettext("ex: 1º B, WO")}
-                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <select
-                    :if={@slot1_type == "direct"}
                     name="slot1_registration_id"
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
-                    <option value="">{gettext("Select player")}</option>
+                    <option value="">{gettext("Nenhum")}</option>
                     <option
                       :for={r <- @stage_bracket_registrations}
                       value={r.id}
@@ -1051,6 +1040,14 @@ defmodule T3SystemWeb.EventLive.Show do
                       {r.player.name} — {r.club.name}
                     </option>
                   </select>
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Rótulo")}</label>
+                  <input
+                    type="text"
+                    name="slot1_label"
+                    value={@assign_slot_modal.slot1_label}
+                    placeholder={gettext("ex: 1º B, WO")}
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
                 </div>
 
                 <%!-- Slot 2 --%>
@@ -1058,32 +1055,12 @@ defmodule T3SystemWeb.EventLive.Show do
                   {gettext("Jogador 2")}
                 </p>
                 <div class="mb-4 space-y-2">
-                  <label class="mb-1 block text-sm text-gray-300">{gettext("Atribuição")}</label>
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Jogador")}</label>
                   <select
-                    name="slot2_type"
-                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  >
-                    <option value="none" selected={@slot2_type == "none"}>
-                      {gettext("Nenhuma (mostrar texto)")}
-                    </option>
-                    <option value="direct" selected={@slot2_type == "direct"}>
-                      {gettext("Direta")}
-                    </option>
-                  </select>
-                  <input
-                    :if={@slot2_type == "none"}
-                    type="text"
-                    name="slot2_label"
-                    value={@assign_slot_modal.slot2_label}
-                    placeholder={gettext("ex: 2º A, WO")}
-                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                  />
-                  <select
-                    :if={@slot2_type == "direct"}
                     name="slot2_registration_id"
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
-                    <option value="">{gettext("Select player")}</option>
+                    <option value="">{gettext("Nenhum")}</option>
                     <option
                       :for={r <- @stage_bracket_registrations}
                       value={r.id}
@@ -1092,6 +1069,14 @@ defmodule T3SystemWeb.EventLive.Show do
                       {r.player.name} — {r.club.name}
                     </option>
                   </select>
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Rótulo")}</label>
+                  <input
+                    type="text"
+                    name="slot2_label"
+                    value={@assign_slot_modal.slot2_label}
+                    placeholder={gettext("ex: 2º A, WO")}
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
                 </div>
 
                 <div class="mt-4 flex justify-end gap-2">
@@ -1213,8 +1198,6 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:bracket_form, nil)
       |> assign(:stage_bracket_registrations, [])
       |> assign(:assign_slot_modal, nil)
-      |> assign(:slot1_type, "none")
-      |> assign(:slot2_type, "none")
       |> assign(:stage_modal, nil)
       |> assign(:stage_form, nil)
       |> stream(:registrations, [])
@@ -1810,22 +1793,10 @@ defmodule T3SystemWeb.EventLive.Show do
         socket.assigns.active_category
       )
 
-    slot1_type = derive_slot_type(match.registration1_id)
-    slot2_type = derive_slot_type(match.registration2_id)
-
     {:noreply,
      socket
      |> assign(:assign_slot_modal, match)
-     |> assign(:slot1_type, slot1_type)
-     |> assign(:slot2_type, slot2_type)
      |> assign(:stage_bracket_registrations, registrations)}
-  end
-
-  def handle_event("change_assign_slot", params, socket) do
-    {:noreply,
-     socket
-     |> assign(:slot1_type, params["slot1_type"] || socket.assigns.slot1_type)
-     |> assign(:slot2_type, params["slot2_type"] || socket.assigns.slot2_type)}
   end
 
   def handle_event("close_assign_slot", _params, socket) do
@@ -1837,16 +1808,19 @@ defmodule T3SystemWeb.EventLive.Show do
     scope = socket.assigns.current_scope
 
     label_attrs = %{
-      slot1_label: if(params["slot1_type"] == "none", do: params["slot1_label"], else: nil),
-      slot2_label: if(params["slot2_type"] == "none", do: params["slot2_label"], else: nil)
+      slot1_label: params["slot1_label"],
+      slot2_label: params["slot2_label"]
     }
+
+    reg1_id = parse_registration_id(params["slot1_registration_id"])
+    reg2_id = parse_registration_id(params["slot2_registration_id"])
 
     result =
       with {:ok, _} <- Matches.update_match(scope, match, label_attrs),
            fresh_match = Matches.get_match!(match.id),
-           {:ok, _} <- assign_slot(scope, fresh_match, 1, params),
+           {:ok, _} <- Matches.assign_bracket_slot_direct(scope, fresh_match, 1, reg1_id),
            fresh_match2 = Matches.get_match!(match.id),
-           {:ok, _} <- assign_slot(scope, fresh_match2, 2, params) do
+           {:ok, _} <- Matches.assign_bracket_slot_direct(scope, fresh_match2, 2, reg2_id) do
         :done
       else
         {:error, _} -> :error
@@ -1918,23 +1892,8 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp load_tables(socket, _tab, _event), do: socket
 
-  defp assign_slot(scope, match, slot, params) do
-    n = Integer.to_string(slot)
-
-    case params["slot#{n}_type"] do
-      "direct" ->
-        reg_id = params["slot#{n}_registration_id"]
-        registration_id = if reg_id in ["", nil], do: nil, else: String.to_integer(reg_id)
-        Matches.assign_bracket_slot_direct(scope, match, slot, registration_id)
-
-      _ ->
-        {:ok, :skip}
-    end
-  end
-
-  defp derive_slot_type(registration_id) do
-    if registration_id, do: "direct", else: "none"
-  end
+  defp parse_registration_id(value) when value in ["", nil], do: nil
+  defp parse_registration_id(value), do: String.to_integer(value)
 
   defp load_stage_data(socket, nil) do
     socket
@@ -2238,6 +2197,35 @@ defmodule T3SystemWeb.EventLive.Show do
     """
   end
 
+  attr :registration, :any, required: true
+  attr :label, :any, required: true
+  attr :won, :boolean, required: true
+
+  defp label_and_player(assigns) do
+    name =
+      case assigns.registration do
+        %Registration{} = registration -> registration.player.name
+        _ -> nil
+      end
+
+    label =
+      if assigns.label in [nil, ""], do: nil, else: assigns.label
+
+    assigns =
+      assigns
+      |> assign(:name, name)
+      |> assign(:label, label)
+
+    ~H"""
+    <span :if={@name && @label} class="shrink-0 text-xs text-slate-100/60 whitespace-nowrap">
+      {@label}
+    </span>
+    <span class={["truncate text-sm", if(@won, do: "font-bold")]}>
+      {@name || @label || gettext("TBD")}
+    </span>
+    """
+  end
+
   defp available_registrations(category_registrations, groups_with_standings) do
     taken_ids =
       MapSet.new(
@@ -2294,19 +2282,15 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
-  defp slot_label(match, 1) do
-    cond do
-      is_struct(match.registration1, Registration) -> match.registration1.player.name
-      match.slot1_label not in [nil, ""] -> match.slot1_label
-      true -> gettext("TBD")
+  defp slot_label(match, n) do
+    case n do
+      1 -> {match.registration1, match.slot1_label}
+      2 -> {match.registration2, match.slot2_label}
     end
-  end
-
-  defp slot_label(match, 2) do
-    cond do
-      is_struct(match.registration2, Registration) -> match.registration2.player.name
-      match.slot2_label not in [nil, ""] -> match.slot2_label
-      true -> gettext("TBD")
+    |> case do
+      {%Registration{} = registration, _} -> registration.player.name
+      {_, label} when label not in [nil, ""] -> label
+      _ -> gettext("TBD")
     end
   end
 
