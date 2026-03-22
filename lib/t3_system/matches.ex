@@ -43,6 +43,7 @@ defmodule T3System.Matches do
            registrations: [:player, :club],
            matches: [
              :sets,
+             :table,
              registration1: [:player, :club],
              registration2: [:player, :club],
              winner: [:player]
@@ -50,6 +51,7 @@ defmodule T3System.Matches do
          ]},
       matches: [
         :sets,
+        :table,
         registration1: [:player, :club],
         registration2: [:player, :club],
         winner: [:player]

@@ -42,8 +42,8 @@ defmodule T3SystemWeb.EventLive.Show do
         </div>
 
         <%!-- Tab nav --%>
-        <div class="px-8 border-b border-slate-100">
-          <nav aria-label={gettext("Tabs")} class="flex gap-4">
+        <div class="border-b border-slate-100 overflow-x-auto">
+          <nav aria-label={gettext("Tabs")} class="flex gap-4 pl-8 whitespace-nowrap after:content-[''] after:shrink-0 after:w-8">
             <.link
               :for={tab <- @tabs}
               patch={~p"/events/#{@event}?#{tab_params(@current_tab, @active_category, tab)}"}
@@ -741,7 +741,7 @@ defmodule T3SystemWeb.EventLive.Show do
         <div :if={@score_modal != nil} class="fixed inset-0 z-50">
           <div class="absolute inset-0 bg-black/60" phx-click="close_score_modal"></div>
           <div class="relative flex h-full items-center justify-center pointer-events-none">
-            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+            <div class="w-full sm:max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
               <% {sm_match, _sm_context} = @score_modal %>
               <% sm_sets_by_num = Map.new(sm_match.sets, &{&1.set_number, &1}) %>
               <div class="mb-4 flex items-center justify-between">
@@ -785,7 +785,7 @@ defmodule T3SystemWeb.EventLive.Show do
                       min="0"
                       class="appearance-none rounded-sm bg-slate-800 py-3 px-4 text-base"
                     />
-                    <span class="text-center">—</span>
+                    <span class="text-center text-xs text-slate-100/60">x</span>
                     <input
                       type="number"
                       name={"sets[#{n - 1}][score2]"}
@@ -863,6 +863,66 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_score_modal">
+                    {gettext("Cancel")}
+                  </.button>
+                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <%!-- Schedule modal --%>
+        <div :if={@schedule_modal != nil} class="fixed inset-0 z-50">
+          <div class="absolute inset-0 bg-black/60" phx-click="close_schedule_modal"></div>
+          <div class="relative flex h-full items-center justify-center pointer-events-none">
+            <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+              <div class="mb-4 flex items-center justify-between">
+                <h2 class="text-lg font-semibold text-white">
+                  {gettext("Schedule Match")}
+                </h2>
+                <button phx-click="close_schedule_modal" class="text-gray-400 hover:text-white">
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+
+              <form id="schedule-form" phx-submit="save_schedule">
+                <div class="space-y-4">
+                  <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-300">
+                      {gettext("Date & Time")}
+                    </label>
+                    <input
+                      type="datetime-local"
+                      name="scheduled_at"
+                      value={
+                        @schedule_modal.scheduled_at &&
+                          Calendar.strftime(@schedule_modal.scheduled_at, "%Y-%m-%dT%H:%M")
+                      }
+                      class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-sm font-medium text-gray-300">
+                      {gettext("Table")}
+                    </label>
+                    <select
+                      name="table_id"
+                      class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    >
+                      <option value="">{gettext("No table")}</option>
+                      <option
+                        :for={table <- @schedule_tables}
+                        value={table.id}
+                        selected={@schedule_modal.table_id == table.id}
+                      >
+                        {table.name}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+                <div class="mt-4 flex justify-end gap-2">
+                  <.button type="button" phx-click="close_schedule_modal">
                     {gettext("Cancel")}
                   </.button>
                   <.button type="submit" variant="primary">{gettext("Save")}</.button>
@@ -1119,6 +1179,8 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:groups_with_standings, [])
       |> assign(:score_modal, nil)
       |> assign(:score_set_count, 3)
+      |> assign(:schedule_modal, nil)
+      |> assign(:schedule_tables, [])
       |> assign(:all_match_cards, [])
       |> assign(:bracket_modal, nil)
       |> assign(:bracket_form, nil)
@@ -1571,6 +1633,60 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
+  # Schedule modal (superuser only)
+
+  def handle_event("open_schedule_modal", %{"id" => id}, socket) do
+    match_id = String.to_integer(id)
+
+    case find_match_across_stages(match_id, socket.assigns.stages) do
+      {match, _context} ->
+        tables = Tables.list_tables_for_event(socket.assigns.event.id)
+
+        {:noreply,
+         assign(socket,
+           schedule_modal: match,
+           schedule_tables: tables
+         )}
+
+      nil ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_event("close_schedule_modal", _params, socket) do
+    {:noreply, assign(socket, schedule_modal: nil)}
+  end
+
+  def handle_event("save_schedule", params, socket) do
+    match = socket.assigns.schedule_modal
+    scope = socket.assigns.current_scope
+
+    table_id =
+      case params["table_id"] do
+        "" -> nil
+        id -> id
+      end
+
+    scheduled_at =
+      case params["scheduled_at"] do
+        "" -> nil
+        dt -> dt
+      end
+
+    attrs = %{"scheduled_at" => scheduled_at, "table_id" => table_id}
+
+    case Matches.update_match(scope, match, attrs) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> reload_stage_data()
+         |> assign(:schedule_modal, nil)}
+
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Could not save schedule."))}
+    end
+  end
+
   # Bracket management (superuser only)
 
   def handle_event("open_bracket_setup", _params, socket) do
@@ -1823,7 +1939,7 @@ defmodule T3SystemWeb.EventLive.Show do
     group_cards =
       Enum.flat_map(stage.groups, fn group ->
         ctx = %{
-          label: "#{stage.name} — #{group.name}",
+          label: "#{group.name}",
           source: :group,
           stage_order: stage.order,
           group_position: group.position
@@ -1836,7 +1952,7 @@ defmodule T3SystemWeb.EventLive.Show do
       if stage.type == "bracket" and stage.rounds do
         Enum.flat_map(compute_bracket_rounds(stage), fn {round, matches} ->
           ctx = %{
-            label: "#{stage.name} — #{round_label(round, stage.rounds)}",
+            label: "#{stage.name} - #{round_label(round, stage.rounds)}",
             source: :bracket,
             stage_order: stage.order
           }
@@ -1898,6 +2014,7 @@ defmodule T3SystemWeb.EventLive.Show do
       source: source,
       sort_key: sort_key,
       scheduled_at: match.scheduled_at,
+      table: match.table,
       has_sets: sorted_sets != [],
       p1_scores: Enum.map(sorted_sets, &format_set_score(&1.score1)),
       p2_scores: Enum.map(sorted_sets, &format_set_score(&1.score2)),
@@ -1936,13 +2053,12 @@ defmodule T3SystemWeb.EventLive.Show do
     ~H"""
     <div id={"match-#{@card.id}"} class="rounded-sm bg-slate-800 shadow-xl">
       <%!-- Card header --%>
-      <div class="flex items-center justify-between p-4 pb-2 border-b border-slate-100/20">
-        <div>
-          <p class="font-display font-bold text-sm text-slate-100/60">{@card.label}</p>
-          <p :if={@card.scheduled_at} class="mt-0.5 text-xs text-slate-100">
-            {Calendar.strftime(@card.scheduled_at, "%d/%m %H:%M")}
-          </p>
-        </div>
+      <div class="flex items-center gap-4 p-4 pb-2 border-b border-slate-100/20">
+        <p class="flex-1 font-display font-bold text-sm text-slate-100/60">{@card.label}</p>
+        <p :if={@card.scheduled_at || @card.table} class="text-xs">
+          {if @card.scheduled_at, do: Calendar.strftime(@card.scheduled_at, "%H:%M")}
+          {if @card.table, do: @card.table.name}
+        </p>
         <div :if={@card.has_sets} class="font-display font-bold text-sm text-cyan-400">
           {@card.sw1} — {@card.sw2}
         </div>
@@ -2008,6 +2124,13 @@ defmodule T3SystemWeb.EventLive.Show do
         class="flex justify-end gap-3 border-t border-white/10 px-4 py-2"
       >
         <button
+          phx-click="open_schedule_modal"
+          phx-value-id={@card.id}
+          class="text-xs text-indigo-400 hover:text-indigo-300"
+        >
+          {gettext("Schedule")}
+        </button>
+        <button
           phx-click="open_score_modal"
           phx-value-id={@card.id}
           class="text-xs text-indigo-400 hover:text-indigo-300"
@@ -2065,13 +2188,13 @@ defmodule T3SystemWeb.EventLive.Show do
 
     case rounds_from_end do
       0 -> gettext("Final")
-      1 -> gettext("Semifinals")
-      2 -> gettext("Quarterfinals")
-      3 -> gettext("Round of 16")
-      4 -> gettext("Round of 32")
-      5 -> gettext("Round of 64")
-      6 -> gettext("Round of 128")
-      _ -> gettext("Round %{n}", n: round)
+      1 -> gettext("Semis")
+      2 -> gettext("Quartas")
+      3 -> gettext("Oitavas")
+      4 -> gettext("R32")
+      5 -> gettext("R64")
+      6 -> gettext("R128")
+      _ -> gettext("R%{n}", n: round)
     end
   end
 
