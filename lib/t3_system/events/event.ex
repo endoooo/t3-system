@@ -31,7 +31,12 @@ defmodule T3System.Events.Event do
     field :datetime, :utc_datetime
 
     belongs_to :league, League
-    many_to_many :categories, Category, join_through: "events_categories", on_replace: :delete
+
+    many_to_many :categories, Category,
+      join_through: "events_categories",
+      on_replace: :delete,
+      preload_order: [asc: :name]
+
     has_many :stages, Stage
     has_many :groups, through: [:stages, :groups]
     has_many :matches, Match
