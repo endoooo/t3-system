@@ -14,14 +14,14 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
       </.header>
 
       <.form for={@form} id="player-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="text" label={gettext("Name")} />
+        <.input field={@form[:name]} type="text" label={gettext("Nome")} />
         <.input field={@form[:birthdate]} type="date" label={gettext("Birthdate")} />
         <.input field={@form[:picture_url]} type="text" label={gettext("Picture url")} />
         <footer>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Player")}
           </.button>
-          <.button navigate={return_path(@return_to, @player)}>{gettext("Cancel")}</.button>
+          <.button navigate={return_path(@return_to, @player)}>{gettext("Cancelar")}</.button>
         </footer>
       </.form>
     </Layouts.app>

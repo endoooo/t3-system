@@ -21,7 +21,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Index do
         rows={@streams.categories}
         row_click={fn {_id, category} -> JS.navigate(~p"/admin/categories/#{category}") end}
       >
-        <:col :let={{_id, category}} label={gettext("Name")}>{category.name}</:col>
+        <:col :let={{_id, category}} label={gettext("Nome")}>{category.name}</:col>
         <:action :let={{_id, category}}>
           <div class="sr-only">
             <.link navigate={~p"/admin/categories/#{category}"}>{gettext("Show")}</.link>

@@ -21,7 +21,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Show do
       </.header>
 
       <.list>
-        <:item title={gettext("Name")}>{@player.name}</:item>
+        <:item title={gettext("Nome")}>{@player.name}</:item>
         <:item title={gettext("Birthdate")}>{@player.birthdate}</:item>
         <:item title={gettext("Picture url")}>{@player.picture_url}</:item>
       </.list>

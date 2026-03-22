@@ -21,7 +21,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Show do
       </.header>
 
       <.list>
-        <:item title={gettext("Name")}>{@category.name}</:item>
+        <:item title={gettext("Nome")}>{@category.name}</:item>
       </.list>
     </Layouts.settings>
     """

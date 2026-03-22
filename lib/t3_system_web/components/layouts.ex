@@ -326,7 +326,7 @@ defmodule T3SystemWeb.Layouts do
                       <.config_item
                         is_active={@active_item == "players"}
                         item_char="P"
-                        item_name={gettext("Players")}
+                        item_name={gettext("Jogadores")}
                         navigate={~p"/admin/players"}
                       />
                       <.config_item
@@ -532,7 +532,7 @@ defmodule T3SystemWeb.Layouts do
                     <.config_item
                       is_active={@active_item == "players"}
                       item_char="P"
-                      item_name={gettext("Players")}
+                      item_name={gettext("Jogadores")}
                       navigate={~p"/admin/players"}
                     />
                     <.config_item

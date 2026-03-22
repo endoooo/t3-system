@@ -75,9 +75,9 @@ defmodule T3SystemWeb.EventLive.Show do
         <%!-- Tab: Management --%>
         <div :if={@current_tab == "management" and @is_superuser} class="p-8">
           <div class="mb-4 flex items-center justify-between">
-            <h2 class="text-lg font-semibold">{gettext("Tables")}</h2>
+            <h2 class="text-lg font-semibold">{gettext("Mesas")}</h2>
             <.button phx-click="open_new_table" variant="primary">
-              <.icon name="hero-plus" /> {gettext("Add Table")}
+              <.icon name="hero-plus" /> {gettext("Adicionar mesa")}
             </.button>
           </div>
 
@@ -134,14 +134,14 @@ defmodule T3SystemWeb.EventLive.Show do
                   phx-submit="save_table"
                 >
                   <div class="space-y-4">
-                    <.input field={@table_form[:name]} type="text" label={gettext("Name")} />
+                    <.input field={@table_form[:name]} type="text" label={gettext("Nome")} />
                   </div>
                   <div class="mt-6 flex justify-end gap-3">
                     <.button type="button" phx-click="close_table_modal">
-                      {gettext("Cancel")}
+                      {gettext("Cancelar")}
                     </.button>
                     <.button type="submit" variant="primary">
-                      {gettext("Save")}
+                      {gettext("Salvar")}
                     </.button>
                   </div>
                 </.form>
@@ -154,7 +154,7 @@ defmodule T3SystemWeb.EventLive.Show do
         <div :if={@current_tab == "overview"} class="p-8">
           <div :if={@is_superuser} class="mb-4 flex justify-end">
             <.button phx-click="open_new_registration" variant="primary">
-              <.icon name="hero-plus" /> {gettext("Add Registration")}
+              <.icon name="hero-plus" /> {gettext("Nova inscrição")}
             </.button>
           </div>
 
@@ -235,7 +235,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   phx-click="open_edit_stage"
                   class="text-xs text-indigo-400 hover:text-indigo-300"
                 >
-                  {gettext("Edit Stage")}
+                  {gettext("Editar fase")}
                 </button>
                 <button
                   phx-click="delete_stage"
@@ -244,7 +244,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   }
                   class="text-xs text-red-400 hover:text-red-300"
                 >
-                  {gettext("Delete Stage")}
+                  {gettext("Deletar fase")}
                 </button>
               </div>
               <div class="flex gap-2">
@@ -253,7 +253,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   phx-click="open_new_group"
                   variant="primary"
                 >
-                  <.icon name="hero-plus" /> {gettext("Add Group")}
+                  <.icon name="hero-plus" /> {gettext("Adicionar grupo")}
                 </.button>
                 <.button
                   :if={@current_stage.type == "bracket" and @current_stage.rounds == nil}
@@ -287,7 +287,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     <thead>
                       <tr class="border-b border-white/10 text-left text-xs text-slate-100/60">
                         <th class="w-1 pb-2 pl-4 font-normal">#</th>
-                        <th class="pb-2 px-2 font-normal">{gettext("Player")}</th>
+                        <th class="pb-2 px-2 font-normal">{gettext("Jogador")}</th>
                         <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("V")}</th>
                         <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("D")}</th>
                         <th class="w-1 pb-2 px-2 font-normal text-center">{gettext("S")}</th>
@@ -331,7 +331,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   >
                     <.icon name="hero-user-group-mini" />
                     <span class="sr-only">
-                      {gettext("Players")}
+                      {gettext("Jogadores")}
                     </span>
                   </button>
                   <button
@@ -473,24 +473,34 @@ defmodule T3SystemWeb.EventLive.Show do
                             </span>
                           </div>
                           <%!-- Superuser actions --%>
-                          <div
-                            :if={@is_superuser}
-                            class="flex justify-end gap-2 border-t border-white/5 px-2.5 py-1"
-                          >
-                            <button
-                              phx-click="open_assign_slot"
-                              phx-value-id={match.id}
-                              class="text-xs text-gray-500 hover:text-gray-400"
-                            >
-                              {gettext("Assign")}
-                            </button>
-                            <button
-                              phx-click="open_score_modal"
-                              phx-value-id={match.id}
-                              class="text-xs text-indigo-400/70 hover:text-indigo-300"
-                            >
-                              {gettext("Scores")}
-                            </button>
+                          <div class="flex items-center justify-between gap-2 border-t border-white/5 px-2.5 py-1">
+                            <p class="text-xs text-slate-100/60">
+                              {if match.scheduled_at,
+                                do: Calendar.strftime(match.scheduled_at, "%H:%M")}
+                              {if match.table, do: match.table.name}
+                            </p>
+                            <div :if={@is_superuser} class="flex gap-2">
+                              <button
+                                phx-click="open_assign_slot"
+                                phx-value-id={match.id}
+                                class="text-xs text-gray-500 hover:text-gray-400"
+                              >
+                                <.icon name="hero-user-group-mini" />
+                                <span class="sr-only">
+                                  {gettext("Jogadores")}
+                                </span>
+                              </button>
+                              <button
+                                phx-click="open_score_modal"
+                                phx-value-id={match.id}
+                                class="text-xs text-indigo-400/70 hover:text-indigo-300"
+                              >
+                                <.icon name="hero-numbered-list-mini" />
+                                <span class="sr-only">
+                                  {gettext("Resultados")}
+                                </span>
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -535,8 +545,8 @@ defmodule T3SystemWeb.EventLive.Show do
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
                   {if @modal == :new,
-                    do: gettext("Add Registration"),
-                    else: gettext("Edit Registration")}
+                    do: gettext("Nova Inscrição"),
+                    else: gettext("Editar Inscrição")}
                 </h2>
                 <button phx-click="close_modal" class="text-gray-400 hover:text-white">
                   <.icon name="hero-x-mark" class="size-5" />
@@ -554,16 +564,16 @@ defmodule T3SystemWeb.EventLive.Show do
                   <.input
                     field={@form[:player_id]}
                     type="select"
-                    label={gettext("Player")}
+                    label={gettext("Jogador")}
                     options={Enum.map(@players, &{&1.name, &1.id})}
-                    prompt={gettext("Select a player")}
+                    prompt={gettext("Selecione um jogador")}
                   />
                   <.input
                     field={@form[:club_id]}
                     type="select"
-                    label={gettext("Club")}
+                    label={gettext("Clube")}
                     options={Enum.map(@clubs, &{&1.name, &1.id})}
-                    prompt={gettext("Select a club")}
+                    prompt={gettext("Selecione um clube")}
                   />
                   <input type="hidden" name="registration[event_id]" value={@event.id} />
                   <input
@@ -573,8 +583,8 @@ defmodule T3SystemWeb.EventLive.Show do
                   />
                 </div>
                 <div class="mt-4 flex justify-end gap-2">
-                  <.button type="button" phx-click="close_modal">{gettext("Cancel")}</.button>
-                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                  <.button type="button" phx-click="close_modal">{gettext("Cancelar")}</.button>
+                  <.button type="submit" variant="primary">{gettext("Salvar")}</.button>
                 </div>
               </.form>
             </div>
@@ -588,7 +598,7 @@ defmodule T3SystemWeb.EventLive.Show do
             <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
-                  {gettext("Manage Players")} — {@players_modal.name}
+                  {gettext("Gerenciar jogadores")} — {@players_modal.name}
                 </h2>
                 <button phx-click="close_players_modal" class="text-gray-400 hover:text-white">
                   <span class="sr-only">{gettext("Close")}</span>
@@ -599,7 +609,7 @@ defmodule T3SystemWeb.EventLive.Show do
               <%!-- Current members --%>
               <div class="mb-4">
                 <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {gettext("Players")} ({length(@players_modal.registrations)})
+                  {gettext("Jogadores")} ({length(@players_modal.registrations)})
                 </p>
                 <p
                   :if={@players_modal.registrations == []}
@@ -642,7 +652,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     name="registration_id"
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
-                    <option value="">{gettext("Select a player...")}</option>
+                    <option value="">{gettext("Selecione um jogador...")}</option>
                     <option :for={reg <- available} value={reg.id}>
                       {reg.player.name} — {reg.club.name}
                     </option>
@@ -654,9 +664,9 @@ defmodule T3SystemWeb.EventLive.Show do
               <div class="border-t border-white/10 pt-4">
                 <div class="flex items-center justify-between">
                   <div>
-                    <p class="text-sm text-white">{gettext("Generate Matches")}</p>
+                    <p class="text-sm text-white">{gettext("Gerar Jogos")}</p>
                     <p class="text-xs text-gray-400">
-                      {gettext("Round-robin for all players. Replaces existing matches.")}
+                      {gettext("Todos contra todos. Substitui as partidas existentes.")}
                     </p>
                   </div>
                   <.button
@@ -671,7 +681,7 @@ defmodule T3SystemWeb.EventLive.Show do
                           )
                     }
                   >
-                    {gettext("Generate")}
+                    {gettext("Gerar")}
                   </.button>
                 </div>
               </div>
@@ -687,8 +697,8 @@ defmodule T3SystemWeb.EventLive.Show do
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
                   {if @group_modal == :new,
-                    do: gettext("Add Group"),
-                    else: gettext("Edit Group")}
+                    do: gettext("Adicionar Grupo"),
+                    else: gettext("Editar Grupo")}
                 </h2>
                 <button phx-click="close_group_modal" class="text-gray-400 hover:text-white">
                   <.icon name="hero-x-mark" class="size-5" />
@@ -706,22 +716,22 @@ defmodule T3SystemWeb.EventLive.Show do
                   <.input
                     field={@group_form[:name]}
                     type="text"
-                    label={gettext("Name")}
+                    label={gettext("Nome")}
                   />
                   <.input
                     field={@group_form[:position]}
                     type="number"
-                    label={gettext("Position")}
+                    label={gettext("Posição")}
                   />
                   <.input
                     field={@group_form[:qualifies_count]}
                     type="number"
-                    label={gettext("Players advancing")}
+                    label={gettext("Quantos avançam")}
                   />
                   <.input
                     field={@group_form[:is_finished]}
                     type="checkbox"
-                    label={gettext("Finished")}
+                    label={gettext("Finalizado")}
                   />
                   <input
                     type="hidden"
@@ -731,9 +741,9 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_group_modal">
-                    {gettext("Cancel")}
+                    {gettext("Cancelar")}
                   </.button>
-                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                  <.button type="submit" variant="primary">{gettext("Salvar")}</.button>
                 </div>
               </.form>
             </div>
@@ -749,7 +759,7 @@ defmodule T3SystemWeb.EventLive.Show do
               <% sm_sets_by_num = Map.new(sm_match.sets, &{&1.set_number, &1}) %>
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
-                  {gettext("Edit Scores")}
+                  {gettext("Editar Resultados")}
                 </h2>
                 <button phx-click="close_score_modal" class="text-gray-400 hover:text-white">
                   <.icon name="hero-x-mark" class="size-5" />
@@ -836,12 +846,12 @@ defmodule T3SystemWeb.EventLive.Show do
                   phx-click="add_score_row"
                   class="mt-4 text-xs text-indigo-400 hover:text-indigo-300"
                 >
-                  + {gettext("Add set")}
+                  + {gettext("Adicionar set")}
                 </button>
                 <%!-- Match Winner --%>
                 <div class="mt-4">
                   <label class="mb-1 block text-sm font-medium text-gray-300">
-                    {gettext("Match Winner")}
+                    {gettext("Vencedor da partida")}
                   </label>
                   <select
                     name="winner_registration_id"
@@ -866,9 +876,9 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_score_modal">
-                    {gettext("Cancel")}
+                    {gettext("Cancelar")}
                   </.button>
-                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                  <.button type="submit" variant="primary">{gettext("Salvar")}</.button>
                 </div>
               </form>
             </div>
@@ -882,7 +892,7 @@ defmodule T3SystemWeb.EventLive.Show do
             <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
-                  {gettext("Schedule Match")}
+                  {gettext("Agendar Jogo")}
                 </h2>
                 <button phx-click="close_schedule_modal" class="text-gray-400 hover:text-white">
                   <.icon name="hero-x-mark" class="size-5" />
@@ -893,7 +903,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 <div class="space-y-4">
                   <div>
                     <label class="mb-1 block text-sm font-medium text-gray-300">
-                      {gettext("Date & Time")}
+                      {gettext("Data e hora")}
                     </label>
                     <input
                       type="datetime-local"
@@ -907,7 +917,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   </div>
                   <div>
                     <label class="mb-1 block text-sm font-medium text-gray-300">
-                      {gettext("Table")}
+                      {gettext("Mesa")}
                     </label>
                     <select
                       name="table_id"
@@ -926,9 +936,9 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_schedule_modal">
-                    {gettext("Cancel")}
+                    {gettext("Cancelar")}
                   </.button>
-                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                  <.button type="submit" variant="primary">{gettext("Salvar")}</.button>
                 </div>
               </form>
             </div>
@@ -963,9 +973,9 @@ defmodule T3SystemWeb.EventLive.Show do
                 />
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_bracket_modal">
-                    {gettext("Cancel")}
+                    {gettext("Cancelar")}
                   </.button>
-                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                  <.button type="submit" variant="primary">{gettext("Salvar")}</.button>
                 </div>
               </.form>
             </div>
@@ -979,7 +989,7 @@ defmodule T3SystemWeb.EventLive.Show do
             <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
-                  {gettext("Assign Players")}
+                  {gettext("Atribuir jogadores")}
                 </h2>
                 <button phx-click="close_assign_slot" class="text-gray-400 hover:text-white">
                   <.icon name="hero-x-mark" class="size-5" />
@@ -993,19 +1003,19 @@ defmodule T3SystemWeb.EventLive.Show do
               >
                 <%!-- Slot 1 --%>
                 <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {gettext("Player 1")}
+                  {gettext("Jogador 1")}
                 </p>
                 <div class="mb-5 space-y-2">
-                  <label class="mb-1 block text-sm text-gray-300">{gettext("Assignment")}</label>
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Atribuição")}</label>
                   <select
                     name="slot1_type"
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
                     <option value="none" selected={@slot1_type == "none"}>
-                      {gettext("None (show label)")}
+                      {gettext("Nenhuma (mostrar texto)")}
                     </option>
                     <option value="direct" selected={@slot1_type == "direct"}>
-                      {gettext("Direct")}
+                      {gettext("Direta")}
                     </option>
                   </select>
                   <input
@@ -1013,7 +1023,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     type="text"
                     name="slot1_label"
                     value={@assign_slot_modal.slot1_label}
-                    placeholder={gettext("e.g. 1st Group B")}
+                    placeholder={gettext("ex: 1º B, WO")}
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <select
@@ -1034,19 +1044,19 @@ defmodule T3SystemWeb.EventLive.Show do
 
                 <%!-- Slot 2 --%>
                 <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
-                  {gettext("Player 2")}
+                  {gettext("Jogador 2")}
                 </p>
                 <div class="mb-4 space-y-2">
-                  <label class="mb-1 block text-sm text-gray-300">{gettext("Assignment")}</label>
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Atribuição")}</label>
                   <select
                     name="slot2_type"
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   >
                     <option value="none" selected={@slot2_type == "none"}>
-                      {gettext("None (show label)")}
+                      {gettext("Nenhuma (mostrar texto)")}
                     </option>
                     <option value="direct" selected={@slot2_type == "direct"}>
-                      {gettext("Direct")}
+                      {gettext("Direta")}
                     </option>
                   </select>
                   <input
@@ -1054,7 +1064,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     type="text"
                     name="slot2_label"
                     value={@assign_slot_modal.slot2_label}
-                    placeholder={gettext("e.g. 2nd Group A")}
+                    placeholder={gettext("ex: 2º A, WO")}
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <select
@@ -1075,9 +1085,9 @@ defmodule T3SystemWeb.EventLive.Show do
 
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_assign_slot">
-                    {gettext("Cancel")}
+                    {gettext("Cancelar")}
                   </.button>
-                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                  <.button type="submit" variant="primary">{gettext("Salvar")}</.button>
                 </div>
               </form>
             </div>
@@ -1092,8 +1102,8 @@ defmodule T3SystemWeb.EventLive.Show do
               <div class="mb-4 flex items-center justify-between">
                 <h2 class="text-lg font-semibold text-white">
                   {if @stage_modal == :new,
-                    do: gettext("Add Stage"),
-                    else: gettext("Edit Stage")}
+                    do: gettext("Adicionar Fase"),
+                    else: gettext("Editar Fase")}
                 </h2>
                 <button phx-click="close_stage_modal" class="text-gray-400 hover:text-white">
                   <.icon name="hero-x-mark" class="size-5" />
@@ -1111,7 +1121,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   <.input
                     field={@stage_form[:name]}
                     type="text"
-                    label={gettext("Name")}
+                    label={gettext("Nome")}
                   />
                   <.input
                     :if={@stage_modal == :new}
@@ -1123,7 +1133,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   <.input
                     field={@stage_form[:order]}
                     type="number"
-                    label={gettext("Order")}
+                    label={gettext("Ordem")}
                   />
                   <.input
                     :if={
@@ -1143,9 +1153,9 @@ defmodule T3SystemWeb.EventLive.Show do
                 </div>
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_stage_modal">
-                    {gettext("Cancel")}
+                    {gettext("Cancelar")}
                   </.button>
-                  <.button type="submit" variant="primary">{gettext("Save")}</.button>
+                  <.button type="submit" variant="primary">{gettext("Salvar")}</.button>
                 </div>
               </.form>
             </div>
@@ -2131,14 +2141,14 @@ defmodule T3SystemWeb.EventLive.Show do
           phx-value-id={@card.id}
           class="text-xs text-indigo-400 hover:text-indigo-300"
         >
-          {gettext("Schedule")}
+          {gettext("Agenda")}
         </button>
         <button
           phx-click="open_score_modal"
           phx-value-id={@card.id}
           class="text-xs text-indigo-400 hover:text-indigo-300"
         >
-          {gettext("Scores")}
+          {gettext("Resultados")}
         </button>
       </div>
     </div>
@@ -2158,9 +2168,9 @@ defmodule T3SystemWeb.EventLive.Show do
   defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
   defp superuser?(_), do: false
 
-  defp tab_label("management", _stages), do: gettext("Management")
-  defp tab_label("overview", _stages), do: gettext("Overview")
-  defp tab_label("matches", _stages), do: gettext("Matches")
+  defp tab_label("management", _stages), do: gettext("Gestão")
+  defp tab_label("overview", _stages), do: gettext("Visão geral")
+  defp tab_label("matches", _stages), do: gettext("Jogos")
 
   defp tab_label("stage-" <> id_str, stages) do
     case Integer.parse(id_str) do

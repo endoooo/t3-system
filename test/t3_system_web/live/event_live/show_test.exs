@@ -49,8 +49,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> assert_has("a", text: "Overview")
-      |> assert_has("a", text: "Matches")
+      |> assert_has("a", text: "Visão geral")
+      |> assert_has("a", text: "Jogos")
     end
 
     test "shows category selector when event has categories", %{conn: conn} do
@@ -92,7 +92,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> refute_has("button", text: "Add Registration")
+      |> refute_has("button", text: "Nova inscrição")
     end
   end
 
@@ -109,7 +109,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> refute_has("button", text: "Add Registration")
+      |> refute_has("button", text: "Nova inscrição")
     end
 
     test "does not show edit or remove buttons on registrations", %{conn: conn} do
@@ -138,7 +138,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> assert_has("button", text: "Add Registration")
+      |> assert_has("button", text: "Nova inscrição")
     end
 
     test "opens new registration modal", %{conn: conn} do
@@ -148,8 +148,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> click_button("Add Registration")
-      |> assert_has("h2", text: "Add Registration")
+      |> click_button("Nova inscrição")
+      |> assert_has("h2", text: "Nova Inscrição")
     end
 
     test "cancels new registration modal", %{conn: conn} do
@@ -159,9 +159,9 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> click_button("Add Registration")
-      |> click_button("Cancel")
-      |> refute_has("h2", text: "Add Registration")
+      |> click_button("Nova inscrição")
+      |> click_button("Cancelar")
+      |> refute_has("h2", text: "Nova Inscrição")
     end
 
     test "adds a registration via modal", %{conn: conn} do
@@ -173,10 +173,10 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> click_button("Add Registration")
-      |> select("Player", option: player.name)
-      |> select("Club", option: club.name)
-      |> click_button("Save")
+      |> click_button("Nova inscrição")
+      |> select("Jogador", option: player.name)
+      |> select("Clube", option: club.name)
+      |> click_button("Salvar")
       |> assert_has("h3", text: player.name)
     end
 
@@ -201,7 +201,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn
       |> visit(~p"/events/#{event}")
       |> click_button("Edit")
-      |> assert_has("h2", text: "Edit Registration")
+      |> assert_has("h2", text: "Editar Inscrição")
     end
 
     test "deletes a registration", %{conn: conn} do
@@ -247,9 +247,9 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> click_link("Matches")
+      |> click_link("Jogos")
       |> assert_has("p", text: "No matches yet.")
-      |> click_link("Overview")
+      |> click_link("Visão geral")
       |> assert_has("select", text: category.name)
     end
   end
@@ -284,8 +284,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     } do
       conn
       |> visit(stage_url(event, category, stage))
-      |> click_button("Players")
-      |> assert_has("h2", text: "Manage Players")
+      |> click_button("Jogadores")
+      |> assert_has("h2", text: "Gerenciar jogadores")
       |> assert_has("h2", text: group.name)
     end
 
@@ -297,7 +297,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     } do
       conn
       |> visit(stage_url(event, category, stage))
-      |> click_button("Players")
+      |> click_button("Jogadores")
       |> assert_has("p", text: "No players added yet.")
     end
 
@@ -318,17 +318,17 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(stage_url(event, category, stage))
-      |> click_button("Players")
+      |> click_button("Jogadores")
       |> assert_has("li", text: player.name)
     end
 
     test "closes the modal", %{conn: conn, event: event, category: category, stage: stage} do
       conn
       |> visit(stage_url(event, category, stage))
-      |> click_button("Players")
-      |> assert_has("h2", text: "Manage Players")
+      |> click_button("Jogadores")
+      |> assert_has("h2", text: "Gerenciar jogadores")
       |> click_button("Close")
-      |> refute_has("h2", text: "Manage Players")
+      |> refute_has("h2", text: "Gerenciar jogadores")
     end
 
     test "adds a player to the group", %{
@@ -343,7 +343,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(stage_url(event, category, stage))
-      |> click_button("Players")
+      |> click_button("Jogadores")
       |> select("Add Player", option: "#{player.name} — #{club.name}")
       |> assert_has("li", text: player.name)
     end
@@ -360,7 +360,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(stage_url(event, category, stage))
-      |> click_button("Players")
+      |> click_button("Jogadores")
       |> select("Add Player", option: "#{player.name} — #{club.name}")
       |> click_button("Close")
       |> assert_has("td", text: player.name)
@@ -383,7 +383,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(stage_url(event, category, stage))
-      |> click_button("Players")
+      |> click_button("Jogadores")
       |> assert_has("li", text: player.name)
       |> click_button("Remove")
       |> refute_has("li", text: player.name)
@@ -410,7 +410,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn
       |> visit(stage_url(event, category, stage))
       |> within("#group-#{group.id}", fn session ->
-        click_button(session, "Players")
+        click_button(session, "Jogadores")
       end)
       |> refute_has("option", text: player_taken.name)
       |> assert_has("option", text: player_free.name)
@@ -424,8 +424,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     } do
       conn
       |> visit(stage_url(event, category, stage))
-      |> click_button("Players")
-      |> assert_has("button[disabled]", text: "Generate")
+      |> click_button("Jogadores")
+      |> assert_has("button[disabled]", text: "Gerar")
     end
   end
 
@@ -439,7 +439,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     test "superuser sees Management tab", %{conn: conn, event: event} do
       conn
       |> visit(~p"/events/#{event}")
-      |> assert_has("a", text: "Management")
+      |> assert_has("a", text: "Gestão")
     end
 
     test "regular user does not see Management tab", %{conn: _conn, event: event} do
@@ -448,15 +448,15 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       build_conn()
       |> log_in_user(user)
       |> visit(~p"/events/#{event}")
-      |> refute_has("a", text: "Management")
+      |> refute_has("a", text: "Gestão")
     end
 
     test "can add a table", %{conn: conn, event: event} do
       conn
       |> visit(~p"/events/#{event}?tab=management")
-      |> click_button("Add Table")
-      |> fill_in("Name", with: "Table 1")
-      |> click_button("Save")
+      |> click_button("Adicionar mesa")
+      |> fill_in("Nome", with: "Table 1")
+      |> click_button("Salvar")
       |> assert_has("li", text: "Table 1")
     end
 
@@ -467,8 +467,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> visit(~p"/events/#{event}?tab=management")
       |> assert_has("li", text: "Old Name")
       |> click_button("Edit")
-      |> fill_in("Name", with: "New Name")
-      |> click_button("Save")
+      |> fill_in("Nome", with: "New Name")
+      |> click_button("Salvar")
       |> assert_has("li", text: "New Name")
     end
 
@@ -646,8 +646,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       assert html =~ player2.name
 
       # Open score modal
-      html = view |> element("button", "Scores") |> render_click()
-      assert html =~ "Edit Scores"
+      html = view |> element("button", "Resultados") |> render_click()
+      assert html =~ "Editar Resultados"
 
       # Submit scores
       view
@@ -660,7 +660,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> render_submit()
 
       # Modal should be closed
-      refute render(view) =~ "Edit Scores"
+      refute render(view) =~ "Editar Resultados"
 
       # Verify scores persisted
       updated_match = T3System.Matches.get_match!(match.id)
@@ -679,7 +679,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
         live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
 
       # Open score modal (default 3 set rows)
-      view |> element("button", "Scores") |> render_click()
+      view |> element("button", "Resultados") |> render_click()
 
       # Should have remove buttons (score_set_count > 1)
       assert has_element?(view, "button[phx-click=remove_score_row]")

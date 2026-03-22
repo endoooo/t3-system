@@ -24,7 +24,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
       conn
       |> visit(~p"/admin/leagues/new")
       |> assert_has("h1", text: "New League")
-      |> fill_in("Name", with: "some name")
+      |> fill_in("Nome", with: "some name")
       |> click_button("Save League")
       |> assert_has("p", text: "League created successfully")
       |> assert_has("td", text: "some name")
@@ -33,7 +33,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
     test "shows validation errors on invalid submit", %{conn: conn} do
       conn
       |> visit(~p"/admin/leagues/new")
-      |> fill_in("Name", with: "")
+      |> fill_in("Nome", with: "")
       |> click_button("Save League")
       |> assert_has("p", text: "can't be blank")
     end
@@ -44,7 +44,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
       conn
       |> visit(~p"/admin/leagues/#{league}/edit")
       |> assert_has("h1", text: "Edit League")
-      |> fill_in("Name", with: "some updated name")
+      |> fill_in("Nome", with: "some updated name")
       |> click_button("Save League")
       |> assert_has("p", text: "League updated successfully")
       |> assert_has("td", text: "some updated name")
@@ -75,7 +75,7 @@ defmodule T3SystemWeb.LeagueLiveTest do
       conn
       |> visit(~p"/admin/leagues/#{league}/edit?return_to=show")
       |> assert_has("h1", text: "Edit League")
-      |> fill_in("Name", with: "some updated name")
+      |> fill_in("Nome", with: "some updated name")
       |> click_button("Save League")
       |> assert_has("p", text: "League updated successfully")
       |> assert_has("li", text: "some updated name")

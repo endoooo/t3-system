@@ -15,7 +15,7 @@ defmodule T3SystemWeb.Admin.EventLive.Form do
       </.header>
 
       <.form for={@form} id="event-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="text" label={gettext("Name")} />
+        <.input field={@form[:name]} type="text" label={gettext("Nome")} />
         <.input field={@form[:address]} type="textarea" label={gettext("Address")} />
         <.input field={@form[:datetime]} type="datetime-local" label={gettext("Datetime")} />
         <.input
@@ -43,7 +43,7 @@ defmodule T3SystemWeb.Admin.EventLive.Form do
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Event")}
           </.button>
-          <.button navigate={return_path(@return_to, @event)}>{gettext("Cancel")}</.button>
+          <.button navigate={return_path(@return_to, @event)}>{gettext("Cancelar")}</.button>
         </footer>
       </.form>
     </Layouts.app>

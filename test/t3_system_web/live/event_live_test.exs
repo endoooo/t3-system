@@ -37,7 +37,7 @@ defmodule T3SystemWeb.EventLiveTest do
       conn
       |> visit(~p"/admin/events/new")
       |> assert_has("h1", text: "New Event")
-      |> fill_in("Name", with: "some name")
+      |> fill_in("Nome", with: "some name")
       |> fill_in("Address", with: "some address")
       |> fill_in("Datetime", with: "2026-03-06T22:01")
       |> click_button("Save Event")
@@ -69,7 +69,7 @@ defmodule T3SystemWeb.EventLiveTest do
     test "shows validation errors on invalid submit", %{conn: conn} do
       conn
       |> visit(~p"/admin/events/new")
-      |> fill_in("Name", with: "")
+      |> fill_in("Nome", with: "")
       |> click_button("Save Event")
       |> assert_has("p", text: "can't be blank")
     end
@@ -80,7 +80,7 @@ defmodule T3SystemWeb.EventLiveTest do
       conn
       |> visit(~p"/admin/events/#{event}/edit")
       |> assert_has("h1", text: "Edit Event")
-      |> fill_in("Name", with: "some updated name")
+      |> fill_in("Nome", with: "some updated name")
       |> click_button("Save Event")
       |> assert_has("p", text: "Event updated successfully")
       |> assert_has("td", text: "some updated name")
@@ -111,7 +111,7 @@ defmodule T3SystemWeb.EventLiveTest do
       conn
       |> visit(~p"/admin/events/#{event}/edit?return_to=show")
       |> assert_has("h1", text: "Edit Event")
-      |> fill_in("Name", with: "some updated name")
+      |> fill_in("Nome", with: "some updated name")
       |> click_button("Save Event")
       |> assert_has("p", text: "Event updated successfully")
       |> assert_has("li", text: "some updated name")

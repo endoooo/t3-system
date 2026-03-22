@@ -21,7 +21,7 @@ defmodule T3SystemWeb.Admin.ClubLive.Index do
         rows={@streams.clubs}
         row_click={fn {_id, club} -> JS.navigate(~p"/admin/clubs/#{club}") end}
       >
-        <:col :let={{_id, club}} label={gettext("Name")}>{club.name}</:col>
+        <:col :let={{_id, club}} label={gettext("Nome")}>{club.name}</:col>
         <:action :let={{_id, club}}>
           <div class="sr-only">
             <.link navigate={~p"/admin/clubs/#{club}"}>{gettext("Show")}</.link>

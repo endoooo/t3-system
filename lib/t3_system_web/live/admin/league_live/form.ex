@@ -14,12 +14,12 @@ defmodule T3SystemWeb.Admin.LeagueLive.Form do
       </.header>
 
       <.form for={@form} id="league-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="text" label={gettext("Name")} />
+        <.input field={@form[:name]} type="text" label={gettext("Nome")} />
         <footer>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save League")}
           </.button>
-          <.button navigate={return_path(@return_to, @league)}>{gettext("Cancel")}</.button>
+          <.button navigate={return_path(@return_to, @league)}>{gettext("Cancelar")}</.button>
         </footer>
       </.form>
     </Layouts.app>

@@ -21,7 +21,7 @@ defmodule T3SystemWeb.Admin.EventLive.Show do
       </.header>
 
       <.list>
-        <:item title={gettext("Name")}>{@event.name}</:item>
+        <:item title={gettext("Nome")}>{@event.name}</:item>
         <:item title={gettext("Address")}>{@event.address}</:item>
         <:item title={gettext("Datetime")}>{@event.datetime}</:item>
         <:item title={gettext("League")}>{@event.league && @event.league.name}</:item>

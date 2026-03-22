@@ -92,7 +92,7 @@ import T3System.Factory
 conn
 |> visit(~p"/player")
 |> assert_has("h1", text: "Listing Player")
-|> fill_in("Name", with: "some name")
+|> fill_in("Nome", with: "some name")
 |> click_button("Save Player")
 ```
 
@@ -181,7 +181,7 @@ assign(socket, :form, to_form(MySchema.changeset(struct, attrs)))
 
 # Template
 <.form for={@form} id="my-form" phx-change="validate" phx-submit="save">
-  <.input field={@form[:name]} type="text" label="Name" />
+  <.input field={@form[:name]} type="text" label="Nome" />
 </.form>
 ```
 

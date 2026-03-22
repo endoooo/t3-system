@@ -21,7 +21,7 @@ defmodule T3SystemWeb.Admin.ClubLive.Show do
       </.header>
 
       <.list>
-        <:item title={gettext("Name")}>{@club.name}</:item>
+        <:item title={gettext("Nome")}>{@club.name}</:item>
       </.list>
     </Layouts.settings>
     """

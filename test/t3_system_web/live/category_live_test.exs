@@ -24,7 +24,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
       conn
       |> visit(~p"/admin/categories/new")
       |> assert_has("h1", text: "New Category")
-      |> fill_in("Name", with: "some name")
+      |> fill_in("Nome", with: "some name")
       |> click_button("Save Category")
       |> assert_has("p", text: "Category created successfully")
       |> assert_has("td", text: "some name")
@@ -33,7 +33,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
     test "shows validation errors on invalid submit", %{conn: conn} do
       conn
       |> visit(~p"/admin/categories/new")
-      |> fill_in("Name", with: "")
+      |> fill_in("Nome", with: "")
       |> click_button("Save Category")
       |> assert_has("p", text: "can't be blank")
     end
@@ -44,7 +44,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
       conn
       |> visit(~p"/admin/categories/#{category}/edit")
       |> assert_has("h1", text: "Edit Category")
-      |> fill_in("Name", with: "some updated name")
+      |> fill_in("Nome", with: "some updated name")
       |> click_button("Save Category")
       |> assert_has("p", text: "Category updated successfully")
       |> assert_has("td", text: "some updated name")
@@ -75,7 +75,7 @@ defmodule T3SystemWeb.CategoryLiveTest do
       conn
       |> visit(~p"/admin/categories/#{category}/edit?return_to=show")
       |> assert_has("h1", text: "Edit Category")
-      |> fill_in("Name", with: "some updated name")
+      |> fill_in("Nome", with: "some updated name")
       |> click_button("Save Category")
       |> assert_has("p", text: "Category updated successfully")
       |> assert_has("li", text: "some updated name")

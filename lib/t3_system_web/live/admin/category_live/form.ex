@@ -14,12 +14,12 @@ defmodule T3SystemWeb.Admin.CategoryLive.Form do
       </.header>
 
       <.form for={@form} id="category-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="text" label={gettext("Name")} />
+        <.input field={@form[:name]} type="text" label={gettext("Nome")} />
         <footer>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Category")}
           </.button>
-          <.button navigate={return_path(@return_to, @category)}>{gettext("Cancel")}</.button>
+          <.button navigate={return_path(@return_to, @category)}>{gettext("Cancelar")}</.button>
         </footer>
       </.form>
     </Layouts.app>
