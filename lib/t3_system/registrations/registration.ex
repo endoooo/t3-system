@@ -19,6 +19,7 @@ defmodule T3System.Registrations.Registration do
           event: Event.t() | Ecto.Association.NotLoaded.t(),
           club: Club.t() | Ecto.Association.NotLoaded.t(),
           category: Category.t() | Ecto.Association.NotLoaded.t(),
+          final_standing: pos_integer() | nil,
           groups: [Group.t()] | Ecto.Association.NotLoaded.t(),
           matches_as_registration1: [Match.t()] | Ecto.Association.NotLoaded.t(),
           matches_as_registration2: [Match.t()] | Ecto.Association.NotLoaded.t(),
@@ -30,6 +31,7 @@ defmodule T3System.Registrations.Registration do
     belongs_to :player, Player
     belongs_to :event, Event
     belongs_to :club, Club
+    field :final_standing, :integer
     belongs_to :category, Category
 
     many_to_many :groups, Group, join_through: "group_registrations"
@@ -40,13 +42,15 @@ defmodule T3System.Registrations.Registration do
   end
 
   @required_fields [:player_id, :event_id, :club_id, :category_id]
+  @optional_fields [:final_standing]
 
   @doc false
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(registration, attrs) do
     registration
-    |> cast(attrs, @required_fields)
+    |> cast(attrs, @required_fields ++ @optional_fields)
     |> validate_required(@required_fields)
+    |> validate_number(:final_standing, greater_than: 0)
     |> assoc_constraint(:player)
     |> assoc_constraint(:event)
     |> assoc_constraint(:club)

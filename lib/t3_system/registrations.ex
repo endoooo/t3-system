@@ -128,7 +128,10 @@ defmodule T3System.Registrations do
     Registration
     |> join(:inner, [r], p in assoc(r, :player))
     |> where([r], r.event_id == ^event_id and r.category_id == ^category_id)
-    |> order_by([_r, p], fragment("? COLLATE \"und-x-icu\"", p.name))
+    |> order_by([r, p],
+      asc_nulls_last: r.final_standing,
+      asc: fragment("? COLLATE \"und-x-icu\"", p.name)
+    )
     |> Repo.all()
     |> Repo.preload([:player, :club, :category])
   end

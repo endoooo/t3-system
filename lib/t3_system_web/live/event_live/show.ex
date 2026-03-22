@@ -270,6 +270,7 @@ defmodule T3SystemWeb.EventLive.Show do
             >
               <div class="min-w-0 flex-1">
                 <h3 class="font-display font-black text-lg">{reg.player.name}</h3>
+                <.final_standing final_standing={reg.final_standing} class="mt-2" />
                 <p class="mt-2 text-sm text-sky-400">{reg.club.name}</p>
               </div>
               <div :if={@is_superuser} class="flex flex-col items-center gap-2">
@@ -694,6 +695,12 @@ defmodule T3SystemWeb.EventLive.Show do
                     label={gettext("Clube")}
                     options={Enum.map(@clubs, &{&1.name, &1.id})}
                     prompt={gettext("Selecione um clube")}
+                  />
+                  <.input
+                    field={@form[:final_standing]}
+                    type="number"
+                    label={gettext("Colocação final")}
+                    min="1"
                   />
                   <input type="hidden" name="registration[event_id]" value={@event.id} />
                   <input
@@ -2419,4 +2426,32 @@ defmodule T3SystemWeb.EventLive.Show do
   defp bar_pct(value, max), do: round(value / max * 100)
 
   defp max_count(rows), do: Enum.reduce(rows, 0, fn row, acc -> max(row.count, acc) end)
+
+  attr :final_standing, :any, required: true
+  attr :class, :any, default: nil
+
+  defp final_standing(%{final_standing: nil} = assigns), do: ~H""
+
+  defp final_standing(assigns) do
+    {text, bg_class} =
+      case assigns.final_standing do
+        1 -> {gettext("Campeão 🥇"), "bg-yellow-400/20"}
+        2 -> {gettext("Vice-campeão 🥈"), "bg-slate-400/20"}
+        3 -> {gettext("3º lugar 🥉"), "bg-amber-800/10"}
+        n -> {gettext("%{position}º lugar", position: n), "bg-sky-400/20"}
+      end
+
+    assigns =
+      assigns
+      |> assign(:text, text)
+      |> assign(:bg_class, bg_class)
+
+    ~H"""
+    <div class={@class}>
+      <p class={["inline-block px-2 py-1 rounded-sm text-sm", @bg_class]}>
+        {@text}
+      </p>
+    </div>
+    """
+  end
 end
