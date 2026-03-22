@@ -7,6 +7,7 @@ defmodule T3System.Matches.Match do
   alias T3System.Matches.MatchSet
   alias T3System.Matches.Stage
   alias T3System.Registrations.Registration
+  alias T3System.Tables.Table
 
   @type t :: %__MODULE__{
           id: pos_integer(),
@@ -20,8 +21,10 @@ defmodule T3System.Matches.Match do
           slot2_label: String.t() | nil,
           round: pos_integer() | nil,
           position: pos_integer() | nil,
+          table_id: pos_integer() | nil,
           scheduled_at: DateTime.t() | nil,
           event: Event.t() | Ecto.Association.NotLoaded.t(),
+          table: Table.t() | Ecto.Association.NotLoaded.t(),
           group: Group.t() | Ecto.Association.NotLoaded.t(),
           stage: Stage.t() | Ecto.Association.NotLoaded.t(),
           registration1: Registration.t() | Ecto.Association.NotLoaded.t(),
@@ -40,6 +43,7 @@ defmodule T3System.Matches.Match do
     field :slot2_label, :string
 
     belongs_to :event, Event
+    belongs_to :table, Table
     belongs_to :group, Group
     belongs_to :stage, Stage
     belongs_to :registration1, Registration
@@ -61,6 +65,7 @@ defmodule T3System.Matches.Match do
     :slot2_label,
     :round,
     :position,
+    :table_id,
     :scheduled_at
   ]
 
@@ -76,6 +81,7 @@ defmodule T3System.Matches.Match do
     |> cast_assoc(:sets, with: &MatchSet.changeset/2)
     |> validate_set_winners()
     |> assoc_constraint(:event)
+    |> assoc_constraint(:table)
     |> assoc_constraint(:group)
     |> assoc_constraint(:stage)
     |> assoc_constraint(:registration1)

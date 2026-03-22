@@ -37,15 +37,17 @@ defmodule T3System.Matches do
     |> order_by([s], s.order)
     |> Repo.all()
     |> Repo.preload(
-      groups: {from(g in Group, order_by: g.position), [
-        registrations: [:player, :club],
-        matches: [
-          :sets,
-          registration1: [:player, :club],
-          registration2: [:player, :club],
-          winner: [:player]
-        ]
-      ]},
+      groups:
+        {from(g in Group, order_by: g.position),
+         [
+           registrations: [:player, :club],
+           matches: [
+             :sets,
+             registration1: [:player, :club],
+             registration2: [:player, :club],
+             winner: [:player]
+           ]
+         ]},
       matches: [
         :sets,
         registration1: [:player, :club],

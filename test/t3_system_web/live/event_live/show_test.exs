@@ -427,4 +427,58 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("button[disabled]", text: "Generate")
     end
   end
+
+  describe "table management" do
+    setup %{conn: conn} do
+      superuser = insert(:superuser)
+      event = insert(:event)
+      %{conn: log_in_user(conn, superuser), event: event}
+    end
+
+    test "superuser sees Management tab", %{conn: conn, event: event} do
+      conn
+      |> visit(~p"/events/#{event}")
+      |> assert_has("a", text: "Management")
+    end
+
+    test "regular user does not see Management tab", %{conn: _conn, event: event} do
+      user = insert(:user)
+
+      build_conn()
+      |> log_in_user(user)
+      |> visit(~p"/events/#{event}")
+      |> refute_has("a", text: "Management")
+    end
+
+    test "can add a table", %{conn: conn, event: event} do
+      conn
+      |> visit(~p"/events/#{event}?tab=management")
+      |> click_button("Add Table")
+      |> fill_in("Name", with: "Table 1")
+      |> click_button("Save")
+      |> assert_has("li", text: "Table 1")
+    end
+
+    test "can edit a table", %{conn: conn, event: event} do
+      insert(:table, event: event, name: "Old Name")
+
+      conn
+      |> visit(~p"/events/#{event}?tab=management")
+      |> assert_has("li", text: "Old Name")
+      |> click_button("Edit")
+      |> fill_in("Name", with: "New Name")
+      |> click_button("Save")
+      |> assert_has("li", text: "New Name")
+    end
+
+    test "can delete a table", %{conn: conn, event: event} do
+      insert(:table, event: event, name: "To Delete")
+
+      conn
+      |> visit(~p"/events/#{event}?tab=management")
+      |> assert_has("li", text: "To Delete")
+      |> click_button("Delete")
+      |> refute_has("li", text: "To Delete")
+    end
+  end
 end

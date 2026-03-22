@@ -14,6 +14,7 @@ defmodule T3System.Factory do
   alias T3System.Matches.Stage
   alias T3System.Players.Player
   alias T3System.Registrations.Registration
+  alias T3System.Tables.Table
 
   def user_factory do
     %User{
@@ -88,6 +89,13 @@ defmodule T3System.Factory do
     %Group{
       name: sequence(:name, &"Group #{&1}"),
       stage: build(:stage)
+    }
+  end
+
+  def table_factory do
+    %Table{
+      name: sequence(:name, &"Table #{&1}"),
+      event: build(:event)
     }
   end
 

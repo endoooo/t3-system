@@ -7,6 +7,7 @@ defmodule T3System.Events.Event do
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.Stage
+  alias T3System.Tables.Table
 
   @type t :: %__MODULE__{
           id: pos_integer(),
@@ -19,6 +20,7 @@ defmodule T3System.Events.Event do
           stages: [Stage.t()] | Ecto.Association.NotLoaded.t(),
           groups: [Group.t()] | Ecto.Association.NotLoaded.t(),
           matches: [Match.t()] | Ecto.Association.NotLoaded.t(),
+          tables: [Table.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -33,6 +35,7 @@ defmodule T3System.Events.Event do
     has_many :stages, Stage
     has_many :groups, through: [:stages, :groups]
     has_many :matches, Match
+    has_many :tables, Table
 
     timestamps(type: :utc_datetime)
   end

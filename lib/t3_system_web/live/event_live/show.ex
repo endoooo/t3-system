@@ -10,8 +10,10 @@ defmodule T3SystemWeb.EventLive.Show do
   alias T3System.Players
   alias T3System.Registrations
   alias T3System.Registrations.Registration
+  alias T3System.Tables
+  alias T3System.Tables.Table
 
-  @fixed_tabs ~w(overview matches)
+  @fixed_tabs ~w(management overview matches)
 
   @impl true
   def render(assigns) do
@@ -66,6 +68,84 @@ defmodule T3SystemWeb.EventLive.Show do
               <.icon name="hero-plus-mini" class="size-4" />
             </button>
           </nav>
+        </div>
+
+        <%!-- Tab: Management --%>
+        <div :if={@current_tab == "management" and @is_superuser} class="p-8">
+          <div class="mb-4 flex items-center justify-between">
+            <h2 class="text-lg font-semibold">{gettext("Tables")}</h2>
+            <.button phx-click="open_new_table" variant="primary">
+              <.icon name="hero-plus" /> {gettext("Add Table")}
+            </.button>
+          </div>
+
+          <ul id="tables" phx-update="stream" class="space-y-2">
+            <li
+              :for={{dom_id, table} <- @streams.tables}
+              id={dom_id}
+              class="flex items-center justify-between rounded-lg bg-slate-800 px-4 py-3"
+            >
+              <span>{table.name}</span>
+              <div class="flex gap-2">
+                <button
+                  phx-click="open_edit_table"
+                  phx-value-id={table.id}
+                  class="text-slate-400 hover:text-white"
+                >
+                  <.icon name="hero-pencil-mini" class="size-4" />
+                  <span class="sr-only">{gettext("Edit")}</span>
+                </button>
+                <button
+                  phx-click="delete_table"
+                  phx-value-id={table.id}
+                  data-confirm={gettext("Are you sure?")}
+                  class="text-slate-400 hover:text-red-400"
+                >
+                  <.icon name="hero-trash-mini" class="size-4" />
+                  <span class="sr-only">{gettext("Delete")}</span>
+                </button>
+              </div>
+            </li>
+          </ul>
+
+          <%!-- Table modal --%>
+          <div :if={@table_modal != nil} class="fixed inset-0 z-50">
+            <div class="absolute inset-0 bg-black/60" phx-click="close_table_modal"></div>
+            <div class="relative flex h-full items-center justify-center pointer-events-none">
+              <div class="w-full max-w-md rounded-lg bg-gray-900 p-6 shadow-xl pointer-events-auto">
+                <div class="mb-4 flex items-center justify-between">
+                  <h2 class="text-lg font-semibold text-white">
+                    {if @table_modal == :new,
+                      do: gettext("Add Table"),
+                      else: gettext("Edit Table")}
+                  </h2>
+                  <button phx-click="close_table_modal" class="text-gray-400 hover:text-white">
+                    <.icon name="hero-x-mark" class="size-5" />
+                  </button>
+                </div>
+
+                <.form
+                  :if={@table_form}
+                  for={@table_form}
+                  id="table-form"
+                  phx-change="validate_table"
+                  phx-submit="save_table"
+                >
+                  <div class="space-y-4">
+                    <.input field={@table_form[:name]} type="text" label={gettext("Name")} />
+                  </div>
+                  <div class="mt-6 flex justify-end gap-3">
+                    <.button type="button" phx-click="close_table_modal">
+                      {gettext("Cancel")}
+                    </.button>
+                    <.button type="submit" variant="primary">
+                      {gettext("Save")}
+                    </.button>
+                  </div>
+                </.form>
+              </div>
+            </div>
+          </div>
         </div>
 
         <%!-- Tab: Overview --%>
@@ -1112,6 +1192,8 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:stages, [])
       |> assign(:current_stage, nil)
       |> assign(:stage_bracket_rounds, [])
+      |> assign(:table_modal, nil)
+      |> assign(:table_form, nil)
       |> assign(:modal, nil)
       |> assign(:form, nil)
       |> assign(:group_modal, nil)
@@ -1133,6 +1215,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:stage_modal, nil)
       |> assign(:stage_form, nil)
       |> stream(:registrations, [])
+      |> stream(:tables, [])
 
     socket =
       if is_superuser do
@@ -1153,7 +1236,7 @@ defmodule T3SystemWeb.EventLive.Show do
     event = socket.assigns.event
     active_category = resolve_category(event, params["category_id"])
     stages = load_stages(event, active_category)
-    {tabs, tab} = resolve_tabs(stages, params["tab"])
+    {tabs, tab} = resolve_tabs(stages, params["tab"], socket.assigns.is_superuser)
     current_stage = find_current_stage(tab, stages)
 
     category_form =
@@ -1168,6 +1251,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:stages, stages)
       |> assign(:current_stage, current_stage)
       |> load_registrations(tab, event, active_category)
+      |> load_tables(tab, event)
       |> load_stage_data(current_stage)
       |> assign_all_match_cards()
 
@@ -1182,6 +1266,70 @@ defmodule T3SystemWeb.EventLive.Show do
        to: ~p"/events/#{socket.assigns.event}?tab=overview&category_id=#{id}"
      )}
   end
+
+  # ---------------------------------------------------------------------------
+  # Table management
+  # ---------------------------------------------------------------------------
+
+  def handle_event("open_new_table", _params, socket) do
+    form = Tables.change_table(%Table{}) |> to_form()
+    {:noreply, assign(socket, table_modal: :new, table_form: form)}
+  end
+
+  def handle_event("open_edit_table", %{"id" => id}, socket) do
+    table = Tables.get_table!(id)
+    form = Tables.change_table(table) |> to_form()
+    {:noreply, assign(socket, table_modal: {:edit, table}, table_form: form)}
+  end
+
+  def handle_event("close_table_modal", _params, socket) do
+    {:noreply, assign(socket, table_modal: nil, table_form: nil)}
+  end
+
+  def handle_event("validate_table", %{"table" => attrs}, socket) do
+    changeset =
+      case socket.assigns.table_modal do
+        {:edit, table} -> Tables.change_table(table, attrs)
+        _ -> Tables.change_table(%Table{}, attrs)
+      end
+
+    {:noreply, assign(socket, table_form: changeset |> Map.put(:action, :validate) |> to_form())}
+  end
+
+  def handle_event("save_table", %{"table" => attrs}, socket) do
+    scope = socket.assigns.current_scope
+    event = socket.assigns.event
+
+    result =
+      case socket.assigns.table_modal do
+        {:edit, table} ->
+          Tables.update_table(scope, table, attrs)
+
+        _ ->
+          Tables.create_table(scope, Map.put(attrs, "event_id", event.id))
+      end
+
+    case result do
+      {:ok, table} ->
+        {:noreply,
+         socket
+         |> stream_insert(:tables, table)
+         |> assign(table_modal: nil, table_form: nil)}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, table_form: to_form(changeset))}
+    end
+  end
+
+  def handle_event("delete_table", %{"id" => id}, socket) do
+    table = Tables.get_table!(id)
+    {:ok, _} = Tables.delete_table(socket.assigns.current_scope, table)
+    {:noreply, stream_delete(socket, :tables, table)}
+  end
+
+  # ---------------------------------------------------------------------------
+  # Registrations
+  # ---------------------------------------------------------------------------
 
   def handle_event("open_new_registration", _params, socket) do
     form =
@@ -1753,9 +1901,14 @@ defmodule T3SystemWeb.EventLive.Show do
     Matches.list_stages_for_event_and_category(event.id, category.id)
   end
 
-  defp resolve_tabs(stages, tab_param) do
+  defp resolve_tabs(stages, tab_param, is_superuser) do
     stage_tabs = Enum.map(stages, fn s -> "stage-#{s.id}" end)
-    tabs = @fixed_tabs ++ stage_tabs
+
+    tabs =
+      if is_superuser,
+        do: @fixed_tabs ++ stage_tabs,
+        else: Enum.reject(@fixed_tabs, &(&1 == "management")) ++ stage_tabs
+
     tab = if tab_param in tabs, do: tab_param, else: "overview"
     {tabs, tab}
   end
@@ -1780,6 +1933,12 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   defp load_registrations(socket, _tab, _event, _active_category), do: socket
+
+  defp load_tables(socket, "management", event) do
+    stream(socket, :tables, Tables.list_tables_for_event(event.id), reset: true)
+  end
+
+  defp load_tables(socket, _tab, _event), do: socket
 
   defp assign_slot(scope, match, slot, params) do
     n = Integer.to_string(slot)
@@ -2056,6 +2215,7 @@ defmodule T3SystemWeb.EventLive.Show do
   defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
   defp superuser?(_), do: false
 
+  defp tab_label("management", _stages), do: gettext("Management")
   defp tab_label("overview", _stages), do: gettext("Overview")
   defp tab_label("matches", _stages), do: gettext("Matches")
 
