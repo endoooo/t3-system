@@ -111,6 +111,17 @@ defmodule T3System.Registrations do
   end
 
   @doc """
+  Returns the set of player IDs already registered for a given event and category.
+  """
+  def list_registered_player_ids(event_id, category_id) do
+    Registration
+    |> where([r], r.event_id == ^event_id and r.category_id == ^category_id)
+    |> select([r], r.player_id)
+    |> Repo.all()
+    |> MapSet.new()
+  end
+
+  @doc """
   Returns registrations for a given event and category, with player, club, and category preloaded.
   """
   def list_registrations_by_event_and_category(event_id, %Category{id: category_id}) do

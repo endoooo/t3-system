@@ -565,7 +565,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     field={@form[:player_id]}
                     type="select"
                     label={gettext("Jogador")}
-                    options={Enum.map(@players, &{&1.name, &1.id})}
+                    options={Enum.map(@available_players, &{&1.name, &1.id})}
                     prompt={gettext("Selecione um jogador")}
                   />
                   <.input
@@ -1128,7 +1128,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     field={@stage_form[:type]}
                     type="select"
                     label={gettext("Type")}
-                    options={[{gettext("Group"), "group"}, {gettext("Bracket"), "bracket"}]}
+                    options={[{gettext("Grupo"), "group"}, {gettext("Chave"), "bracket"}]}
                   />
                   <.input
                     field={@stage_form[:order]}
@@ -1185,6 +1185,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:table_form, nil)
       |> assign(:modal, nil)
       |> assign(:form, nil)
+      |> assign(:available_players, [])
       |> assign(:group_modal, nil)
       |> assign(:group_form, nil)
       |> assign(:players_modal, nil)
@@ -1325,7 +1326,22 @@ defmodule T3SystemWeb.EventLive.Show do
       Registrations.change_registration(%Registration{})
       |> to_form()
 
-    {:noreply, assign(socket, modal: :new, form: form)}
+    available_players =
+      case socket.assigns.active_category do
+        nil ->
+          socket.assigns.players
+
+        category ->
+          registered_ids =
+            Registrations.list_registered_player_ids(
+              socket.assigns.event.id,
+              category.id
+            )
+
+          Enum.reject(socket.assigns.players, &MapSet.member?(registered_ids, &1.id))
+      end
+
+    {:noreply, assign(socket, modal: :new, form: form, available_players: available_players)}
   end
 
   def handle_event("open_edit_registration", %{"id" => id}, socket) do
@@ -1335,7 +1351,8 @@ defmodule T3SystemWeb.EventLive.Show do
       Registrations.change_registration(reg)
       |> to_form()
 
-    {:noreply, assign(socket, modal: {:edit, reg}, form: form)}
+    {:noreply,
+     assign(socket, modal: {:edit, reg}, form: form, available_players: socket.assigns.players)}
   end
 
   def handle_event("close_modal", _params, socket) do
