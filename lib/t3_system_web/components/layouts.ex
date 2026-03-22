@@ -35,19 +35,28 @@ defmodule T3SystemWeb.Layouts do
 
   def app(assigns) do
     ~H"""
-    <main>
-      {render_slot(@inner_block)}
-    </main>
-    <div
-      :if={@current_scope}
-      class="flex items-center justify-center gap-4 w-full p-4 text-center text-sm text-slate-100/60 bg-slate-900"
-    >
-      Logged in as {@current_scope.user.email}
-      <.link href={~p"/users/log-out"} method="delete" class="hover:text-slate-100">
-        Log out
-      </.link>
+    <div class="flex flex-col min-h-screen">
+      <main class="flex-1">
+        {render_slot(@inner_block)}
+      </main>
+      <div class="w-full p-4 bg-slate-900">
+        <p class="text-sm text-center">{gettext("Realização e apoio")}</p>
+        <div class="flex items-center justify-center gap-4 mt-4">
+          <img src="/images/t3.svg" alt="T3" />
+          <img src="/images/sakay.svg" alt="Sakay" />
+          <img src="/images/hideki.svg" alt="Hideki" />
+        </div>
+      </div>
+      <div
+        :if={@current_scope}
+        class="flex items-center justify-center gap-4 w-full px-4 py-2 border-t border-slate-100/20 text-center text-xs text-slate-100/60 bg-slate-900"
+      >
+        Logged in as {@current_scope.user.email}
+        <.link href={~p"/users/log-out"} method="delete" class="hover:text-slate-100">
+          Log out
+        </.link>
+      </div>
     </div>
-
     <.flash_group flash={@flash} />
     """
   end
@@ -153,10 +162,10 @@ defmodule T3SystemWeb.Layouts do
             </div>
             
     <!-- Sidebar component, swap this element with another sidebar if you like -->
-            <div class="relative flex grow flex-col gap-y-5 overflow-y-auto bg-slate-900 px-6 pb-2">
+            <div class="relative flex grow flex-col gap-y-5 overflow-y-auto text-slate-100 bg-slate-900 px-6 pb-2">
               <div class="relative flex h-16 shrink-0 items-center">
                 <img
-                  src="/images/logo.svg"
+                  src="/images/t3.svg"
                   alt="T3"
                   class="size-8"
                 />
@@ -360,7 +369,7 @@ defmodule T3SystemWeb.Layouts do
       <div class="flex grow flex-col gap-y-5 overflow-y-auto border-r border-gray-200 bg-slate-900 px-6">
         <div class="flex h-16 shrink-0 items-center">
           <img
-            src="/images/logo.svg"
+            src="/images/t3.svg"
             alt="T3"
             class="size-12"
           />
@@ -573,12 +582,12 @@ defmodule T3SystemWeb.Layouts do
       </div>
     </div>
 
-    <div class="sticky top-0 z-40 flex items-center gap-x-6 bg-white px-4 py-4 shadow-xs sm:px-6 lg:hidden">
+    <div class="sticky top-0 z-40 flex items-center gap-x-6 bg-slate-900 px-4 py-4 shadow-xs sm:px-6 lg:hidden">
       <button
         type="button"
         command="show-modal"
         commandfor="sidebar"
-        class="-m-2.5 p-2.5 text-gray-700 hover:text-gray-900 lg:hidden"
+        class="-m-2.5 p-2.5 hover:text-slate-100/60 lg:hidden"
       >
         <span class="sr-only">{gettext("Open sidebar")}</span>
         <svg
@@ -597,7 +606,7 @@ defmodule T3SystemWeb.Layouts do
           />
         </svg>
       </button>
-      <div class="flex-1 text-sm/6 font-semibold text-gray-900">
+      <div class="flex-1 text-sm/6 font-semibold">
         {gettext("Settings")}
       </div>
       <%!-- <a href="#">
