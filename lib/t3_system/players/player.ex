@@ -5,7 +5,7 @@ defmodule T3System.Players.Player do
   @type t :: %__MODULE__{
           id: pos_integer(),
           name: String.t(),
-          birthdate: Date.t(),
+          birthdate: Date.t() | nil,
           picture_url: String.t() | nil,
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
@@ -24,6 +24,6 @@ defmodule T3System.Players.Player do
   def changeset(player, attrs) do
     player
     |> cast(attrs, [:name, :birthdate, :picture_url])
-    |> validate_required([:name, :birthdate])
+    |> validate_required([:name])
   end
 end

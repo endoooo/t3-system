@@ -67,15 +67,12 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  hosts =
-    (System.get_env("PHX_HOST") || "example.com")
-    |> String.split(",", trim: true)
-    |> Enum.map(&String.trim/1)
+  host = System.get_env("PHX_HOST") || "t3.com.br"
 
   config :t3_system, :dns_cluster_query, System.get_env("DNS_CLUSTER_QUERY")
 
   config :t3_system, T3SystemWeb.Endpoint,
-    url: [host: hosts, port: 443, scheme: "https"],
+    url: [host: host, port: 443, scheme: "https"],
     http: [
       # Enable IPv6 and bind on all interfaces.
       # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
