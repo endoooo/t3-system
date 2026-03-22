@@ -286,6 +286,26 @@ defmodule T3System.MatchesTest do
       assert match.group_id == nil
     end
 
+    test "scheduled_position defaults to 0" do
+      scope = Scope.for_user(insert(:superuser))
+      stage = insert(:stage)
+      group = insert(:group, stage: stage)
+
+      attrs = %{event_id: stage.event_id, group_id: group.id}
+      assert {:ok, %Match{} = match} = Matches.create_match(scope, attrs)
+      assert match.scheduled_position == 0
+    end
+
+    test "scheduled_position can be set via changeset" do
+      scope = Scope.for_user(insert(:superuser))
+      stage = insert(:stage)
+      group = insert(:group, stage: stage)
+
+      attrs = %{event_id: stage.event_id, group_id: group.id, scheduled_position: 5}
+      assert {:ok, %Match{} = match} = Matches.create_match(scope, attrs)
+      assert match.scheduled_position == 5
+    end
+
     test "create_match/2 with participants creates a match" do
       scope = Scope.for_user(insert(:superuser))
       event = insert(:event)

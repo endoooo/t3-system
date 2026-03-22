@@ -483,6 +483,113 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     end
   end
 
+  describe "superuser - matches tab ordering" do
+    test "orders matches by stage order, then group position and scheduled_position", %{
+      conn: conn
+    } do
+      superuser = insert(:superuser)
+      conn = log_in_user(conn, superuser)
+
+      event = insert(:event)
+      category = insert(:category)
+      associate_category(event, category)
+      club = insert(:club)
+
+      # Stage 2 (group) — should appear second despite being inserted first
+      stage2 = insert(:stage, event: event, category: category, name: "Stage 2", order: 2)
+      group_s2 = insert(:group, stage: stage2, name: "Group S2", position: 0)
+
+      p_s2 = insert(:player, name: "PlayerStage2A")
+      p_s2b = insert(:player, name: "PlayerStage2B")
+      reg_s2a = insert(:registration, event: event, category: category, player: p_s2, club: club)
+      reg_s2b = insert(:registration, event: event, category: category, player: p_s2b, club: club)
+      add_to_group(group_s2, reg_s2a)
+      add_to_group(group_s2, reg_s2b)
+
+      insert(:match,
+        event: event,
+        group: group_s2,
+        stage: nil,
+        registration1: reg_s2a,
+        registration2: reg_s2b,
+        scheduled_position: 0
+      )
+
+      # Stage 1 (group) — should appear first
+      stage1 = insert(:stage, event: event, category: category, name: "Stage 1", order: 1)
+      group_b = insert(:group, stage: stage1, name: "Group B", position: 2)
+      group_a = insert(:group, stage: stage1, name: "Group A", position: 1)
+
+      p1 = insert(:player, name: "PlayerGA1")
+      p2 = insert(:player, name: "PlayerGA2")
+      p3 = insert(:player, name: "PlayerGB1")
+      p4 = insert(:player, name: "PlayerGB2")
+      p5 = insert(:player, name: "PlayerGA3")
+      p6 = insert(:player, name: "PlayerGA4")
+
+      reg1 = insert(:registration, event: event, category: category, player: p1, club: club)
+      reg2 = insert(:registration, event: event, category: category, player: p2, club: club)
+      reg3 = insert(:registration, event: event, category: category, player: p3, club: club)
+      reg4 = insert(:registration, event: event, category: category, player: p4, club: club)
+      reg5 = insert(:registration, event: event, category: category, player: p5, club: club)
+      reg6 = insert(:registration, event: event, category: category, player: p6, club: club)
+
+      add_to_group(group_a, reg1)
+      add_to_group(group_a, reg2)
+      add_to_group(group_a, reg5)
+      add_to_group(group_a, reg6)
+      add_to_group(group_b, reg3)
+      add_to_group(group_b, reg4)
+
+      # Group A match with scheduled_position 2 (should appear after position 1)
+      insert(:match,
+        event: event,
+        group: group_a,
+        stage: nil,
+        registration1: reg5,
+        registration2: reg6,
+        scheduled_position: 2
+      )
+
+      # Group A match with scheduled_position 1 (should appear first)
+      insert(:match,
+        event: event,
+        group: group_a,
+        stage: nil,
+        registration1: reg1,
+        registration2: reg2,
+        scheduled_position: 1
+      )
+
+      # Group B match (should appear after all Group A matches)
+      insert(:match,
+        event: event,
+        group: group_b,
+        stage: nil,
+        registration1: reg3,
+        registration2: reg4,
+        scheduled_position: 0
+      )
+
+      {:ok, _view, html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      # Expected order:
+      # 1. Stage 1, Group A, scheduled_position 1 (PlayerGA1 vs PlayerGA2)
+      # 2. Stage 1, Group A, scheduled_position 2 (PlayerGA3 vs PlayerGA4)
+      # 3. Stage 1, Group B (PlayerGB1 vs PlayerGB2)
+      # 4. Stage 2, Group S2 (PlayerStage2A vs PlayerStage2B)
+      pos_ga1 = :binary.match(html, "PlayerGA1") |> elem(0)
+      pos_ga3 = :binary.match(html, "PlayerGA3") |> elem(0)
+      pos_gb1 = :binary.match(html, "PlayerGB1") |> elem(0)
+      pos_s2a = :binary.match(html, "PlayerStage2A") |> elem(0)
+
+      assert pos_ga1 < pos_ga3, "Group A pos 1 should appear before Group A pos 2"
+      assert pos_ga3 < pos_gb1, "Group A should appear before Group B"
+      assert pos_gb1 < pos_s2a, "Stage 1 should appear before Stage 2"
+    end
+  end
+
   describe "superuser - matches tab scoring" do
     setup %{conn: conn} do
       superuser = insert(:superuser)

@@ -923,105 +923,91 @@ defmodule T3SystemWeb.EventLive.Show do
                 </button>
               </div>
 
-              <form id="assign-slot-form" phx-submit="save_assign_slot">
+              <form
+                id="assign-slot-form"
+                phx-change="change_assign_slot"
+                phx-submit="save_assign_slot"
+              >
                 <%!-- Slot 1 --%>
                 <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
                   {gettext("Player 1")}
                 </p>
-                <div class="mb-5 space-y-3">
-                  <div>
-                    <label class="mb-1 block text-sm text-gray-300">
-                      {gettext("Placeholder label")}
-                    </label>
-                    <input
-                      type="text"
-                      name="slot1_label"
-                      value={@assign_slot_modal.slot1_label}
-                      placeholder={gettext("e.g. 1st Group B")}
-                      class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label class="mb-1 block text-sm text-gray-300">{gettext("Assignment")}</label>
-                    <select
-                      name="slot1_type"
-                      class="mb-2 w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                <div class="mb-5 space-y-2">
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Assignment")}</label>
+                  <select
+                    name="slot1_type"
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="none" selected={@slot1_type == "none"}>
+                      {gettext("None (show label)")}
+                    </option>
+                    <option value="direct" selected={@slot1_type == "direct"}>
+                      {gettext("Direct")}
+                    </option>
+                  </select>
+                  <input
+                    :if={@slot1_type == "none"}
+                    type="text"
+                    name="slot1_label"
+                    value={@assign_slot_modal.slot1_label}
+                    placeholder={gettext("e.g. 1st Group B")}
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <select
+                    :if={@slot1_type == "direct"}
+                    name="slot1_registration_id"
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">{gettext("Select player")}</option>
+                    <option
+                      :for={r <- @stage_bracket_registrations}
+                      value={r.id}
+                      selected={@assign_slot_modal.registration1_id == r.id}
                     >
-                      <option value="none" selected={is_nil(@assign_slot_modal.registration1_id)}>
-                        {gettext("None (show label)")}
-                      </option>
-                      <option
-                        value="direct"
-                        selected={not is_nil(@assign_slot_modal.registration1_id)}
-                      >
-                        {gettext("Direct")}
-                      </option>
-                      <option value="bye">{gettext("Bye / WO")}</option>
-                    </select>
-                    <select
-                      name="slot1_registration_id"
-                      class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="">{gettext("Select player")}</option>
-                      <option
-                        :for={r <- @stage_bracket_registrations}
-                        value={r.id}
-                        selected={@assign_slot_modal.registration1_id == r.id}
-                      >
-                        {r.player.name} — {r.club.name}
-                      </option>
-                    </select>
-                  </div>
+                      {r.player.name} — {r.club.name}
+                    </option>
+                  </select>
                 </div>
 
                 <%!-- Slot 2 --%>
                 <p class="mb-2 text-xs font-medium uppercase tracking-wide text-gray-400">
                   {gettext("Player 2")}
                 </p>
-                <div class="mb-4 space-y-3">
-                  <div>
-                    <label class="mb-1 block text-sm text-gray-300">
-                      {gettext("Placeholder label")}
-                    </label>
-                    <input
-                      type="text"
-                      name="slot2_label"
-                      value={@assign_slot_modal.slot2_label}
-                      placeholder={gettext("e.g. 2nd Group A")}
-                      class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    />
-                  </div>
-                  <div>
-                    <label class="mb-1 block text-sm text-gray-300">{gettext("Assignment")}</label>
-                    <select
-                      name="slot2_type"
-                      class="mb-2 w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                <div class="mb-4 space-y-2">
+                  <label class="mb-1 block text-sm text-gray-300">{gettext("Assignment")}</label>
+                  <select
+                    name="slot2_type"
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="none" selected={@slot2_type == "none"}>
+                      {gettext("None (show label)")}
+                    </option>
+                    <option value="direct" selected={@slot2_type == "direct"}>
+                      {gettext("Direct")}
+                    </option>
+                  </select>
+                  <input
+                    :if={@slot2_type == "none"}
+                    type="text"
+                    name="slot2_label"
+                    value={@assign_slot_modal.slot2_label}
+                    placeholder={gettext("e.g. 2nd Group A")}
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <select
+                    :if={@slot2_type == "direct"}
+                    name="slot2_registration_id"
+                    class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="">{gettext("Select player")}</option>
+                    <option
+                      :for={r <- @stage_bracket_registrations}
+                      value={r.id}
+                      selected={@assign_slot_modal.registration2_id == r.id}
                     >
-                      <option value="none" selected={is_nil(@assign_slot_modal.registration2_id)}>
-                        {gettext("None (show label)")}
-                      </option>
-                      <option
-                        value="direct"
-                        selected={not is_nil(@assign_slot_modal.registration2_id)}
-                      >
-                        {gettext("Direct")}
-                      </option>
-                      <option value="bye">{gettext("Bye / WO")}</option>
-                    </select>
-                    <select
-                      name="slot2_registration_id"
-                      class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                    >
-                      <option value="">{gettext("Select player")}</option>
-                      <option
-                        :for={r <- @stage_bracket_registrations}
-                        value={r.id}
-                        selected={@assign_slot_modal.registration2_id == r.id}
-                      >
-                        {r.player.name} — {r.club.name}
-                      </option>
-                    </select>
-                  </div>
+                      {r.player.name} — {r.club.name}
+                    </option>
+                  </select>
                 </div>
 
                 <div class="mt-4 flex justify-end gap-2">
@@ -1138,6 +1124,8 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:bracket_form, nil)
       |> assign(:stage_bracket_registrations, [])
       |> assign(:assign_slot_modal, nil)
+      |> assign(:slot1_type, "none")
+      |> assign(:slot2_type, "none")
       |> assign(:stage_modal, nil)
       |> assign(:stage_form, nil)
       |> stream(:registrations, [])
@@ -1651,10 +1639,22 @@ defmodule T3SystemWeb.EventLive.Show do
         socket.assigns.active_category
       )
 
+    slot1_type = derive_slot_type(match.registration1_id)
+    slot2_type = derive_slot_type(match.registration2_id)
+
     {:noreply,
      socket
      |> assign(:assign_slot_modal, match)
+     |> assign(:slot1_type, slot1_type)
+     |> assign(:slot2_type, slot2_type)
      |> assign(:stage_bracket_registrations, registrations)}
+  end
+
+  def handle_event("change_assign_slot", params, socket) do
+    {:noreply,
+     socket
+     |> assign(:slot1_type, params["slot1_type"] || socket.assigns.slot1_type)
+     |> assign(:slot2_type, params["slot2_type"] || socket.assigns.slot2_type)}
   end
 
   def handle_event("close_assign_slot", _params, socket) do
@@ -1666,8 +1666,8 @@ defmodule T3SystemWeb.EventLive.Show do
     scope = socket.assigns.current_scope
 
     label_attrs = %{
-      slot1_label: params["slot1_label"],
-      slot2_label: params["slot2_label"]
+      slot1_label: if(params["slot1_type"] == "none", do: params["slot1_label"], else: nil),
+      slot2_label: if(params["slot2_type"] == "none", do: params["slot2_label"], else: nil)
     }
 
     result =
@@ -1751,9 +1751,6 @@ defmodule T3SystemWeb.EventLive.Show do
     n = Integer.to_string(slot)
 
     case params["slot#{n}_type"] do
-      "bye" ->
-        Matches.assign_bracket_slot_direct(scope, match, slot, nil)
-
       "direct" ->
         reg_id = params["slot#{n}_registration_id"]
         registration_id = if reg_id in ["", nil], do: nil, else: String.to_integer(reg_id)
@@ -1762,6 +1759,10 @@ defmodule T3SystemWeb.EventLive.Show do
       _ ->
         {:ok, :skip}
     end
+  end
+
+  defp derive_slot_type(registration_id) do
+    if registration_id, do: "direct", else: "none"
   end
 
   defp load_stage_data(socket, nil) do
@@ -1811,7 +1812,7 @@ defmodule T3SystemWeb.EventLive.Show do
     cards =
       socket.assigns.stages
       |> Enum.flat_map(&stage_match_cards/1)
-      |> Enum.sort_by(fn card -> {card.scheduled_at, card.id} end)
+      |> Enum.sort_by(fn card -> card.sort_key end)
 
     assign(socket, :all_match_cards, cards)
   end
@@ -1821,7 +1822,13 @@ defmodule T3SystemWeb.EventLive.Show do
   defp stage_match_cards(stage) do
     group_cards =
       Enum.flat_map(stage.groups, fn group ->
-        ctx = %{label: "#{stage.name} — #{group.name}", source: :group}
+        ctx = %{
+          label: "#{stage.name} — #{group.name}",
+          source: :group,
+          stage_order: stage.order,
+          group_position: group.position
+        }
+
         Enum.map(group.matches, &prepare_match_card(&1, ctx))
       end)
 
@@ -1830,7 +1837,8 @@ defmodule T3SystemWeb.EventLive.Show do
         Enum.flat_map(compute_bracket_rounds(stage), fn {round, matches} ->
           ctx = %{
             label: "#{stage.name} — #{round_label(round, stage.rounds)}",
-            source: :bracket
+            source: :bracket,
+            stage_order: stage.order
           }
 
           Enum.map(matches, &prepare_match_card(&1, ctx))
@@ -1876,16 +1884,19 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
-  defp prepare_match_card(match, %{label: label, source: source}) do
+  defp prepare_match_card(match, %{label: label, source: source} = ctx) do
     sorted_sets = sort_sets(match.sets)
 
     sw1 = Enum.count(sorted_sets, &(&1.winner_registration_id == match.registration1_id))
     sw2 = Enum.count(sorted_sets, &(&1.winner_registration_id == match.registration2_id))
 
+    sort_key = match_sort_key(match, ctx)
+
     %{
       id: match.id,
       label: label,
       source: source,
+      sort_key: sort_key,
       scheduled_at: match.scheduled_at,
       has_sets: sorted_sets != [],
       p1_scores: Enum.map(sorted_sets, &format_set_score(&1.score1)),
@@ -1901,6 +1912,14 @@ defmodule T3SystemWeb.EventLive.Show do
       p1_name: card_player_name(match, 1, source),
       p2_name: card_player_name(match, 2, source)
     }
+  end
+
+  defp match_sort_key(match, %{source: :group} = ctx) do
+    {ctx.stage_order, 0, ctx.group_position, match.scheduled_position, match.id}
+  end
+
+  defp match_sort_key(match, %{source: :bracket} = ctx) do
+    {ctx.stage_order, 1, match.round, match.position, match.id}
   end
 
   defp sort_sets(%Ecto.Association.NotLoaded{}), do: []
