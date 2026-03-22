@@ -530,7 +530,7 @@ defmodule T3SystemWeb.EventLive.Show do
                           <%!-- Player 1 --%>
                           <div class={[
                             "flex items-center gap-2 px-4 py-2",
-                            if(p1_won, do: "bg-sky-400/10")
+                            winner_bg(match.registration1, p1_won)
                           ]}>
                             <div class="flex-1 flex items-center gap-2 min-w-0">
                               <%!-- <span class={[
@@ -563,7 +563,7 @@ defmodule T3SystemWeb.EventLive.Show do
                           <%!-- Player 2 --%>
                           <div class={[
                             "flex items-center gap-2 px-4 py-2",
-                            if(p2_won, do: "bg-sky-400/10")
+                            winner_bg(match.registration2, p2_won)
                           ]}>
                             <div class="flex-1 flex items-center gap-2 min-w-0">
                               <%!-- <span class={[
@@ -2426,6 +2426,11 @@ defmodule T3SystemWeb.EventLive.Show do
   defp bar_pct(value, max), do: round(value / max * 100)
 
   defp max_count(rows), do: Enum.reduce(rows, 0, fn row, acc -> max(row.count, acc) end)
+
+  defp winner_bg(%Registration{final_standing: 1}, _won), do: "bg-yellow-400/20"
+  defp winner_bg(%Registration{final_standing: 2}, _won), do: "bg-slate-400/20"
+  defp winner_bg(_registration, true), do: "bg-sky-400/10"
+  defp winner_bg(_registration, _won), do: nil
 
   attr :final_standing, :any, required: true
   attr :class, :any, default: nil
