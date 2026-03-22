@@ -590,6 +590,186 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     end
   end
 
+  describe "matches tab player filter" do
+    setup %{conn: conn} do
+      superuser = insert(:superuser)
+      conn = log_in_user(conn, superuser)
+
+      event = insert(:event)
+      category = insert(:category)
+      associate_category(event, category)
+      club = insert(:club)
+
+      stage = insert(:stage, event: event, category: category, order: 1)
+      group = insert(:group, stage: stage, position: 1)
+
+      alice = insert(:player, name: "Alice")
+      bob = insert(:player, name: "Bob")
+      carol = insert(:player, name: "Carol")
+
+      reg_alice =
+        insert(:registration, event: event, category: category, player: alice, club: club)
+
+      reg_bob = insert(:registration, event: event, category: category, player: bob, club: club)
+
+      reg_carol =
+        insert(:registration, event: event, category: category, player: carol, club: club)
+
+      add_to_group(group, reg_alice)
+      add_to_group(group, reg_bob)
+      add_to_group(group, reg_carol)
+
+      # Alice vs Bob
+      insert(:match,
+        event: event,
+        group: group,
+        stage: nil,
+        registration1: reg_alice,
+        registration2: reg_bob,
+        scheduled_position: 1
+      )
+
+      # Alice vs Carol
+      insert(:match,
+        event: event,
+        group: group,
+        stage: nil,
+        registration1: reg_alice,
+        registration2: reg_carol,
+        scheduled_position: 2
+      )
+
+      # Bob vs Carol
+      insert(:match,
+        event: event,
+        group: group,
+        stage: nil,
+        registration1: reg_bob,
+        registration2: reg_carol,
+        scheduled_position: 3
+      )
+
+      %{
+        conn: conn,
+        event: event,
+        category: category,
+        alice: alice,
+        bob: bob,
+        carol: carol
+      }
+    end
+
+    test "shows all matches by default", %{conn: conn, event: event, category: category} do
+      {:ok, _view, html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      assert html =~ "Alice"
+      assert html =~ "Bob"
+      assert html =~ "Carol"
+
+      match_count = Regex.scan(~r/id="match-\d+"/, html) |> length()
+      assert match_count == 3
+    end
+
+    test "filters matches by player_id URL param", %{
+      conn: conn,
+      event: event,
+      category: category,
+      alice: alice
+    } do
+      {:ok, view, _html} =
+        live(
+          conn,
+          ~p"/events/#{event}?tab=matches&category_id=#{category.id}&player_id=#{alice.id}"
+        )
+
+      html = render(view)
+
+      # Alice is in: Alice vs Bob (match 1) and Alice vs Carol (match 2)
+      assert html =~ "Alice"
+      assert html =~ "Bob"
+      assert html =~ "Carol"
+
+      # But Bob vs Carol match should be excluded — count match cards
+      match_count = Regex.scan(~r/id="match-\d+"/, html) |> length()
+      assert match_count == 2
+    end
+
+    test "excludes matches not involving the filtered player", %{
+      conn: conn,
+      event: event,
+      category: category,
+      carol: carol
+    } do
+      {:ok, _view, html} =
+        live(
+          conn,
+          ~p"/events/#{event}?tab=matches&category_id=#{category.id}&player_id=#{carol.id}"
+        )
+
+      # Carol is in: Alice vs Carol, Bob vs Carol — 2 of 3 matches
+      match_count = Regex.scan(~r/id="match-\d+"/, html) |> length()
+      assert match_count == 2
+    end
+
+    test "selecting a player navigates with player_id param", %{
+      conn: conn,
+      event: event,
+      category: category,
+      alice: alice
+    } do
+      {:ok, view, _html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      view
+      |> element("form[phx-change=filter_matches_by_player]")
+      |> render_change(%{"player_id" => to_string(alice.id)})
+
+      html = render(view)
+      match_count = Regex.scan(~r/id="match-\d+"/, html) |> length()
+      assert match_count == 2
+    end
+
+    test "selecting 'Todos jogadores' clears the filter", %{
+      conn: conn,
+      event: event,
+      category: category,
+      alice: alice
+    } do
+      {:ok, view, _html} =
+        live(
+          conn,
+          ~p"/events/#{event}?tab=matches&category_id=#{category.id}&player_id=#{alice.id}"
+        )
+
+      # Should start filtered to 2 matches
+      html = render(view)
+      assert Regex.scan(~r/id="match-\d+"/, html) |> length() == 2
+
+      view
+      |> element("form[phx-change=filter_matches_by_player]")
+      |> render_change(%{"player_id" => ""})
+
+      # All 3 matches should be back
+      html = render(view)
+      assert Regex.scan(~r/id="match-\d+"/, html) |> length() == 3
+    end
+
+    test "player filter select lists players from the category", %{
+      conn: conn,
+      event: event,
+      category: category
+    } do
+      {:ok, _view, html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      assert html =~ "Todos jogadores"
+      assert html =~ "Alice"
+      assert html =~ "Bob"
+      assert html =~ "Carol"
+    end
+  end
+
   describe "superuser - matches tab scoring" do
     setup %{conn: conn} do
       superuser = insert(:superuser)

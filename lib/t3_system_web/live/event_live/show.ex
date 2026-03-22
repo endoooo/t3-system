@@ -207,6 +207,17 @@ defmodule T3SystemWeb.EventLive.Show do
         <%!-- Tab: Matches --%>
         <div :if={@current_tab == "matches"} class="p-8">
           <div :if={@active_category}>
+            <form :if={@match_filter_players != []} phx-change="filter_matches_by_player" class="mb-4">
+              <.input
+                name="player_id"
+                type="select"
+                label={gettext("Jogador")}
+                value={@filter_player_id || ""}
+                options={[{gettext("Todos jogadores"), ""}] ++ @match_filter_players}
+                phx-debounce="0"
+              />
+            </form>
+
             <p :if={@all_match_cards == []} class="text-gray-400 text-sm">
               {gettext("No matches yet.")}
             </p>
@@ -1196,6 +1207,8 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:schedule_modal, nil)
       |> assign(:schedule_tables, [])
       |> assign(:all_match_cards, [])
+      |> assign(:filter_player_id, nil)
+      |> assign(:match_filter_players, [])
       |> assign(:bracket_modal, nil)
       |> assign(:bracket_form, nil)
       |> assign(:stage_bracket_registrations, [])
@@ -1229,6 +1242,8 @@ defmodule T3SystemWeb.EventLive.Show do
     {tabs, tab} = resolve_tabs(stages, params["tab"], socket.assigns.is_superuser)
     current_stage = find_current_stage(tab, stages)
 
+    filter_player_id = parse_id(params["player_id"])
+
     category_form =
       to_form(%{"category_id" => active_category && to_string(active_category.id)}, as: :category)
 
@@ -1243,9 +1258,19 @@ defmodule T3SystemWeb.EventLive.Show do
       |> load_registrations(tab, event, active_category)
       |> load_tables(tab, event)
       |> load_stage_data(current_stage)
+      |> assign(:filter_player_id, filter_player_id)
       |> assign_all_match_cards()
+      |> assign_match_filter_players()
 
     {:noreply, socket}
+  end
+
+  @impl true
+  def handle_event("filter_matches_by_player", %{"player_id" => player_id}, socket) do
+    %{event: event, active_category: active_category} = socket.assigns
+    params = %{"tab" => "matches", "category_id" => active_category.id}
+    params = if player_id != "", do: Map.put(params, "player_id", player_id), else: params
+    {:noreply, push_patch(socket, to: ~p"/events/#{event}?#{params}")}
   end
 
   @impl true
@@ -1958,12 +1983,19 @@ defmodule T3SystemWeb.EventLive.Show do
     cards =
       socket.assigns.stages
       |> Enum.flat_map(&stage_match_cards/1)
+      |> filter_match_cards(socket.assigns.filter_player_id)
       |> Enum.sort_by(fn card -> card.sort_key end)
 
     assign(socket, :all_match_cards, cards)
   end
 
   defp assign_all_match_cards(socket), do: socket
+
+  defp filter_match_cards(cards, nil), do: cards
+
+  defp filter_match_cards(cards, player_id) do
+    Enum.filter(cards, &(&1.p1_player_id == player_id or &1.p2_player_id == player_id))
+  end
 
   defp stage_match_cards(stage) do
     group_cards =
@@ -2057,7 +2089,9 @@ defmodule T3SystemWeb.EventLive.Show do
         match.winner_registration_id == match.registration2_id and
           not is_nil(match.winner_registration_id),
       p1_name: card_player_name(match, 1, source),
-      p2_name: card_player_name(match, 2, source)
+      p2_name: card_player_name(match, 2, source),
+      p1_player_id: card_player_id(match.registration1),
+      p2_player_id: card_player_id(match.registration2)
     }
   end
 
@@ -2078,6 +2112,38 @@ defmodule T3SystemWeb.EventLive.Show do
   defp card_player_name(match, 1, :group), do: match_player_name(match.registration1)
   defp card_player_name(match, 2, :group), do: match_player_name(match.registration2)
   defp card_player_name(match, slot, :bracket), do: slot_label(match, slot)
+
+  defp card_player_id(%{player: %{id: id}}), do: id
+  defp card_player_id(_), do: nil
+
+  defp assign_match_filter_players(%{assigns: %{current_tab: "matches", stages: stages}} = socket) do
+    players =
+      stages
+      |> Enum.flat_map(&extract_players_from_stage/1)
+      |> Enum.uniq_by(&elem(&1, 1))
+      |> Enum.sort_by(&elem(&1, 0))
+
+    assign(socket, :match_filter_players, players)
+  end
+
+  defp assign_match_filter_players(socket), do: socket
+
+  defp extract_players_from_stage(stage) do
+    group_players =
+      Enum.flat_map(stage.groups, fn group ->
+        Enum.flat_map(group.matches, &extract_players_from_match/1)
+      end)
+
+    bracket_players = Enum.flat_map(stage.matches, &extract_players_from_match/1)
+
+    group_players ++ bracket_players
+  end
+
+  defp extract_players_from_match(match) do
+    [match.registration1, match.registration2]
+    |> Enum.filter(&match?(%{player: %{id: _}}, &1))
+    |> Enum.map(&{&1.player.name, &1.player.id})
+  end
 
   defp match_card(assigns) do
     ~H"""
@@ -2253,4 +2319,13 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp match_player_name(%{player: %{name: name}}), do: name
   defp match_player_name(_), do: gettext("TBD")
+
+  defp parse_id(nil), do: nil
+
+  defp parse_id(str) do
+    case Integer.parse(str) do
+      {id, ""} -> id
+      _ -> nil
+    end
+  end
 end
