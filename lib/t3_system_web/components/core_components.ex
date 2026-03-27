@@ -184,6 +184,10 @@ defmodule T3SystemWeb.CoreComponents do
   attr :class, :any, default: nil, doc: "the input class to use over defaults"
   attr :error_class, :any, default: nil, doc: "the input error class to use over defaults"
 
+  attr :sr_only, :boolean,
+    default: false,
+    doc: "visually hide the label, keeping it for screen readers"
+
   attr :rest, :global,
     include: ~w(accept autocomplete capture cols disabled form list max maxlength min minlength
                 multiple pattern placeholder readonly required rows size step)
@@ -241,7 +245,7 @@ defmodule T3SystemWeb.CoreComponents do
   def input(%{type: "select"} = assigns) do
     ~H"""
     <div class="fieldset">
-      <label :if={@label} for={@id} class="label mb-1 sr-only">{@label}</label>
+      <label :if={@label} for={@id} class={["label mb-1", @sr_only && "sr-only"]}>{@label}</label>
       <div class="grid grid-cols-1">
         <select
           id={@id}

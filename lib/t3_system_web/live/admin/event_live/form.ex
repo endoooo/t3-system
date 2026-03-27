@@ -15,31 +15,37 @@ defmodule T3SystemWeb.Admin.EventLive.Form do
       </.header>
 
       <.form for={@form} id="event-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="text" label={gettext("Nome")} />
-        <.input field={@form[:address]} type="textarea" label={gettext("Address")} />
-        <.input field={@form[:datetime]} type="datetime-local" label={gettext("Datetime")} />
-        <.input
-          field={@form[:league_id]}
-          type="select"
-          label={gettext("League")}
-          options={[{gettext("None"), nil} | Enum.map(@all_leagues, &{&1.name, &1.id})]}
-        />
-        <div class="fieldset mb-6">
-          <label class="label mb-1">{gettext("Categories")}</label>
-          <input type="hidden" name="event[category_ids][]" value="" />
-          <div class="flex flex-wrap gap-2">
-            <input
-              :for={category <- @all_categories}
-              type="checkbox"
-              class="btn"
-              name="event[category_ids][]"
-              value={category.id}
-              checked={category.id in @selected_category_ids}
-              aria-label={category.name}
-            />
+        <div class="space-y-4">
+          <.input field={@form[:name]} type="text" label={gettext("Nome")} />
+          <.input field={@form[:address]} type="text" label={gettext("Address")} />
+          <.input field={@form[:datetime]} type="datetime-local" label={gettext("Datetime")} />
+          <.input
+            field={@form[:league_id]}
+            type="select"
+            label={gettext("League")}
+            options={[{gettext("None"), nil} | Enum.map(@all_leagues, &{&1.name, &1.id})]}
+          />
+          <div class="fieldset">
+            <label class="label mb-1">{gettext("Categories")}</label>
+            <input type="hidden" name="event[category_ids][]" value="" />
+            <div class="flex flex-wrap gap-2">
+              <label
+                :for={category <- @all_categories}
+                class="cursor-pointer select-none rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition has-[:checked]:border-zinc-800 has-[:checked]:bg-zinc-800 has-[:checked]:text-white dark:border-zinc-600 dark:text-zinc-300 dark:has-[:checked]:border-zinc-200 dark:has-[:checked]:bg-zinc-200 dark:has-[:checked]:text-zinc-900"
+              >
+                <input
+                  type="checkbox"
+                  name="event[category_ids][]"
+                  value={category.id}
+                  checked={category.id in @selected_category_ids}
+                  class="hidden"
+                />
+                {category.name}
+              </label>
+            </div>
           </div>
         </div>
-        <footer>
+        <footer class="mt-6">
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Event")}
           </.button>

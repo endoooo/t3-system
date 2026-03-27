@@ -35,6 +35,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 field={@category_form[:category_id]}
                 type="select"
                 label={gettext("Category")}
+                sr_only
                 options={Enum.map(@event.categories, &{&1.name, &1.id})}
               />
             </.form>

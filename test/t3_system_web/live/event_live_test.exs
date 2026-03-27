@@ -50,7 +50,7 @@ defmodule T3SystemWeb.EventLiveTest do
 
       conn
       |> visit(~p"/admin/events/new")
-      |> assert_has("input[type='checkbox'][aria-label='#{category.name}']")
+      |> assert_has("label", text: category.name)
     end
 
     test "edit form preselects categories for event", %{conn: conn} do
@@ -63,7 +63,7 @@ defmodule T3SystemWeb.EventLiveTest do
 
       conn
       |> visit(~p"/admin/events/#{event}/edit")
-      |> assert_has("input[type='checkbox'][aria-label='#{category.name}'][checked]")
+      |> assert_has("label input[type='checkbox'][checked]")
     end
 
     test "shows validation errors on invalid submit", %{conn: conn} do
