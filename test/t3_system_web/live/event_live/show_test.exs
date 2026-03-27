@@ -174,7 +174,12 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       conn
       |> visit(~p"/events/#{event}")
       |> click_button("Nova inscrição")
-      |> select("Jogador", option: player.name)
+      |> unwrap(fn view ->
+        Phoenix.LiveViewTest.render_click(view, "select_player", %{
+          "id" => to_string(player.id),
+          "name" => player.name
+        })
+      end)
       |> select("Clube", option: club.name)
       |> click_button("Salvar")
       |> assert_has("h3", text: player.name)

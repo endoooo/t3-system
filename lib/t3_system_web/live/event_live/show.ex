@@ -683,13 +683,45 @@ defmodule T3SystemWeb.EventLive.Show do
                 phx-submit="save_registration"
               >
                 <div class="space-y-4">
-                  <.input
-                    field={@form[:player_id]}
-                    type="select"
-                    label={gettext("Jogador")}
-                    options={Enum.map(@available_players, &{&1.name, &1.id})}
-                    prompt={gettext("Selecione um jogador")}
-                  />
+                  <div class="fieldset" id="player-combobox" phx-hook=".PlayerCombobox">
+                    <label for="player-autocomplete" class="label mb-1">
+                      {gettext("Jogador")}
+                    </label>
+                    <el-autocomplete class="relative mt-1 block">
+                      <input
+                        id="player-autocomplete"
+                        type="text"
+                        placeholder={gettext("Buscar jogador...")}
+                        value={@player_search}
+                        class="w-full appearance-none rounded-sm bg-slate-800 py-3 pr-12 pl-4 text-base"
+                      />
+                      <button
+                        type="button"
+                        class="absolute inset-y-0 right-0 flex items-center rounded-r-sm px-2"
+                      >
+                        <.icon name="hero-chevron-up-down" class="size-5 text-gray-400" />
+                      </button>
+                      <el-options
+                        anchor="bottom end"
+                        popover
+                        class="max-h-60 w-(--input-width) overflow-auto rounded-sm bg-slate-800 py-1 text-base outline -outline-offset-1 outline-white/10 transition-discrete [--anchor-gap:--spacing(1)] data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0"
+                      >
+                        <el-option
+                          :for={player <- @available_players}
+                          value={player.name}
+                          data-player-id={player.id}
+                          class="block truncate px-4 py-2 text-gray-300 select-none aria-selected:bg-indigo-500 aria-selected:text-white"
+                        >
+                          {player.name}
+                        </el-option>
+                      </el-options>
+                    </el-autocomplete>
+                    <input
+                      type="hidden"
+                      name="registration[player_id]"
+                      value={@form[:player_id].value || ""}
+                    />
+                  </div>
                   <.input
                     field={@form[:club_id]}
                     type="select"
@@ -1238,6 +1270,23 @@ defmodule T3SystemWeb.EventLive.Show do
           </div>
         </div>
       </div>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".PlayerCombobox">
+        export default {
+          mounted() {
+            const autocomplete = this.el.querySelector("el-autocomplete")
+            const hidden = this.el.querySelector("input[type=hidden]")
+
+            autocomplete.addEventListener("change", () => {
+              const input = autocomplete.querySelector("input[type=text]")
+              const selected = autocomplete.querySelector("el-option[aria-selected=true]")
+              const playerId = selected ? selected.dataset.playerId : ""
+              hidden.value = playerId
+              hidden.dispatchEvent(new Event("input", { bubbles: true }))
+              this.pushEvent("select_player", { id: playerId, name: input.value })
+            })
+          }
+        }
+      </script>
     </Layouts.app>
     """
   end
@@ -1262,6 +1311,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:modal, nil)
       |> assign(:form, nil)
       |> assign(:available_players, [])
+      |> assign(:player_search, "")
       |> assign(:group_modal, nil)
       |> assign(:group_form, nil)
       |> assign(:players_modal, nil)
@@ -1435,7 +1485,13 @@ defmodule T3SystemWeb.EventLive.Show do
           Enum.reject(socket.assigns.players, &MapSet.member?(registered_ids, &1.id))
       end
 
-    {:noreply, assign(socket, modal: :new, form: form, available_players: available_players)}
+    {:noreply,
+     assign(socket,
+       modal: :new,
+       form: form,
+       available_players: available_players,
+       player_search: ""
+     )}
   end
 
   def handle_event("open_edit_registration", %{"id" => id}, socket) do
@@ -1445,12 +1501,36 @@ defmodule T3SystemWeb.EventLive.Show do
       Registrations.change_registration(reg)
       |> to_form()
 
+    player_name =
+      Enum.find_value(socket.assigns.players, "", fn p ->
+        if p.id == reg.player_id, do: p.name
+      end)
+
     {:noreply,
-     assign(socket, modal: {:edit, reg}, form: form, available_players: socket.assigns.players)}
+     assign(socket,
+       modal: {:edit, reg},
+       form: form,
+       available_players: socket.assigns.players,
+       player_search: player_name
+     )}
   end
 
   def handle_event("close_modal", _params, socket) do
     {:noreply, assign(socket, modal: nil, form: nil)}
+  end
+
+  def handle_event("select_player", %{"id" => id, "name" => name}, socket) do
+    form =
+      case socket.assigns.modal do
+        {:edit, reg} ->
+          Registrations.change_registration(reg, %{"player_id" => id})
+
+        _ ->
+          Registrations.change_registration(%Registration{}, %{"player_id" => id})
+      end
+      |> to_form()
+
+    {:noreply, assign(socket, player_search: name, form: form)}
   end
 
   def handle_event("validate", %{"registration" => attrs}, socket) do
