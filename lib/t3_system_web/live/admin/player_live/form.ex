@@ -14,12 +14,22 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
       </.header>
 
       <.form for={@form} id="player-form" phx-change="validate" phx-submit="save">
-        <.input field={@form[:name]} type="text" label={gettext("Nome")} />
-        <.input field={@form[:birthdate]} type="date" label={gettext("Birthdate")} />
-        <.input field={@form[:picture_url]} type="text" label={gettext("Picture url")} />
-        <footer>
+        <div class="space-y-4">
+          <.input field={@form[:name]} type="text" label={gettext("Nome")} />
+          <.input field={@form[:birthdate]} type="date" label={gettext("Birthdate")} />
+          <.input field={@form[:picture_url]} type="text" label={gettext("Picture url")} />
+        </div>
+        <footer class="mt-6">
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Player")}
+          </.button>
+          <.button
+            :if={@live_action == :new}
+            phx-disable-with={gettext("Saving...")}
+            phx-click="save_and_add_more"
+            type="button"
+          >
+            {gettext("Save and add more")}
           </.button>
           <.button navigate={return_path(@return_to, @player)}>{gettext("Cancelar")}</.button>
         </footer>
@@ -65,6 +75,24 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
 
   def handle_event("save", %{"player" => player_params}, socket) do
     save_player(socket, socket.assigns.live_action, player_params)
+  end
+
+  def handle_event("save_and_add_more", _params, socket) do
+    player_params = socket.assigns.form.params || %{}
+
+    case Players.create_player(socket.assigns.current_scope, player_params) do
+      {:ok, _player} ->
+        player = %Player{}
+
+        {:noreply,
+         socket
+         |> put_flash(:info, gettext("Player created successfully"))
+         |> assign(:player, player)
+         |> assign(:form, to_form(Players.change_player(player)))}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, form: to_form(changeset))}
+    end
   end
 
   defp save_player(socket, :edit, player_params) do
