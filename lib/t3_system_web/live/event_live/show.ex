@@ -683,7 +683,12 @@ defmodule T3SystemWeb.EventLive.Show do
                 phx-submit="save_registration"
               >
                 <div class="space-y-4">
-                  <div class="fieldset" id="player-combobox" phx-hook=".PlayerCombobox">
+                  <div
+                    class="fieldset"
+                    id="player-combobox"
+                    phx-hook=".PlayerCombobox"
+                    phx-update="ignore"
+                  >
                     <label for="player-autocomplete" class="label mb-1">
                       {gettext("Jogador")}
                     </label>
@@ -716,11 +721,6 @@ defmodule T3SystemWeb.EventLive.Show do
                         </el-option>
                       </el-options>
                     </el-autocomplete>
-                    <input
-                      type="hidden"
-                      name="registration[player_id]"
-                      value={@form[:player_id].value || ""}
-                    />
                   </div>
                   <.input
                     field={@form[:club_id]}
@@ -1274,14 +1274,11 @@ defmodule T3SystemWeb.EventLive.Show do
         export default {
           mounted() {
             const autocomplete = this.el.querySelector("el-autocomplete")
-            const hidden = this.el.querySelector("input[type=hidden]")
+            const input = autocomplete.querySelector("input[type=text]")
 
-            autocomplete.addEventListener("change", () => {
-              const input = autocomplete.querySelector("input[type=text]")
-              const selected = autocomplete.querySelector("el-option[aria-selected=true]")
-              const playerId = selected ? selected.dataset.playerId : ""
-              hidden.value = playerId
-              hidden.dispatchEvent(new Event("input", { bubbles: true }))
+            input.addEventListener("change", () => {
+              const option = autocomplete.querySelector(`el-option[value="${CSS.escape(input.value)}"]`)
+              const playerId = option ? option.dataset.playerId : ""
               this.pushEvent("select_player", { id: playerId, name: input.value })
             })
           }
@@ -1490,7 +1487,8 @@ defmodule T3SystemWeb.EventLive.Show do
        modal: :new,
        form: form,
        available_players: available_players,
-       player_search: ""
+       player_search: "",
+       selected_player_id: nil
      )}
   end
 
@@ -1511,7 +1509,8 @@ defmodule T3SystemWeb.EventLive.Show do
        modal: {:edit, reg},
        form: form,
        available_players: socket.assigns.players,
-       player_search: player_name
+       player_search: player_name,
+       selected_player_id: reg.player_id
      )}
   end
 
@@ -1530,10 +1529,12 @@ defmodule T3SystemWeb.EventLive.Show do
       end
       |> to_form()
 
-    {:noreply, assign(socket, player_search: name, form: form)}
+    {:noreply, assign(socket, player_search: name, selected_player_id: id, form: form)}
   end
 
   def handle_event("validate", %{"registration" => attrs}, socket) do
+    attrs = ensure_player_id(attrs, socket)
+
     form =
       case socket.assigns.modal do
         {:edit, reg} -> Registrations.change_registration(reg, attrs)
@@ -1546,6 +1547,7 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   def handle_event("save_registration", %{"registration" => attrs}, socket) do
+    attrs = ensure_player_id(attrs, socket)
     scope = socket.assigns.current_scope
 
     result =
@@ -2411,6 +2413,13 @@ defmodule T3SystemWeb.EventLive.Show do
       )
 
     Enum.reject(category_registrations, &MapSet.member?(taken_ids, &1.id))
+  end
+
+  defp ensure_player_id(attrs, socket) do
+    case socket.assigns[:selected_player_id] do
+      nil -> attrs
+      id -> Map.put(attrs, "player_id", to_string(id))
+    end
   end
 
   defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
