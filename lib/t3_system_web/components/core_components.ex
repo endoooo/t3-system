@@ -189,7 +189,7 @@ defmodule T3SystemWeb.CoreComponents do
   attr :type, :string,
     default: "text",
     values: ~w(checkbox color date datetime-local email file month number password
-               search select tel text textarea time url week hidden)
+               search select tel text textarea time toggle url week hidden)
 
   attr :field, Phoenix.HTML.FormField,
     doc: "a form field struct retrieved from the form, for example: @form[:email]"
@@ -260,6 +260,37 @@ defmodule T3SystemWeb.CoreComponents do
     """
   end
 
+  def input(%{type: "toggle"} = assigns) do
+    assigns =
+      assign_new(assigns, :checked, fn ->
+        HTMLForm.normalize_value("checkbox", assigns[:value])
+      end)
+
+    ~H"""
+    <div class="flex items-center justify-between gap-3 rounded-md bg-white/5 px-4 py-3">
+      <div class="group relative inline-flex w-11 shrink-0 rounded-full bg-white/5 p-0.5 inset-ring inset-ring-white/10 outline-offset-2 outline-sky-400 transition-colors duration-200 ease-in-out has-checked:bg-sky-400 has-focus-visible:outline-2">
+        <span class="size-5 rounded-full bg-white shadow-xs ring-1 ring-gray-900/5 transition-transform duration-200 ease-in-out group-has-checked:translate-x-5">
+        </span>
+        <input type="hidden" name={@name} value="false" disabled={@rest[:disabled]} form={@rest[:form]} />
+        <input
+          type="checkbox"
+          id={@id}
+          name={@name}
+          value="true"
+          checked={@checked}
+          aria-labelledby={"#{@id}-label"}
+          class="absolute inset-0 size-full appearance-none focus:outline-hidden"
+          {@rest}
+        />
+      </div>
+      <label :if={@label} id={"#{@id}-label"} class="text-sm font-medium text-white">
+        {@label}
+      </label>
+      <.error :for={msg <- @errors}>{msg}</.error>
+    </div>
+    """
+  end
+
   def input(%{type: "select"} = assigns) do
     ~H"""
     <div class="fieldset">
@@ -271,7 +302,8 @@ defmodule T3SystemWeb.CoreComponents do
           class={[
             "col-start-1 row-start-1 w-full appearance-none rounded-sm bg-slate-800 py-3 pr-8 pl-4 text-base",
             @class || "w-full select",
-            @errors != [] && (@error_class || "select-error")
+            @errors != [] && (@error_class || "select-error"),
+            @value in ["", nil] && "text-slate-100/60"
           ]}
           multiple={@multiple}
           {@rest}

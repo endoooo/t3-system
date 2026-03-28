@@ -308,14 +308,19 @@ defmodule T3SystemWeb.EventLive.Show do
         <%!-- Tab: Matches --%>
         <div :if={@current_tab == "matches"} class="p-8">
           <div :if={@active_category}>
-            <form :if={@match_filter_players != []} phx-change="filter_matches_by_player" class="mb-4">
+            <form
+              :if={@match_filter_players != []}
+              phx-change="filter_matches_by_player"
+              class="mb-10"
+            >
               <.input
                 name="player_id"
                 type="select"
                 label={gettext("Jogador")}
                 value={@filter_player_id || ""}
-                options={[{gettext("Todos jogadores"), ""}] ++ @match_filter_players}
+                options={[{gettext("Filtrar por atleta"), ""}] ++ @match_filter_players}
                 phx-debounce="0"
+                sr_only
               />
             </form>
 
@@ -892,7 +897,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   />
                   <.input
                     field={@group_form[:is_finished]}
-                    type="checkbox"
+                    type="toggle"
                     label={gettext("Finalizado")}
                   />
                   <input
@@ -1193,24 +1198,13 @@ defmodule T3SystemWeb.EventLive.Show do
                   />
                 </div>
 
-                <div class="flex items-center justify-between gap-3 rounded-md bg-white/5 px-4 py-3">
-                  <div class="group relative inline-flex w-11 shrink-0 rounded-full bg-white/5 p-0.5 inset-ring inset-ring-white/10 outline-offset-2 outline-sky-400 transition-colors duration-200 ease-in-out has-checked:bg-sky-400 has-focus-visible:outline-2">
-                    <span class="size-5 rounded-full bg-white shadow-xs ring-1 ring-gray-900/5 transition-transform duration-200 ease-in-out group-has-checked:translate-x-5">
-                    </span>
-                    <input
-                      id="is-bye-toggle"
-                      type="checkbox"
-                      name="is_bye"
-                      value="true"
-                      checked={@assign_slot_modal.is_bye}
-                      aria-labelledby="is-bye-label"
-                      class="absolute inset-0 size-full appearance-none focus:outline-hidden"
-                    />
-                  </div>
-                  <label id="is-bye-label" class="text-sm font-medium text-white">
-                    {gettext("Bye")}
-                  </label>
-                </div>
+                <.input
+                  id="is-bye-toggle"
+                  type="toggle"
+                  name="is_bye"
+                  value={@assign_slot_modal.is_bye}
+                  label={gettext("Bye")}
+                />
 
                 <div class="mt-4 flex justify-end gap-2">
                   <.button type="button" phx-click="close_assign_slot">
@@ -1802,7 +1796,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
     {:noreply,
      socket
-     |> put_flash(:info, ngettext("%{count} match generated", "%{count} matches generated", count, count: count))
+     |> put_flash(
+       :info,
+       ngettext("%{count} match generated", "%{count} matches generated", count, count: count)
+     )
      |> reload_stage_data()}
   end
 
