@@ -55,26 +55,44 @@ defmodule T3SystemWeb.CoreComponents do
     <div
       :if={msg = render_slot(@inner_block) || Phoenix.Flash.get(@flash, @kind)}
       id={@id}
-      phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
       role="alert"
-      class="toast toast-top toast-end z-50"
+      aria-live="assertive"
+      class="pointer-events-none fixed inset-0 z-50 flex items-end px-4 py-6 sm:items-start sm:p-6"
       {@rest}
     >
-      <div class={[
-        "alert w-80 sm:w-96 max-w-80 sm:max-w-96 text-wrap",
-        @kind == :info && "alert-info",
-        @kind == :error && "alert-error"
-      ]}>
-        <.icon :if={@kind == :info} name="hero-information-circle" class="size-5 shrink-0" />
-        <.icon :if={@kind == :error} name="hero-exclamation-circle" class="size-5 shrink-0" />
-        <div>
-          <p :if={@title} class="font-semibold">{@title}</p>
-          <p>{msg}</p>
+      <div class="flex w-full flex-col items-center space-y-4 sm:items-end">
+        <div class="pointer-events-auto w-full max-w-sm rounded-lg bg-gray-800 shadow-lg outline-1 -outline-offset-1 outline-white/10">
+          <div class="p-4">
+            <div class="flex items-start">
+              <div class="shrink-0">
+                <.icon
+                  :if={@kind == :info}
+                  name="hero-check-circle"
+                  class="size-6 text-green-400"
+                />
+                <.icon
+                  :if={@kind == :error}
+                  name="hero-exclamation-circle"
+                  class="size-6 text-red-400"
+                />
+              </div>
+              <div class="ml-3 w-0 flex-1 pt-0.5">
+                <p :if={@title} class="text-sm font-medium text-white">{@title}</p>
+                <p class="text-sm text-gray-400">{msg}</p>
+              </div>
+              <div class="ml-4 flex shrink-0">
+                <button
+                  type="button"
+                  class="inline-flex rounded-md text-gray-400 hover:text-white focus:outline-2 focus:outline-offset-2 focus:outline-indigo-500"
+                  phx-click={JS.push("lv:clear-flash", value: %{key: @kind}) |> hide("##{@id}")}
+                  aria-label={gettext("close")}
+                >
+                  <.icon name="hero-x-mark" class="size-5" />
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
-        <div class="flex-1" />
-        <button type="button" class="group self-start cursor-pointer" aria-label={gettext("close")}>
-          <.icon name="hero-x-mark" class="size-5 opacity-40 group-hover:opacity-70" />
-        </button>
       </div>
     </div>
     """

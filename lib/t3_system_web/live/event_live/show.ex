@@ -1797,10 +1797,13 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   def handle_event("generate_matches", _params, socket) do
-    {:ok, _count} =
+    {:ok, count} =
       Matches.generate_group_matches(socket.assigns.current_scope, socket.assigns.players_modal)
 
-    {:noreply, reload_stage_data(socket)}
+    {:noreply,
+     socket
+     |> put_flash(:info, ngettext("%{count} match generated", "%{count} matches generated", count, count: count))
+     |> reload_stage_data()}
   end
 
   # Score management (superuser only)
