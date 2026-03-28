@@ -32,7 +32,14 @@ defmodule T3System.Matches do
   Returns stages for the given event and category, ordered by order,
   with groups and bracket matches preloaded (including registrations).
   """
-  def list_stages_for_event_and_category(event_id, category_id) do
+  def list_stages_for_event_and_category(event_id, category_id, opts \\ []) do
+    exclude_byes = Keyword.get(opts, :exclude_byes, false)
+
+    bracket_matches_query =
+      if exclude_byes,
+        do: from(m in Match, where: not m.is_bye),
+        else: from(m in Match)
+
     Stage
     |> where([s], s.event_id == ^event_id and s.category_id == ^category_id)
     |> order_by([s], s.order)
@@ -50,13 +57,15 @@ defmodule T3System.Matches do
              winner: [:player]
            ]
          ]},
-      matches: [
-        :sets,
-        :table,
-        registration1: [:player, :club],
-        registration2: [:player, :club],
-        winner: [:player]
-      ]
+      matches:
+        {bracket_matches_query,
+         [
+           :sets,
+           :table,
+           registration1: [:player, :club],
+           registration2: [:player, :club],
+           winner: [:player]
+         ]}
     )
   end
 

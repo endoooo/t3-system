@@ -544,6 +544,7 @@ defmodule T3SystemWeb.EventLive.Show do
                                 registration={match.registration1}
                                 label={match.slot1_label}
                                 won={p1_won}
+                                is_bye={match.is_bye}
                               />
                               <.icon
                                 :if={p1_won}
@@ -577,6 +578,7 @@ defmodule T3SystemWeb.EventLive.Show do
                                 registration={match.registration2}
                                 label={match.slot2_label}
                                 won={p2_won}
+                                is_bye={match.is_bye}
                               />
                               <.icon
                                 :if={p2_won}
@@ -1189,6 +1191,25 @@ defmodule T3SystemWeb.EventLive.Show do
                     placeholder={gettext("ex: 2º A, WO")}
                     class="w-full rounded-md border border-white/10 bg-gray-800 px-3 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
+                </div>
+
+                <div class="flex items-center justify-between gap-3 rounded-md bg-white/5 px-4 py-3">
+                  <div class="group relative inline-flex w-11 shrink-0 rounded-full bg-white/5 p-0.5 inset-ring inset-ring-white/10 outline-offset-2 outline-sky-400 transition-colors duration-200 ease-in-out has-checked:bg-sky-400 has-focus-visible:outline-2">
+                    <span class="size-5 rounded-full bg-white shadow-xs ring-1 ring-gray-900/5 transition-transform duration-200 ease-in-out group-has-checked:translate-x-5">
+                    </span>
+                    <input
+                      id="is-bye-toggle"
+                      type="checkbox"
+                      name="is_bye"
+                      value="true"
+                      checked={@assign_slot_modal.is_bye}
+                      aria-labelledby="is-bye-label"
+                      class="absolute inset-0 size-full appearance-none focus:outline-hidden"
+                    />
+                  </div>
+                  <label id="is-bye-label" class="text-sm font-medium text-white">
+                    {gettext("Bye")}
+                  </label>
                 </div>
 
                 <div class="mt-4 flex justify-end gap-2">
@@ -1979,7 +2000,8 @@ defmodule T3SystemWeb.EventLive.Show do
 
     label_attrs = %{
       slot1_label: params["slot1_label"],
-      slot2_label: params["slot2_label"]
+      slot2_label: params["slot2_label"],
+      is_bye: params["is_bye"] == "true"
     }
 
     reg1_id = parse_registration_id(params["slot1_registration_id"])
@@ -2118,8 +2140,13 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   defp assign_all_match_cards(%{assigns: %{current_tab: "matches"}} = socket) do
+    %{event: event, active_category: active_category} = socket.assigns
+
+    stages =
+      Matches.list_stages_for_event_and_category(event.id, active_category.id, exclude_byes: true)
+
     cards =
-      socket.assigns.stages
+      stages
       |> Enum.flat_map(&stage_match_cards/1)
       |> filter_match_cards(socket.assigns.filter_player_id)
       |> Enum.sort_by(fn card -> card.sort_key end)
@@ -2379,6 +2406,7 @@ defmodule T3SystemWeb.EventLive.Show do
   attr :registration, :any, required: true
   attr :label, :any, required: true
   attr :won, :boolean, required: true
+  attr :is_bye, :boolean, default: false
 
   defp label_and_player(assigns) do
     name =
@@ -2400,7 +2428,7 @@ defmodule T3SystemWeb.EventLive.Show do
       {@label}
     </span>
     <span class={["truncate text-sm", if(@won, do: "font-bold")]}>
-      {@name || @label || gettext("TBD")}
+      {@name || @label || if(@is_bye, do: gettext("Bye"), else: gettext("TBD"))}
     </span>
     """
   end
@@ -2489,7 +2517,7 @@ defmodule T3SystemWeb.EventLive.Show do
     |> case do
       {%Registration{} = registration, _} -> registration.player.name
       {_, label} when label not in [nil, ""] -> label
-      _ -> gettext("TBD")
+      _ -> if match.is_bye, do: gettext("Bye"), else: gettext("TBD")
     end
   end
 
