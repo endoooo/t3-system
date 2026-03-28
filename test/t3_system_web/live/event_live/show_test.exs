@@ -735,7 +735,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       assert match_count == 2
     end
 
-    test "selecting 'Todos jogadores' clears the filter", %{
+    test "selecting 'Filtrar por atleta' clears the filter", %{
       conn: conn,
       event: event,
       category: category,
@@ -768,7 +768,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       {:ok, _view, html} =
         live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
 
-      assert html =~ "Todos jogadores"
+      assert html =~ "Filtrar por atleta"
       assert html =~ "Alice"
       assert html =~ "Bob"
       assert html =~ "Carol"

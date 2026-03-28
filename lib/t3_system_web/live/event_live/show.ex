@@ -68,7 +68,7 @@ defmodule T3SystemWeb.EventLive.Show do
               phx-click="open_new_stage"
               class="border-b-4 border-transparent py-2 text-center text-sm text-slate-100/40 hover:text-slate-100/60"
             >
-              <.icon name="hero-plus-mini" class="size-4" />
+              <.icon name="hero-plus-mini" class="size-5" />
             </button>
           </nav>
         </div>
@@ -188,24 +188,22 @@ defmodule T3SystemWeb.EventLive.Show do
                   {counts.unfinished}
                 </span>
               </div>
-              <div class="flex gap-2">
-                <button
+              <div class="flex">
+                <.icon_button
+                  name="hero-pencil-mini"
+                  sr_label={gettext("Edit")}
+                  class="text-slate-400 hover:text-white"
                   phx-click="open_edit_table"
                   phx-value-id={table.id}
-                  class="text-slate-400 hover:text-white"
-                >
-                  <.icon name="hero-pencil-mini" class="size-4" />
-                  <span class="sr-only">{gettext("Edit")}</span>
-                </button>
-                <button
+                />
+                <.icon_button
+                  name="hero-trash-mini"
+                  sr_label={gettext("Delete")}
+                  class="text-slate-400 hover:text-red-400"
                   phx-click="delete_table"
                   phx-value-id={table.id}
                   data-confirm={gettext("Are you sure?")}
-                  class="text-slate-400 hover:text-red-400"
-                >
-                  <.icon name="hero-trash-mini" class="size-4" />
-                  <span class="sr-only">{gettext("Delete")}</span>
-                </button>
+                />
               </div>
             </li>
           </ul>
@@ -274,28 +272,22 @@ defmodule T3SystemWeb.EventLive.Show do
                 <.final_standing final_standing={reg.final_standing} class="mt-2" />
                 <p class="mt-2 text-sm text-sky-400">{reg.club.name}</p>
               </div>
-              <div :if={@is_superuser} class="flex flex-col items-center gap-2">
-                <button
+              <div :if={@is_superuser} class="flex flex-col items-center">
+                <.icon_button
+                  name="hero-pencil-mini"
+                  sr_label={gettext("Edit")}
+                  class="text-indigo-400 hover:text-indigo-300"
                   phx-click="open_edit_registration"
                   phx-value-id={reg.id}
-                  class="text-xs text-indigo-400 hover:text-indigo-300"
-                >
-                  <.icon name="hero-pencil-mini" />
-                  <span class="sr-only">
-                    {gettext("Edit")}
-                  </span>
-                </button>
-                <button
+                />
+                <.icon_button
+                  name="hero-x-circle-mini"
+                  sr_label={gettext("Remove")}
+                  class="text-red-400 hover:text-red-300"
                   phx-click="delete_registration"
                   phx-value-id={reg.id}
                   data-confirm={gettext("Are you sure?")}
-                  class="text-xs text-red-400 hover:text-red-300"
-                >
-                  <.icon name="hero-x-circle-mini" />
-                  <span class="sr-only">
-                    {gettext("Remove")}
-                  </span>
-                </button>
+                />
               </div>
             </li>
           </ul>
@@ -439,39 +431,30 @@ defmodule T3SystemWeb.EventLive.Show do
 
                 <div
                   :if={@is_superuser}
-                  class="flex items-center justify-end gap-2 p-2 border-t border-slate-100/20"
+                  class="flex items-center justify-end border-t border-slate-100/20"
                 >
-                  <button
+                  <.icon_button
+                    name="hero-user-group-mini"
+                    sr_label={gettext("Jogadores")}
+                    class="text-gray-400 hover:text-gray-300"
                     phx-click="open_manage_players"
                     phx-value-id={group.id}
-                    class="text-xs text-gray-400 hover:text-gray-300"
-                  >
-                    <.icon name="hero-user-group-mini" />
-                    <span class="sr-only">
-                      {gettext("Jogadores")}
-                    </span>
-                  </button>
-                  <button
+                  />
+                  <.icon_button
+                    name="hero-pencil-mini"
+                    sr_label={gettext("Edit")}
+                    class="text-indigo-400 hover:text-indigo-300"
                     phx-click="open_edit_group"
                     phx-value-id={group.id}
-                    class="text-xs text-indigo-400 hover:text-indigo-300"
-                  >
-                    <.icon name="hero-pencil-mini" />
-                    <span class="sr-only  ">
-                      {gettext("Edit")}
-                    </span>
-                  </button>
-                  <button
+                  />
+                  <.icon_button
+                    name="hero-x-circle-mini"
+                    sr_label={gettext("Delete")}
+                    class="text-red-400 hover:text-red-300"
                     phx-click="delete_group"
                     phx-value-id={group.id}
                     data-confirm={gettext("Are you sure?")}
-                    class="text-xs text-red-400 hover:text-red-300"
-                  >
-                    <.icon name="hero-x-circle-mini" />
-                    <span class="sr-only  ">
-                      {gettext("Delete")}
-                    </span>
-                  </button>
+                  />
                 </div>
               </div>
             </div>
@@ -608,27 +591,21 @@ defmodule T3SystemWeb.EventLive.Show do
                                 do: Calendar.strftime(match.scheduled_at, "%H:%M")}
                               {if match.table, do: match.table.name}
                             </p>
-                            <div :if={@is_superuser} class="flex gap-2">
-                              <button
+                            <div :if={@is_superuser} class="flex -my-1">
+                              <.icon_button
+                                name="hero-user-group-mini"
+                                sr_label={gettext("Jogadores")}
+                                class="text-gray-500 hover:text-gray-400"
                                 phx-click="open_assign_slot"
                                 phx-value-id={match.id}
-                                class="text-xs text-gray-500 hover:text-gray-400"
-                              >
-                                <.icon name="hero-user-group-mini" />
-                                <span class="sr-only">
-                                  {gettext("Jogadores")}
-                                </span>
-                              </button>
-                              <button
+                              />
+                              <.icon_button
+                                name="hero-numbered-list-mini"
+                                sr_label={gettext("Resultados")}
+                                class="text-indigo-400/70 hover:text-indigo-300"
                                 phx-click="open_score_modal"
                                 phx-value-id={match.id}
-                                class="text-xs text-indigo-400/70 hover:text-indigo-300"
-                              >
-                                <.icon name="hero-numbered-list-mini" />
-                                <span class="sr-only">
-                                  {gettext("Resultados")}
-                                </span>
-                              </button>
+                              />
                             </div>
                           </div>
                         </div>
@@ -970,14 +947,14 @@ defmodule T3SystemWeb.EventLive.Show do
                       min="0"
                       class="appearance-none rounded-sm bg-slate-800 py-3 px-4 text-base"
                     />
-                    <button
+                    <.icon_button
                       :if={@score_set_count > 1}
+                      name="hero-x-circle-mini"
+                      sr_label={gettext("Remove set")}
+                      class="text-gray-400 hover:text-red-400"
                       type="button"
                       phx-click="remove_score_row"
-                      class="text-gray-400 hover:text-red-400"
-                    >
-                      <.icon name="hero-x-circle-mini" class="size-5" />
-                    </button>
+                    />
                   </div>
                 </div>
                 <%!-- Add set button --%>

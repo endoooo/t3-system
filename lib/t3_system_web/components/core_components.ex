@@ -271,7 +271,13 @@ defmodule T3SystemWeb.CoreComponents do
       <div class="group relative inline-flex w-11 shrink-0 rounded-full bg-white/5 p-0.5 inset-ring inset-ring-white/10 outline-offset-2 outline-sky-400 transition-colors duration-200 ease-in-out has-checked:bg-sky-400 has-focus-visible:outline-2">
         <span class="size-5 rounded-full bg-white shadow-xs ring-1 ring-gray-900/5 transition-transform duration-200 ease-in-out group-has-checked:translate-x-5">
         </span>
-        <input type="hidden" name={@name} value="false" disabled={@rest[:disabled]} form={@rest[:form]} />
+        <input
+          type="hidden"
+          name={@name}
+          value="false"
+          disabled={@rest[:disabled]}
+          form={@rest[:form]}
+        />
         <input
           type="checkbox"
           id={@id}
@@ -513,6 +519,30 @@ defmodule T3SystemWeb.CoreComponents do
   def icon(%{name: "hero-" <> _} = assigns) do
     ~H"""
     <span class={[@name, @class]} />
+    """
+  end
+
+  @doc """
+  Renders a button that contains only an icon, sized for touch targets.
+
+  The icon uses the mini variant (20×20) with 10px padding, resulting in a 40×40 touch area.
+
+  ## Examples
+
+      <.icon_button name="hero-pencil-mini" sr_label="Edit" />
+      <.icon_button name="hero-trash-mini" sr_label="Delete" class="text-red-400 hover:text-red-300" />
+  """
+  attr :name, :string, required: true
+  attr :sr_label, :string, required: true
+  attr :class, :string, default: nil
+  attr :rest, :global
+
+  def icon_button(assigns) do
+    ~H"""
+    <button class={["inline-flex items-center justify-center rounded-sm p-2.5", @class]} {@rest}>
+      <.icon name={@name} class="size-5" />
+      <span class="sr-only">{@sr_label}</span>
+    </button>
     """
   end
 
