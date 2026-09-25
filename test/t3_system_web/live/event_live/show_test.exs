@@ -85,6 +85,38 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("p", text: club.name)
     end
 
+    test "renders a bracket with an unscheduled match", %{conn: conn} do
+      event = insert(:event)
+      category = insert(:category)
+      associate_category(event, category)
+
+      stage =
+        insert(:stage,
+          event: event,
+          category: category,
+          type: "bracket",
+          rounds: 1,
+          name: "Final"
+        )
+
+      registration = insert(:registration, event: event, category: category)
+
+      insert(:match,
+        event: event,
+        stage: stage,
+        group: nil,
+        round: 1,
+        position: 1,
+        registration1: registration,
+        scheduled_at: nil,
+        table: nil
+      )
+
+      conn
+      |> visit(~p"/events/#{event}?tab=stage-#{stage.id}&category_id=#{category.id}")
+      |> assert_has("span", text: registration.player.name)
+    end
+
     test "does not show add registration button for anonymous users", %{conn: conn} do
       category = insert(:category)
       event = insert(:event)

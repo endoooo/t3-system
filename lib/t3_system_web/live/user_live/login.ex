@@ -5,9 +5,9 @@ defmodule T3SystemWeb.UserLive.Login do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm space-y-4">
-        <div class="text-center">
-          <.header>
+      <div class="mx-auto max-w-sm px-4 py-16">
+        <div>
+          <.header class="justify-center text-center">
             <p>Log in</p>
             <:subtitle>
               <%= if @current_scope do %>
@@ -15,7 +15,7 @@ defmodule T3SystemWeb.UserLive.Login do
               <% else %>
                 Don't have an account? <.link
                   navigate={~p"/users/register"}
-                  class="font-semibold text-brand hover:underline"
+                  class="font-semibold text-primary hover:underline"
                   phx-no-format
                 >Sign up</.link> for an account now.
               <% end %>
@@ -25,6 +25,7 @@ defmodule T3SystemWeb.UserLive.Login do
 
         <.form
           :let={f}
+          class="space-y-4"
           for={@form}
           id="login_form_password"
           action={~p"/users/log-in"}
@@ -48,10 +49,10 @@ defmodule T3SystemWeb.UserLive.Login do
             autocomplete="current-password"
             spellcheck="false"
           />
-          <.button class="btn btn-primary w-full" name={@form[:remember_me].name} value="true">
+          <.button variant="primary" class="w-full" name={@form[:remember_me].name} value="true">
             Log in and stay logged in <span aria-hidden="true">→</span>
           </.button>
-          <.button class="btn btn-primary btn-soft w-full mt-2">
+          <.button class="w-full">
             Log in only this time
           </.button>
         </.form>

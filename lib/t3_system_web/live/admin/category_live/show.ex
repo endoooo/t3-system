@@ -11,7 +11,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Show do
         {gettext("Category %{id}", id: @category.id)}
         <:subtitle>{gettext("This is a category record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/admin/categories"}>
+          <.button navigate={~p"/admin/categories"} aria-label={gettext("Back")}>
             <.icon name="hero-arrow-left" />
           </.button>
           <.button variant="primary" navigate={~p"/admin/categories/#{@category}/edit?return_to=show"}>

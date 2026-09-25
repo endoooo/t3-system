@@ -28,12 +28,15 @@ defmodule T3SystemWeb.Admin.PlayerLive.Index do
           <div class="sr-only">
             <.link navigate={~p"/admin/players/#{player}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/admin/players/#{player}/edit"}>{gettext("Edit")}</.link>
+          <.link navigate={~p"/admin/players/#{player}/edit"} class="hover:text-primary-hover">
+            {gettext("Edit")}
+          </.link>
         </:action>
         <:action :let={{id, player}}>
           <.link
             phx-click={JS.push("delete", value: %{id: player.id}) |> hide("##{id}")}
             data-confirm={gettext("Are you sure?")}
+            class="text-danger hover:text-danger-hover"
           >
             {gettext("Delete")}
           </.link>

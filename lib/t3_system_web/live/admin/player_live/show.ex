@@ -11,7 +11,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Show do
         Player {@player.id}
         <:subtitle>{gettext("This is a player record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/admin/players"}>
+          <.button navigate={~p"/admin/players"} aria-label={gettext("Back")}>
             <.icon name="hero-arrow-left" />
           </.button>
           <.button variant="primary" navigate={~p"/admin/players/#{@player}/edit?return_to=show"}>

@@ -13,14 +13,20 @@ defmodule T3SystemWeb.Admin.ClubLive.Form do
         <:subtitle>{gettext("Use this form to manage club records in your database.")}</:subtitle>
       </.header>
 
-      <.form for={@form} id="club-form" phx-change="validate" phx-submit="save">
+      <.form
+        for={@form}
+        id="club-form"
+        phx-change="validate"
+        phx-submit="save"
+        class="max-w-xl space-y-6"
+      >
         <.input field={@form[:name]} type="text" label={gettext("Nome")} />
-        <footer>
+        <.form_actions>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Club")}
           </.button>
           <.button navigate={return_path(@return_to, @club)}>{gettext("Cancelar")}</.button>
-        </footer>
+        </.form_actions>
       </.form>
     </Layouts.settings>
     """

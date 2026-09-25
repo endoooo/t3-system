@@ -27,21 +27,24 @@ defmodule T3SystemWeb.Admin.EventLive.Index do
         <:col :let={{_id, event}} label={gettext("League")}>{event.league && event.league.name}</:col>
         <:col :let={{_id, event}} label={gettext("Categories")}>
           <div class="flex flex-wrap gap-1">
-            <span :for={category <- event.categories} class="badge badge-soft badge-primary">
+            <.badge :for={category <- event.categories} tone="primary">
               {category.name}
-            </span>
+            </.badge>
           </div>
         </:col>
         <:action :let={{_id, event}}>
           <div class="sr-only">
             <.link navigate={~p"/admin/events/#{event}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/admin/events/#{event}/edit"}>{gettext("Edit")}</.link>
+          <.link navigate={~p"/admin/events/#{event}/edit"} class="hover:text-primary-hover">
+            {gettext("Edit")}
+          </.link>
         </:action>
         <:action :let={{id, event}}>
           <.link
             phx-click={JS.push("delete", value: %{id: event.id}) |> hide("##{id}")}
             data-confirm={gettext("Are you sure?")}
+            class="text-danger hover:text-danger-hover"
           >
             {gettext("Delete")}
           </.link>

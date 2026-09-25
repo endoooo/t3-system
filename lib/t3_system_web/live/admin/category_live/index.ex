@@ -26,12 +26,15 @@ defmodule T3SystemWeb.Admin.CategoryLive.Index do
           <div class="sr-only">
             <.link navigate={~p"/admin/categories/#{category}"}>{gettext("Show")}</.link>
           </div>
-          <.link navigate={~p"/admin/categories/#{category}/edit"}>{gettext("Edit")}</.link>
+          <.link navigate={~p"/admin/categories/#{category}/edit"} class="hover:text-primary-hover">
+            {gettext("Edit")}
+          </.link>
         </:action>
         <:action :let={{id, category}}>
           <.link
             phx-click={JS.push("delete", value: %{id: category.id}) |> hide("##{id}")}
             data-confirm={gettext("Are you sure?")}
+            class="text-danger hover:text-danger-hover"
           >
             {gettext("Delete")}
           </.link>

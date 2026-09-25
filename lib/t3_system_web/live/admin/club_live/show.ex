@@ -11,7 +11,7 @@ defmodule T3SystemWeb.Admin.ClubLive.Show do
         Club {@club.id}
         <:subtitle>{gettext("This is a club record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/admin/clubs"}>
+          <.button navigate={~p"/admin/clubs"} aria-label={gettext("Back")}>
             <.icon name="hero-arrow-left" />
           </.button>
           <.button variant="primary" navigate={~p"/admin/clubs/#{@club}/edit?return_to=show"}>

@@ -7,19 +7,25 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="players">
       <.header>
         {@page_title}
         <:subtitle>{gettext("Use this form to manage player records in your database.")}</:subtitle>
       </.header>
 
-      <.form for={@form} id="player-form" phx-change="validate" phx-submit="save">
-        <div class="space-y-4">
+      <.form
+        for={@form}
+        id="player-form"
+        phx-change="validate"
+        phx-submit="save"
+        class="max-w-xl space-y-6"
+      >
+        <div class="space-y-5">
           <.input field={@form[:name]} type="text" label={gettext("Nome")} />
           <.input field={@form[:birthdate]} type="date" label={gettext("Birthdate")} />
           <.input field={@form[:picture_url]} type="text" label={gettext("Picture url")} />
         </div>
-        <footer class="mt-6">
+        <.form_actions>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Player")}
           </.button>
@@ -32,9 +38,9 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
             {gettext("Save and add more")}
           </.button>
           <.button navigate={return_path(@return_to, @player)}>{gettext("Cancelar")}</.button>
-        </footer>
+        </.form_actions>
       </.form>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 

@@ -10,9 +10,62 @@
    The heroicons installation itself is managed by your mix.exs */
 @plugin "../vendor/heroicons";
 
+/* Design tokens
+ *
+ * Every token below becomes a Tailwind utility (e.g. `--color-surface` →
+ * `bg-surface`, `text-surface`, `border-surface`; `--radius-card` →
+ * `rounded-card`). The default color palette is cleared on purpose so that
+ * templates can only use semantic colors — add a token here instead of
+ * reaching for `slate-800` & co. Opacity modifiers still work (`bg-primary/10`).
+ */
 @theme {
   --font-sans: "Krub", sans-serif;
   --font-display: "Inter", sans-serif;
+
+  --color-*: initial;
+  --color-white: oklch(100% 0 0);
+  --color-black: oklch(0% 0 0);
+
+  /* Backgrounds, from back to front */
+  --color-canvas: oklch(20.8% 0.042 265.755);
+  --color-canvas-accent: oklch(39.1% 0.09 240.876);
+  --color-chrome: oklch(20.8% 0.042 265.755);
+  --color-surface: oklch(27.9% 0.041 260.031);
+  --color-surface-raised: oklch(37.2% 0.044 257.287);
+  --color-overlay: oklch(20.8% 0.042 265.755);
+  --color-scrim: oklch(0% 0 0 / 0.6);
+
+  /* Foreground */
+  --color-fg: oklch(96.8% 0.007 247.896);
+  --color-fg-muted: oklch(70.4% 0.04 256.788);
+  --color-fg-subtle: oklch(55.4% 0.046 257.417);
+
+  /* Lines */
+  --color-border: oklch(100% 0 0 / 0.1);
+  --color-border-strong: oklch(100% 0 0 / 0.2);
+
+  /* Brand */
+  --color-primary: oklch(74.6% 0.16 232.661);
+  --color-primary-hover: oklch(82.8% 0.111 230.318);
+  --color-primary-strong: oklch(68.5% 0.169 237.323);
+  --color-on-primary: oklch(12.9% 0.042 264.695);
+
+  /* Status */
+  --color-danger: oklch(70.4% 0.191 22.216);
+  --color-danger-hover: oklch(80.8% 0.114 19.571);
+  --color-success: oklch(79.2% 0.209 151.711);
+  --color-success-strong: oklch(72.3% 0.219 149.579);
+  --color-warning: oklch(82.8% 0.189 84.429);
+  --color-warning-strong: oklch(76.9% 0.188 70.08);
+
+  /* Podium placements */
+  --color-gold: oklch(85.2% 0.199 91.936);
+  --color-silver: oklch(70.4% 0.04 256.788);
+  --color-bronze: oklch(55.5% 0.163 48.998);
+
+  /* Shape */
+  --radius-control: 0.375rem;
+  --radius-card: 0.5rem;
 }
 
 /* Add variants based on LiveView classes */

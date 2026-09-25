@@ -7,22 +7,28 @@ defmodule T3SystemWeb.Admin.CategoryLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="categories">
       <.header>
         {@page_title}
         <:subtitle>{gettext("Use this form to manage category records in your database.")}</:subtitle>
       </.header>
 
-      <.form for={@form} id="category-form" phx-change="validate" phx-submit="save">
+      <.form
+        for={@form}
+        id="category-form"
+        phx-change="validate"
+        phx-submit="save"
+        class="max-w-xl space-y-6"
+      >
         <.input field={@form[:name]} type="text" label={gettext("Nome")} />
-        <footer>
+        <.form_actions>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Category")}
           </.button>
           <.button navigate={return_path(@return_to, @category)}>{gettext("Cancelar")}</.button>
-        </footer>
+        </.form_actions>
       </.form>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 

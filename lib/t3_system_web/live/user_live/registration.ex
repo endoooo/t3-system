@@ -8,13 +8,13 @@ defmodule T3SystemWeb.UserLive.Registration do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto max-w-sm">
-        <div class="text-center">
-          <.header>
+      <div class="mx-auto max-w-sm px-4 py-16">
+        <div>
+          <.header class="justify-center text-center">
             Register for an account
             <:subtitle>
               Already registered?
-              <.link navigate={~p"/users/log-in"} class="font-semibold text-brand hover:underline">
+              <.link navigate={~p"/users/log-in"} class="font-semibold text-primary hover:underline">
                 Log in
               </.link>
               to your account now.
@@ -22,7 +22,13 @@ defmodule T3SystemWeb.UserLive.Registration do
           </.header>
         </div>
 
-        <.form for={@form} id="registration_form" phx-submit="save" phx-change="validate">
+        <.form
+          for={@form}
+          id="registration_form"
+          phx-submit="save"
+          phx-change="validate"
+          class="space-y-4"
+        >
           <.input
             field={@form[:email]}
             type="email"
@@ -49,7 +55,7 @@ defmodule T3SystemWeb.UserLive.Registration do
             required
           />
 
-          <.button phx-disable-with="Creating account..." class="btn btn-primary w-full">
+          <.button phx-disable-with="Creating account..." variant="primary" class="w-full">
             Create an account
           </.button>
         </.form>

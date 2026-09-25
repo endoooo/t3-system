@@ -11,7 +11,7 @@ defmodule T3SystemWeb.Admin.EventLive.Show do
         Event {@event.id}
         <:subtitle>{gettext("This is a event record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/admin/events"}>
+          <.button navigate={~p"/admin/events"} aria-label={gettext("Back")}>
             <.icon name="hero-arrow-left" />
           </.button>
           <.button variant="primary" navigate={~p"/admin/events/#{@event}/edit?return_to=show"}>
@@ -26,10 +26,10 @@ defmodule T3SystemWeb.Admin.EventLive.Show do
         <:item title={gettext("Datetime")}>{@event.datetime}</:item>
         <:item title={gettext("League")}>{@event.league && @event.league.name}</:item>
         <:item title={gettext("Categories")}>
-          <div class="flex flex-wrap gap-1 mt-1">
-            <span :for={category <- @event.categories} class="badge badge-soft badge-primary">
+          <div class="flex flex-wrap gap-1">
+            <.badge :for={category <- @event.categories} tone="primary">
               {category.name}
-            </span>
+            </.badge>
           </div>
         </:item>
       </.list>

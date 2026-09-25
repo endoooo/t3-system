@@ -7,22 +7,28 @@ defmodule T3SystemWeb.Admin.LeagueLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="leagues">
       <.header>
         {@page_title}
         <:subtitle>{gettext("Use this form to manage league records in your database.")}</:subtitle>
       </.header>
 
-      <.form for={@form} id="league-form" phx-change="validate" phx-submit="save">
+      <.form
+        for={@form}
+        id="league-form"
+        phx-change="validate"
+        phx-submit="save"
+        class="max-w-xl space-y-6"
+      >
         <.input field={@form[:name]} type="text" label={gettext("Nome")} />
-        <footer>
+        <.form_actions>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save League")}
           </.button>
           <.button navigate={return_path(@return_to, @league)}>{gettext("Cancelar")}</.button>
-        </footer>
+        </.form_actions>
       </.form>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 

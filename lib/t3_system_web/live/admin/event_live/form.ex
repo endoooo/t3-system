@@ -8,14 +8,20 @@ defmodule T3SystemWeb.Admin.EventLive.Form do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.settings flash={@flash} active_item="events">
       <.header>
         {@page_title}
         <:subtitle>{gettext("Use this form to manage event records in your database.")}</:subtitle>
       </.header>
 
-      <.form for={@form} id="event-form" phx-change="validate" phx-submit="save">
-        <div class="space-y-4">
+      <.form
+        for={@form}
+        id="event-form"
+        phx-change="validate"
+        phx-submit="save"
+        class="max-w-xl space-y-6"
+      >
+        <div class="space-y-5">
           <.input field={@form[:name]} type="text" label={gettext("Nome")} />
           <.input field={@form[:address]} type="text" label={gettext("Address")} />
           <.input field={@form[:datetime]} type="datetime-local" label={gettext("Datetime")} />
@@ -25,34 +31,22 @@ defmodule T3SystemWeb.Admin.EventLive.Form do
             label={gettext("League")}
             options={[{gettext("None"), nil} | Enum.map(@all_leagues, &{&1.name, &1.id})]}
           />
-          <div class="fieldset">
-            <label class="label mb-1">{gettext("Categories")}</label>
-            <input type="hidden" name="event[category_ids][]" value="" />
-            <div class="flex flex-wrap gap-2">
-              <label
-                :for={category <- @all_categories}
-                class="cursor-pointer select-none rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 transition has-[:checked]:border-zinc-800 has-[:checked]:bg-zinc-800 has-[:checked]:text-white dark:border-zinc-600 dark:text-zinc-300 dark:has-[:checked]:border-zinc-200 dark:has-[:checked]:bg-zinc-200 dark:has-[:checked]:text-zinc-900"
-              >
-                <input
-                  type="checkbox"
-                  name="event[category_ids][]"
-                  value={category.id}
-                  checked={category.id in @selected_category_ids}
-                  class="hidden"
-                />
-                {category.name}
-              </label>
-            </div>
-          </div>
+          <.input
+            type="checkgroup"
+            name="event[category_ids][]"
+            label={gettext("Categories")}
+            options={Enum.map(@all_categories, &{&1.name, &1.id})}
+            value={@selected_category_ids}
+          />
         </div>
-        <footer class="mt-6">
+        <.form_actions>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Event")}
           </.button>
           <.button navigate={return_path(@return_to, @event)}>{gettext("Cancelar")}</.button>
-        </footer>
+        </.form_actions>
       </.form>
-    </Layouts.app>
+    </Layouts.settings>
     """
   end
 

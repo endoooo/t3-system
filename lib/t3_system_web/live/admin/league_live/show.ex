@@ -11,7 +11,7 @@ defmodule T3SystemWeb.Admin.LeagueLive.Show do
         League {@league.id}
         <:subtitle>{gettext("This is a league record from your database.")}</:subtitle>
         <:actions>
-          <.button navigate={~p"/admin/leagues"}>
+          <.button navigate={~p"/admin/leagues"} aria-label={gettext("Back")}>
             <.icon name="hero-arrow-left" />
           </.button>
           <.button variant="primary" navigate={~p"/admin/leagues/#{@league}/edit?return_to=show"}>
