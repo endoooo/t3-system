@@ -23,7 +23,9 @@ defmodule T3SystemWeb.Admin.EventLive.Show do
       <.list>
         <:item title={gettext("Nome")}>{@event.name}</:item>
         <:item title={gettext("Address")}>{@event.address}</:item>
-        <:item title={gettext("Datetime")}>{@event.datetime}</:item>
+        <:item title={gettext("Datetime")}>
+          {@event.datetime && Calendar.strftime(@event.datetime, "%d/%m/%Y %H:%M")}
+        </:item>
         <:item title={gettext("League")}>{@event.league && @event.league.name}</:item>
         <:item title={gettext("Categories")}>
           <div class="flex flex-wrap gap-1">

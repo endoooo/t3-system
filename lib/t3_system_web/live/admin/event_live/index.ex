@@ -23,7 +23,9 @@ defmodule T3SystemWeb.Admin.EventLive.Index do
       >
         <:col :let={{_id, event}} label={gettext("Nome")}>{event.name}</:col>
         <:col :let={{_id, event}} label={gettext("Address")}>{event.address}</:col>
-        <:col :let={{_id, event}} label={gettext("Datetime")}>{event.datetime}</:col>
+        <:col :let={{_id, event}} label={gettext("Datetime")}>
+          {event.datetime && Calendar.strftime(event.datetime, "%d/%m/%Y %H:%M")}
+        </:col>
         <:col :let={{_id, event}} label={gettext("League")}>{event.league && event.league.name}</:col>
         <:col :let={{_id, event}} label={gettext("Categories")}>
           <div class="flex flex-wrap gap-1">

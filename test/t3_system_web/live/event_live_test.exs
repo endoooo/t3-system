@@ -20,6 +20,14 @@ defmodule T3SystemWeb.EventLiveTest do
       |> assert_has("td", text: event.name)
     end
 
+    test "formats the event datetime", %{conn: conn} do
+      insert(:event, datetime: ~U[2026-03-28 10:00:00Z])
+
+      conn
+      |> visit(~p"/admin/events")
+      |> assert_has("td", text: "28/03/2026 10:00")
+    end
+
     test "shows category badges for events with categories", %{conn: conn} do
       category = insert(:category)
       event = insert(:event)
