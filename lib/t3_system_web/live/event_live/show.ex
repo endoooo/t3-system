@@ -567,7 +567,11 @@ defmodule T3SystemWeb.EventLive.Show do
             class="space-y-6"
           >
             <div class="space-y-5">
-              <div id="player-combobox" phx-hook=".PlayerCombobox" phx-update="ignore">
+              <div
+                id={"player-combobox-#{@combobox_key}"}
+                phx-hook=".PlayerCombobox"
+                phx-update="ignore"
+              >
                 <.label for="player-autocomplete">{gettext("Jogador")}</.label>
                 <el-autocomplete class="relative block">
                   <input
@@ -575,6 +579,7 @@ defmodule T3SystemWeb.EventLive.Show do
                     type="text"
                     placeholder={gettext("Buscar jogador...")}
                     value={@player_search}
+                    phx-mounted={JS.focus()}
                     class={[field_class(), "pr-12"]}
                   />
                   <button
@@ -987,8 +992,19 @@ defmodule T3SystemWeb.EventLive.Show do
           mounted() {
             const autocomplete = this.el.querySelector("el-autocomplete")
             const input = autocomplete.querySelector("input[type=text]")
+            let lastPushed = input.value
+
+            // Keep the search input's events away from the form's phx-change. Otherwise
+            // they trigger a form patch that closes the club select's dropdown as it opens.
+            for (const type of ["input", "change"]) {
+              this.el.addEventListener(type, (e) => e.stopPropagation())
+            }
 
             input.addEventListener("change", () => {
+              // The browser fires "change" again on blur; skip it if nothing changed
+              if (input.value === lastPushed) return
+              lastPushed = input.value
+
               const option = autocomplete.querySelector(`el-option[value="${CSS.escape(input.value)}"]`)
               const playerId = option ? option.dataset.playerId : ""
               this.pushEvent("select_player", { id: playerId, name: input.value })
@@ -1021,6 +1037,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:form, nil)
       |> assign(:available_players, [])
       |> assign(:player_search, "")
+      |> assign(:combobox_key, 0)
       |> assign(:group_modal, nil)
       |> assign(:group_form, nil)
       |> assign(:players_modal, nil)
@@ -1179,26 +1196,11 @@ defmodule T3SystemWeb.EventLive.Show do
       Registrations.change_registration(%Registration{})
       |> to_form()
 
-    available_players =
-      case socket.assigns.active_category do
-        nil ->
-          socket.assigns.players
-
-        category ->
-          registered_ids =
-            Registrations.list_registered_player_ids(
-              socket.assigns.event.id,
-              category.id
-            )
-
-          Enum.reject(socket.assigns.players, &MapSet.member?(registered_ids, &1.id))
-      end
-
     {:noreply,
      assign(socket,
        modal: :new,
        form: form,
-       available_players: available_players,
+       available_players: unregistered_players(socket),
        player_search: "",
        selected_player_id: nil
      )}
@@ -1231,13 +1233,13 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   def handle_event("select_player", %{"id" => id, "name" => name}, socket) do
+    # Merge into the current params so other fields (e.g. club) are preserved
+    attrs = Map.put(socket.assigns.form.params, "player_id", id)
+
     form =
       case socket.assigns.modal do
-        {:edit, reg} ->
-          Registrations.change_registration(reg, %{"player_id" => id})
-
-        _ ->
-          Registrations.change_registration(%Registration{}, %{"player_id" => id})
+        {:edit, reg} -> Registrations.change_registration(reg, attrs)
+        _ -> Registrations.change_registration(%Registration{}, attrs)
       end
       |> to_form()
 
@@ -1268,8 +1270,28 @@ defmodule T3SystemWeb.EventLive.Show do
         _ -> Registrations.create_registration(scope, attrs)
       end
 
-    case result do
-      {:ok, reg} ->
+    case {socket.assigns.modal, result} do
+      {:new, {:ok, reg}} ->
+        reg = Registrations.get_registration!(reg.id)
+        socket = stream_insert(socket, :registrations, reg)
+
+        # Keep the modal open for the next registration, preserving the selected club
+        form =
+          Registrations.change_registration(%Registration{}, %{"club_id" => attrs["club_id"]})
+          |> to_form()
+
+        {:noreply,
+         socket
+         |> assign(
+           form: form,
+           available_players: unregistered_players(socket),
+           player_search: "",
+           selected_player_id: nil
+         )
+         |> update(:combobox_key, &(&1 + 1))
+         |> put_flash(:info, gettext("Inscrição de %{name} adicionada.", name: reg.player.name))}
+
+      {_, {:ok, reg}} ->
         reg = Registrations.get_registration!(reg.id)
 
         {:noreply,
@@ -1277,7 +1299,7 @@ defmodule T3SystemWeb.EventLive.Show do
          |> stream_insert(:registrations, reg)
          |> assign(modal: nil, form: nil)}
 
-      {:error, changeset} ->
+      {_, {:error, changeset}} ->
         {:noreply, assign(socket, :form, to_form(changeset))}
     end
   end
@@ -2162,6 +2184,19 @@ defmodule T3SystemWeb.EventLive.Show do
       )
 
     Enum.reject(category_registrations, &MapSet.member?(taken_ids, &1.id))
+  end
+
+  defp unregistered_players(socket) do
+    case socket.assigns.active_category do
+      nil ->
+        socket.assigns.players
+
+      category ->
+        registered_ids =
+          Registrations.list_registered_player_ids(socket.assigns.event.id, category.id)
+
+        Enum.reject(socket.assigns.players, &MapSet.member?(registered_ids, &1.id))
+    end
   end
 
   defp ensure_player_id(attrs, socket) do

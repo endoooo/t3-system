@@ -217,6 +217,40 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("h3", text: player.name)
     end
 
+    test "keeps new registration modal open with club selected after adding", %{conn: conn} do
+      category = insert(:category)
+      event = insert(:event)
+      player = insert(:player)
+      other_player = insert(:player)
+      club = insert(:club)
+      associate_category(event, category)
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Nova inscrição")
+      |> unwrap(fn view ->
+        Phoenix.LiveViewTest.render_click(view, "select_player", %{
+          "id" => to_string(player.id),
+          "name" => player.name
+        })
+      end)
+      |> select("Clube", option: club.name)
+      |> click_button("Salvar")
+      |> assert_has("h3", text: player.name)
+      |> assert_has("h2", text: "Nova Inscrição")
+      |> assert_has("#player-autocomplete[value='']")
+      |> refute_has("el-option", text: player.name)
+      |> assert_has("el-option", text: other_player.name)
+      |> assert_has("#registration-form select option[selected]", text: club.name)
+      |> unwrap(fn view ->
+        Phoenix.LiveViewTest.render_click(view, "select_player", %{
+          "id" => to_string(other_player.id),
+          "name" => other_player.name
+        })
+      end)
+      |> assert_has("#registration-form select option[selected]", text: club.name)
+    end
+
     test "shows edit and remove buttons on registration cards", %{conn: conn} do
       category = insert(:category)
       event = insert(:event)
