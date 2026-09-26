@@ -815,7 +815,7 @@ defmodule T3SystemWeb.CoreComponents do
 
   def tabs(assigns) do
     ~H"""
-    <div class="overflow-x-auto border-b border-border">
+    <div class="relative overflow-x-auto border-b border-border">
       <nav aria-label={@label} class={["flex gap-6 whitespace-nowrap", @class]}>
         <.link
           :for={tab <- @tab}
@@ -910,7 +910,7 @@ defmodule T3SystemWeb.CoreComponents do
       end
 
     ~H"""
-    <div class="overflow-x-auto rounded-card bg-surface/60 inset-ring inset-ring-border">
+    <div class="relative overflow-x-auto rounded-card bg-surface/60 inset-ring inset-ring-border">
       <table class="min-w-full">
         <thead>
           <tr>

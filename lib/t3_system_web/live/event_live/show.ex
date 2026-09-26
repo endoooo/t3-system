@@ -365,7 +365,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   {gettext("No players yet.")}
                 </p>
 
-                <div :if={standings != []} class="overflow-x-auto">
+                <div :if={standings != []} class="relative overflow-x-auto">
                   <table class="w-full text-sm">
                     <thead>
                       <tr class="border-b border-border text-left text-xs text-fg-muted">
@@ -434,7 +434,7 @@ defmodule T3SystemWeb.EventLive.Show do
             <%!-- Bracket in this stage --%>
             <div :if={@current_stage.type == "bracket" and @current_stage.rounds != nil}>
               <%!-- Bracket visualization --%>
-              <div class="-mx-4 overflow-x-auto px-4 pb-6">
+              <div class="relative -mx-4 overflow-x-auto px-4 pb-6">
                 <div class="min-w-max">
                   <%!-- Round headers --%>
                   <div class="flex">
@@ -1055,7 +1055,7 @@ defmodule T3SystemWeb.EventLive.Show do
           :if={@table_schedules != []}
           id="schedule-board"
           phx-hook=".ScheduleBoard"
-          class="grid auto-cols-[minmax(16rem,1fr)] grid-flow-col items-start gap-4 overflow-x-auto px-4 pb-4 sm:px-8"
+          class="relative grid auto-cols-[minmax(16rem,1fr)] grid-flow-col items-start gap-4 overflow-x-auto px-4 pb-4 sm:px-8"
         >
           <section
             :for={%{table: table, finished: finished, pending: pending} <- @table_schedules}
