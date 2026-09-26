@@ -554,6 +554,166 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     end
   end
 
+  describe "management schedule view" do
+    setup %{conn: conn} do
+      event = insert(:event, datetime: ~U[2026-03-07 12:00:00Z], match_duration_minutes: 20)
+      category = insert(:category, name: "Adulto")
+      associate_category(event, category)
+      stage = insert(:stage, event: event, category: category)
+      group = insert(:group, stage: stage, name: "Grupo A")
+
+      match_between = fn name1, name2, attrs ->
+        reg1 =
+          insert(:registration,
+            event: event,
+            category: category,
+            player: build(:player, name: name1)
+          )
+
+        reg2 =
+          insert(:registration,
+            event: event,
+            category: category,
+            player: build(:player, name: name2)
+          )
+
+        insert(
+          :match,
+          [event: event, group: group, registration1: reg1, registration2: reg2] ++ attrs
+        )
+      end
+
+      %{
+        conn: log_in_user(conn, insert(:superuser)),
+        event: event,
+        table: insert(:table, event: event, name: "Mesa 1"),
+        match_between: match_between
+      }
+    end
+
+    test "is hidden from regular users", %{event: event} do
+      build_conn()
+      |> log_in_user(insert(:user))
+      |> visit(~p"/events/#{event}?tab=management&view=schedule")
+      |> refute_has("#schedule-board")
+    end
+
+    test "is reachable from the management tab", ctx do
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management")
+      |> click_link("Agenda")
+      |> assert_has("#schedule-table-#{ctx.table.id} h3", text: "Mesa 1")
+      |> click_link("Voltar")
+      |> assert_has("h2", text: "Mesas")
+    end
+
+    test "lists table queues and counts unscheduled matches", ctx do
+      ctx.match_between.("Alice", "Bruno", [])
+      ctx.match_between.("Carla", "Davi", table: ctx.table)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> assert_has("#unscheduled-indicator", text: "1 partida sem mesa")
+      |> assert_has("#schedule-list-table-#{ctx.table.id} li", text: "Carla")
+      |> refute_has("#schedule-board li", text: "Alice")
+    end
+
+    test "assigns an unscheduled match to a table from the indicator", ctx do
+      m1 = ctx.match_between.("Alice", "Bruno", table: ctx.table, table_position: 0)
+      m2 = ctx.match_between.("Carla", "Davi", [])
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> click_button("#unscheduled-indicator", "1 partida sem mesa")
+      |> assert_has("#unscheduled-match-#{m2.id}", text: "Adulto · Grupo A")
+      |> within("#assign-table-form-#{m2.id}", fn session ->
+        select(session, "Mesa", option: "Mesa 1")
+      end)
+      |> refute_has("#unscheduled-match-#{m2.id}")
+      |> assert_has("#schedule-match-#{m1.id}", text: "12:00")
+      |> assert_has("#schedule-match-#{m2.id}", text: "12:20")
+      |> assert_has("#unscheduled-indicator", text: "0 partidas sem mesa")
+    end
+
+    test "adds a match to the end of a table from its column", ctx do
+      m1 = ctx.match_between.("Alice", "Bruno", table: ctx.table, table_position: 0)
+      m2 = ctx.match_between.("Carla", "Davi", [])
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> click_button("#schedule-table-#{ctx.table.id} button", "Adicionar jogo")
+      |> assert_has("#unscheduled-modal h2", text: "Adicionar jogo à mesa Mesa 1")
+      |> click_button("#unscheduled-match-#{m2.id} button", "Adicionar")
+      |> assert_has("#schedule-match-#{m1.id}", text: "12:00")
+      |> assert_has("#schedule-match-#{m2.id}", text: "12:20")
+    end
+
+    test "removes a pending match from its table", ctx do
+      m1 = ctx.match_between.("Alice", "Bruno", table: ctx.table, table_position: 0)
+      m2 = ctx.match_between.("Carla", "Davi", table: ctx.table, table_position: 1)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> click_button("#schedule-match-#{m1.id} button", "Remover da mesa")
+      |> refute_has("#schedule-match-#{m1.id}")
+      |> assert_has("#schedule-match-#{m2.id}", text: "12:00")
+      |> assert_has("#unscheduled-indicator", text: "1 partida sem mesa")
+    end
+
+    test "dropping matches on a table schedules them one duration apart", ctx do
+      m1 = ctx.match_between.("Alice", "Bruno", [])
+      m2 = ctx.match_between.("Carla", "Davi", [])
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> unwrap(fn view ->
+        render_hook(view, "reorder_schedule", %{
+          "lists" => [
+            %{"table_id" => to_string(ctx.table.id), "match_ids" => ["#{m2.id}", "#{m1.id}"]}
+          ]
+        })
+      end)
+      |> assert_has("#schedule-match-#{m2.id}", text: "12:00")
+      |> assert_has("#schedule-match-#{m1.id}", text: "12:20")
+      |> assert_has("#unscheduled-indicator", text: "0 partidas sem mesa")
+    end
+
+    test "changing the match duration recalculates the times", ctx do
+      m1 = ctx.match_between.("Alice", "Bruno", table: ctx.table, table_position: 0)
+      m2 = ctx.match_between.("Carla", "Davi", table: ctx.table, table_position: 1)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> fill_in("Duração dos jogos (min)", with: "30")
+      |> assert_has("#schedule-match-#{m1.id}", text: "12:00")
+      |> assert_has("#schedule-match-#{m2.id}", text: "12:30")
+    end
+
+    test "finished matches are frozen and their time can be edited", ctx do
+      finished =
+        ctx.match_between.("Alice", "Bruno",
+          table: ctx.table,
+          scheduled_at: ~U[2026-03-07 12:00:00Z]
+        )
+
+      T3System.Repo.update!(
+        Ecto.Changeset.change(finished, winner_registration_id: finished.registration1_id)
+      )
+
+      pending = ctx.match_between.("Carla", "Davi", table: ctx.table, table_position: 1)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> refute_has("#schedule-match-#{finished.id}[data-match-id]")
+      |> assert_has("#schedule-match-#{pending.id}[data-match-id]")
+      |> click_button("#schedule-match-#{finished.id} button", "Editar horário")
+      |> fill_in("Data e hora", with: "2026-03-07T13:00")
+      |> click_button("Salvar")
+      |> assert_has("#schedule-match-#{finished.id}", text: "13:00")
+      |> assert_has("#schedule-match-#{pending.id}", text: "13:20")
+    end
+  end
+
   describe "superuser - matches tab ordering" do
     test "orders matches by stage order, then group position and scheduled_position", %{
       conn: conn

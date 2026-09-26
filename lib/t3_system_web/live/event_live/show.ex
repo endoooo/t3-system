@@ -75,7 +75,10 @@ defmodule T3SystemWeb.EventLive.Show do
         </.tabs>
 
         <%!-- Tab: Management --%>
-        <div :if={@current_tab == "management" and @is_superuser} class="space-y-8 px-4 py-8 sm:px-8">
+        <div
+          :if={@current_tab == "management" and @is_superuser and not @schedule_view}
+          class="space-y-8 px-4 py-8 sm:px-8"
+        >
           <%!-- Dashboard Metrics --%>
           <div class="grid gap-4 sm:grid-cols-2">
             <%!-- Games per category --%>
@@ -136,6 +139,11 @@ defmodule T3SystemWeb.EventLive.Show do
             <.section_title>
               {gettext("Mesas")}
               <:actions>
+                <.button patch={
+                  ~p"/events/#{@event}?#{Map.put(tab_params(@current_tab, @active_category, "management"), "view", "schedule")}"
+                }>
+                  <.icon name="hero-calendar-days" /> {gettext("Agenda")}
+                </.button>
                 <.button phx-click="open_new_table" variant="primary">
                   <.icon name="hero-plus" /> {gettext("Adicionar mesa")}
                 </.button>
@@ -831,31 +839,20 @@ defmodule T3SystemWeb.EventLive.Show do
         <.modal
           :if={@schedule_modal != nil}
           id="schedule-modal"
-          title={gettext("Agendar Jogo")}
+          title={gettext("Editar horário")}
           on_close="close_schedule_modal"
         >
           <form id="schedule-form" phx-submit="save_schedule" class="space-y-6">
-            <div class="space-y-5">
-              <.input
-                id="schedule-scheduled-at"
-                type="datetime-local"
-                name="scheduled_at"
-                label={gettext("Data e hora")}
-                value={
-                  @schedule_modal.scheduled_at &&
-                    Calendar.strftime(@schedule_modal.scheduled_at, "%Y-%m-%dT%H:%M")
-                }
-              />
-              <.input
-                id="schedule-table-id"
-                type="select"
-                name="table_id"
-                label={gettext("Mesa")}
-                prompt={gettext("No table")}
-                options={Enum.map(@schedule_tables, &{&1.name, &1.id})}
-                value={@schedule_modal.table_id}
-              />
-            </div>
+            <.input
+              id="schedule-scheduled-at"
+              type="datetime-local"
+              name="scheduled_at"
+              label={gettext("Data e hora")}
+              value={
+                @schedule_modal.scheduled_at &&
+                  Calendar.strftime(@schedule_modal.scheduled_at, "%Y-%m-%dT%H:%M")
+              }
+            />
             <.modal_actions on_cancel="close_schedule_modal" />
           </form>
         </.modal>
@@ -987,6 +984,227 @@ defmodule T3SystemWeb.EventLive.Show do
           </.form>
         </.modal>
       </div>
+      <%!-- Management: schedule view (the board uses the full screen width) --%>
+      <div :if={@current_tab == "management" and @is_superuser and @schedule_view} class="pb-8">
+        <div class="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-8">
+          <.section_title>
+            {gettext("Agenda")}
+            <:actions>
+              <.button
+                variant="ghost"
+                size="sm"
+                patch={
+                  ~p"/events/#{@event}?#{tab_params(@current_tab, @active_category, "management")}"
+                }
+              >
+                <.icon name="hero-arrow-left-micro" class="size-3.5" /> {gettext("Voltar")}
+              </.button>
+            </:actions>
+          </.section_title>
+
+          <div class="flex flex-wrap items-end gap-4">
+            <.form
+              for={@duration_form}
+              id="match-duration-form"
+              phx-change="update_match_duration"
+              phx-submit="update_match_duration"
+              class="w-48"
+            >
+              <.input
+                field={@duration_form[:match_duration_minutes]}
+                type="number"
+                min="1"
+                label={gettext("Duração dos jogos (min)")}
+                phx-debounce="500"
+              />
+            </.form>
+
+            <button
+              id="unscheduled-indicator"
+              type="button"
+              phx-click="open_unscheduled_modal"
+              class={[
+                "flex items-center gap-2 rounded-card px-4 py-2.5 text-sm font-medium inset-ring transition-colors",
+                if(@unscheduled_matches == [],
+                  do: "text-fg-muted inset-ring-border hover:bg-fg/5",
+                  else: "bg-warning/10 text-warning inset-ring-warning/30 hover:bg-warning/15"
+                )
+              ]}
+            >
+              <.icon name="hero-inbox-stack-mini" />
+              {ngettext(
+                "%{count} partida sem mesa",
+                "%{count} partidas sem mesa",
+                length(@unscheduled_matches)
+              )}
+            </button>
+          </div>
+
+          <p class="text-sm text-fg-muted">
+            {gettext(
+              "O primeiro jogo de cada mesa começa no horário do evento e os seguintes a cada intervalo de duração. Arraste os jogos para reordenar ou trocar de mesa. Jogos finalizados ficam fixos."
+            )}
+          </p>
+
+          <.empty_state :if={@table_schedules == []} icon="hero-table-cells">
+            {gettext("Cadastre mesas na aba Gestão para montar a agenda.")}
+          </.empty_state>
+        </div>
+
+        <div
+          :if={@table_schedules != []}
+          id="schedule-board"
+          phx-hook=".ScheduleBoard"
+          class="grid auto-cols-[minmax(16rem,1fr)] grid-flow-col items-start gap-4 overflow-x-auto px-4 pb-4 sm:px-8"
+        >
+          <section
+            :for={%{table: table, finished: finished, pending: pending} <- @table_schedules}
+            id={"schedule-table-#{table.id}"}
+            class="space-y-2"
+          >
+            <h3 class="flex h-7 items-center gap-2 text-sm font-semibold">
+              <span class="truncate">{table.name}</span>
+              <.badge>{length(pending)}</.badge>
+            </h3>
+            <ul :if={finished != []} class="space-y-2">
+              <.schedule_match_card :for={match <- finished} match={match} frozen />
+            </ul>
+            <ul
+              id={"schedule-list-table-#{table.id}"}
+              data-schedule-list
+              data-table-id={table.id}
+              class="min-h-16 space-y-2 rounded-card border border-dashed border-border p-2"
+            >
+              <li class="hidden p-2 text-center text-xs text-fg-subtle only:block">
+                {gettext("Nenhum jogo na fila.")}
+              </li>
+              <.schedule_match_card :for={match <- pending} match={match} />
+            </ul>
+            <.button
+              variant="ghost"
+              size="sm"
+              class="w-full"
+              phx-click="open_unscheduled_modal"
+              phx-value-table_id={table.id}
+            >
+              <.icon name="hero-plus-micro" class="size-3.5" /> {gettext("Adicionar jogo")}
+            </.button>
+          </section>
+        </div>
+
+        <%!-- Unscheduled matches modal --%>
+        <.modal
+          :if={@unscheduled_modal}
+          id="unscheduled-modal"
+          title={unscheduled_modal_title(@unscheduled_modal)}
+          on_close="close_unscheduled_modal"
+          class="max-w-lg"
+        >
+          <% matches = filter_unscheduled(@unscheduled_matches, @unscheduled_category_id) %>
+          <form
+            :if={length(@event.categories) > 1}
+            id="unscheduled-filter"
+            phx-change="filter_unscheduled"
+            class="mb-4"
+          >
+            <.input
+              id="unscheduled-category"
+              name="category_id"
+              type="select"
+              label={gettext("Categoria")}
+              sr_only
+              prompt={gettext("Todas as categorias")}
+              options={Enum.map(@event.categories, &{&1.name, &1.id})}
+              value={@unscheduled_category_id}
+            />
+          </form>
+          <p :if={matches == []} class="text-sm text-fg-subtle">
+            {gettext("Nenhuma partida sem mesa.")}
+          </p>
+          <ul :if={matches != []} class="-mx-2 max-h-[60vh] space-y-0.5 overflow-y-auto">
+            <li
+              :for={match <- matches}
+              id={"unscheduled-match-#{match.id}"}
+              class="flex items-center gap-3 rounded-control py-1.5 pr-1 pl-2 hover:bg-fg/5"
+            >
+              <div class="min-w-0 flex-1">
+                <p class="truncate text-xs text-fg-muted">{schedule_match_label(match)}</p>
+                <p class="truncate text-sm">
+                  {slot_label(match, 1)} <span class="text-fg-muted">vs</span> {slot_label(match, 2)}
+                </p>
+              </div>
+              <.button
+                :if={match?({:table, _}, @unscheduled_modal)}
+                size="sm"
+                phx-click="add_match_to_table"
+                phx-value-match_id={match.id}
+                phx-value-table_id={elem(@unscheduled_modal, 1).id}
+              >
+                {gettext("Adicionar")}
+              </.button>
+              <form
+                :if={@unscheduled_modal == :any}
+                id={"assign-table-form-#{match.id}"}
+                phx-change="add_match_to_table"
+                class="w-36 shrink-0"
+              >
+                <input type="hidden" name="match_id" value={match.id} />
+                <.input
+                  id={"assign-table-#{match.id}"}
+                  name="table_id"
+                  type="select"
+                  label={gettext("Mesa")}
+                  sr_only
+                  prompt={gettext("Mesa...")}
+                  value=""
+                  options={Enum.map(@table_schedules, &{&1.table.name, &1.table.id})}
+                />
+              </form>
+            </li>
+          </ul>
+        </.modal>
+      </div>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".ScheduleBoard">
+        import Sortable from "sortablejs"
+
+        export default {
+          mounted() {
+            this.initLists()
+          },
+          updated() {
+            this.initLists()
+          },
+          initLists() {
+            for (const list of this.el.querySelectorAll("[data-schedule-list]")) {
+              if (Sortable.get(list)) continue
+
+              Sortable.create(list, {
+                group: "schedule",
+                draggable: "[data-match-id]",
+                filter: "button",
+                preventOnFilter: false,
+                animation: 150,
+                ghostClass: "opacity-40",
+                onEnd: (e) => this.pushMove(e)
+              })
+            }
+          },
+          pushMove(e) {
+            if (e.from === e.to && e.oldIndex === e.newIndex) return
+
+            const lists = [...new Set([e.from, e.to])]
+
+            this.pushEvent("reorder_schedule", {
+              lists: lists.map((list) => ({
+                table_id: list.dataset.tableId,
+                match_ids: [...list.querySelectorAll(":scope > [data-match-id]")].map(
+                  (item) => item.dataset.matchId
+                )
+              }))
+            })
+          }
+        }
+      </script>
       <script :type={Phoenix.LiveView.ColocatedHook} name=".PlayerCombobox">
         export default {
           mounted() {
@@ -1046,7 +1264,12 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:score_modal, nil)
       |> assign(:score_set_count, 3)
       |> assign(:schedule_modal, nil)
-      |> assign(:schedule_tables, [])
+      |> assign(:table_schedules, [])
+      |> assign(:unscheduled_matches, [])
+      |> assign(:duration_form, nil)
+      |> assign(:schedule_view, false)
+      |> assign(:unscheduled_modal, nil)
+      |> assign(:unscheduled_category_id, nil)
       |> assign(:all_match_cards, [])
       |> assign(:filter_player_id, nil)
       |> assign(:match_filter_players, [])
@@ -1095,6 +1318,7 @@ defmodule T3SystemWeb.EventLive.Show do
     socket =
       socket
       |> assign(:current_tab, tab)
+      |> assign(:schedule_view, tab == "management" and params["view"] == "schedule")
       |> assign(:active_category, active_category)
       |> assign(:category_form, category_form)
       |> assign(:tabs, tabs)
@@ -1102,6 +1326,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:current_stage, current_stage)
       |> load_registrations(tab, event, active_category)
       |> load_tables(tab, event)
+      |> assign_schedule()
       |> load_stage_data(current_stage)
       |> assign(:filter_player_id, filter_player_id)
       |> assign_all_match_cards()
@@ -1571,6 +1796,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
     case Matches.update_match(scope, match, match_attrs) do
       {:ok, _} ->
+        # Finishing (or reopening) a match changes which times are frozen on its table
+        if match.table_id,
+          do: Matches.recalculate_table_schedule(scope, socket.assigns.event, match.table_id)
+
         {:noreply,
          socket
          |> reload_stage_data()
@@ -1581,23 +1810,90 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
-  # Schedule modal (superuser only)
+  # Schedule (superuser only)
+
+  def handle_event("update_match_duration", %{"event" => attrs}, socket) do
+    case Matches.update_match_duration(socket.assigns.current_scope, socket.assigns.event, attrs) do
+      {:ok, event} ->
+        {:noreply, socket |> assign(:event, event) |> assign_schedule()}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :duration_form, to_form(changeset, action: :validate))}
+    end
+  end
+
+  def handle_event("reorder_schedule", %{"lists" => lists}, socket) do
+    lists =
+      Enum.map(lists, fn list ->
+        %{
+          table_id: parse_id(list["table_id"]),
+          match_ids: list["match_ids"] |> Enum.map(&parse_id/1) |> Enum.reject(&is_nil/1)
+        }
+      end)
+
+    :ok =
+      Matches.update_table_schedule(socket.assigns.current_scope, socket.assigns.event, lists)
+
+    {:noreply, assign_schedule(socket)}
+  end
+
+  def handle_event("unschedule_match", %{"id" => id}, socket) do
+    :ok =
+      Matches.update_table_schedule(socket.assigns.current_scope, socket.assigns.event, [
+        %{table_id: nil, match_ids: [String.to_integer(id)]}
+      ])
+
+    {:noreply, assign_schedule(socket)}
+  end
+
+  def handle_event("open_unscheduled_modal", params, socket) do
+    table_id = parse_id(params["table_id"])
+
+    modal =
+      case Enum.find(socket.assigns.table_schedules, &(&1.table.id == table_id)) do
+        %{table: table} -> {:table, table}
+        nil -> :any
+      end
+
+    {:noreply, assign(socket, unscheduled_modal: modal, unscheduled_category_id: nil)}
+  end
+
+  def handle_event("close_unscheduled_modal", _params, socket) do
+    {:noreply, assign(socket, :unscheduled_modal, nil)}
+  end
+
+  def handle_event("filter_unscheduled", %{"category_id" => category_id}, socket) do
+    {:noreply, assign(socket, :unscheduled_category_id, parse_id(category_id))}
+  end
+
+  def handle_event("add_match_to_table", %{"table_id" => ""}, socket), do: {:noreply, socket}
+
+  def handle_event(
+        "add_match_to_table",
+        %{"match_id" => match_id, "table_id" => table_id},
+        socket
+      ) do
+    %{current_scope: scope, event: event} = socket.assigns
+
+    case Matches.add_match_to_table(scope, event, parse_id(match_id), parse_id(table_id)) do
+      :ok ->
+        {:noreply, assign_schedule(socket)}
+
+      {:error, :not_found} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, gettext("Não foi possível adicionar a partida."))
+         |> assign_schedule()}
+    end
+  end
 
   def handle_event("open_schedule_modal", %{"id" => id}, socket) do
-    match_id = String.to_integer(id)
+    match = Matches.get_match!(id)
 
-    case find_match_across_stages(match_id, socket.assigns.stages) do
-      {match, _context} ->
-        tables = Tables.list_tables_for_event(socket.assigns.event.id)
-
-        {:noreply,
-         assign(socket,
-           schedule_modal: match,
-           schedule_tables: tables
-         )}
-
-      nil ->
-        {:noreply, socket}
+    if match.event_id == socket.assigns.event.id do
+      {:noreply, assign(socket, :schedule_modal, match)}
+    else
+      {:noreply, socket}
     end
   end
 
@@ -1607,13 +1903,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
   def handle_event("save_schedule", params, socket) do
     match = socket.assigns.schedule_modal
-    scope = socket.assigns.current_scope
-
-    table_id =
-      case params["table_id"] do
-        "" -> nil
-        id -> id
-      end
+    %{current_scope: scope, event: event} = socket.assigns
 
     scheduled_at =
       case params["scheduled_at"] do
@@ -1621,13 +1911,14 @@ defmodule T3SystemWeb.EventLive.Show do
         dt -> dt
       end
 
-    attrs = %{"scheduled_at" => scheduled_at, "table_id" => table_id}
-
-    case Matches.update_match(scope, match, attrs) do
+    case Matches.update_match(scope, match, %{"scheduled_at" => scheduled_at}) do
       {:ok, _} ->
+        # A finished match's time anchors the pending matches that follow it
+        if match.table_id, do: Matches.recalculate_table_schedule(scope, event, match.table_id)
+
         {:noreply,
          socket
-         |> reload_stage_data()
+         |> assign_schedule()
          |> assign(:schedule_modal, nil)}
 
       {:error, _changeset} ->
@@ -1811,6 +2102,17 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   defp load_tables(socket, _tab, _event), do: socket
+
+  defp assign_schedule(%{assigns: %{schedule_view: true, is_superuser: true}} = socket) do
+    event = socket.assigns.event
+
+    socket
+    |> assign(:table_schedules, Matches.list_table_schedules(event.id))
+    |> assign(:unscheduled_matches, Matches.list_unscheduled_matches(event.id))
+    |> assign(:duration_form, to_form(Matches.change_match_duration(event)))
+  end
+
+  defp assign_schedule(socket), do: socket
 
   defp parse_registration_id(value) when value in ["", nil], do: nil
   defp parse_registration_id(value), do: String.to_integer(value)
@@ -2072,14 +2374,6 @@ defmodule T3SystemWeb.EventLive.Show do
         <.button
           variant="ghost"
           size="sm"
-          phx-click="open_schedule_modal"
-          phx-value-id={@card.id}
-        >
-          {gettext("Agenda")}
-        </.button>
-        <.button
-          variant="ghost"
-          size="sm"
           phx-click="open_score_modal"
           phx-value-id={@card.id}
         >
@@ -2089,6 +2383,77 @@ defmodule T3SystemWeb.EventLive.Show do
     </.card>
     """
   end
+
+  attr :match, :map, required: true
+  attr :frozen, :boolean, default: false, doc: "finished matches can't be dragged"
+
+  defp schedule_match_card(assigns) do
+    ~H"""
+    <li
+      id={"schedule-match-#{@match.id}"}
+      data-match-id={!@frozen && @match.id}
+      class={[
+        "rounded-control bg-surface px-3 py-2 inset-ring inset-ring-border",
+        if(@frozen, do: "opacity-60", else: "cursor-grab active:cursor-grabbing")
+      ]}
+    >
+      <div class="flex items-center gap-2 text-xs text-fg-muted">
+        <span class="min-w-0 flex-1 truncate">{schedule_match_label(@match)}</span>
+        <span :if={@match.scheduled_at} class="font-semibold text-fg tabular-nums">
+          {Calendar.strftime(@match.scheduled_at, "%H:%M")}
+        </span>
+        <.icon_button
+          :if={@frozen}
+          name="hero-pencil-micro"
+          sr_label={gettext("Editar horário")}
+          class="-my-1.5 -mr-2"
+          phx-click="open_schedule_modal"
+          phx-value-id={@match.id}
+        />
+        <.icon_button
+          :if={!@frozen}
+          name="hero-x-mark-micro"
+          sr_label={gettext("Remover da mesa")}
+          class="-my-1.5 -mr-2"
+          phx-click="unschedule_match"
+          phx-value-id={@match.id}
+        />
+      </div>
+      <p
+        :for={slot <- [1, 2]}
+        class={[
+          "truncate text-sm",
+          (@frozen and @match.winner_registration_id == slot_registration_id(@match, slot)) &&
+            "font-bold"
+        ]}
+      >
+        {slot_label(@match, slot)}
+      </p>
+    </li>
+    """
+  end
+
+  defp schedule_match_label(%{group: %Group{} = group}),
+    do: "#{group.stage.category.name} · #{group.name}"
+
+  defp schedule_match_label(%{stage: %Stage{} = stage} = match),
+    do: "#{stage.category.name} · #{stage.name} - #{round_label(match.round, stage.rounds)}"
+
+  defp unscheduled_modal_title({:table, table}),
+    do: gettext("Adicionar jogo à mesa %{table}", table: table.name)
+
+  defp unscheduled_modal_title(:any), do: gettext("Partidas sem mesa")
+
+  defp filter_unscheduled(matches, nil), do: matches
+
+  defp filter_unscheduled(matches, category_id),
+    do: Enum.filter(matches, &(schedule_match_category(&1).id == category_id))
+
+  defp schedule_match_category(%{group: %Group{stage: stage}}), do: stage.category
+  defp schedule_match_category(%{stage: %Stage{} = stage}), do: stage.category
+
+  defp slot_registration_id(match, 1), do: match.registration1_id
+  defp slot_registration_id(match, 2), do: match.registration2_id
 
   attr :name, :string, required: true
   attr :won, :boolean, required: true

@@ -817,4 +817,236 @@ defmodule T3System.MatchesTest do
       assert unassigned == 0
     end
   end
+
+  # ---------------------------------------------------------------------------
+  # Table schedule
+  # ---------------------------------------------------------------------------
+
+  describe "table schedule" do
+    setup do
+      event = insert(:event, datetime: ~U[2026-03-07 12:00:00Z], match_duration_minutes: 20)
+      category = insert(:category)
+      stage = insert(:stage, event: event, category: category)
+      group = insert(:group, stage: stage)
+
+      %{
+        scope: Scope.for_user(insert(:superuser)),
+        event: event,
+        category: category,
+        group: group,
+        table1: insert(:table, event: event),
+        table2: insert(:table, event: event)
+      }
+    end
+
+    defp pending_match(ctx, attrs \\ []) do
+      insert(:match, [event: ctx.event, group: ctx.group] ++ attrs)
+    end
+
+    defp finished_match(ctx, attrs) do
+      reg1 = insert(:registration, event: ctx.event, category: ctx.category)
+      reg2 = insert(:registration, event: ctx.event, category: ctx.category)
+
+      insert(
+        :match,
+        [
+          event: ctx.event,
+          group: ctx.group,
+          registration1: reg1,
+          registration2: reg2,
+          winner: reg1
+        ] ++ attrs
+      )
+    end
+
+    defp times(match_ids) do
+      Enum.map(match_ids, &Repo.get!(Match, &1).scheduled_at)
+    end
+
+    test "assigning matches to a table schedules them from the event start", ctx do
+      [m1, m2, m3] = for _ <- 1..3, do: pending_match(ctx)
+
+      :ok =
+        Matches.update_table_schedule(ctx.scope, ctx.event, [
+          %{table_id: ctx.table1.id, match_ids: [m2.id, m1.id, m3.id]}
+        ])
+
+      assert times([m2.id, m1.id, m3.id]) == [
+               ~U[2026-03-07 12:00:00Z],
+               ~U[2026-03-07 12:20:00Z],
+               ~U[2026-03-07 12:40:00Z]
+             ]
+
+      assert [%{pending: pending}, %{pending: []}] = Matches.list_table_schedules(ctx.event.id)
+      assert Enum.map(pending, & &1.id) == [m2.id, m1.id, m3.id]
+    end
+
+    test "moving a match between tables recalculates both tables", ctx do
+      [m1, m2, m3] = for _ <- 1..3, do: pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id, m2.id, m3.id]}
+      ])
+
+      # m1 moves to table 2. Even with only the destination list sent, the
+      # table it left must be recalculated.
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table2.id, match_ids: [m1.id]}
+      ])
+
+      assert times([m2.id, m3.id, m1.id]) == [
+               ~U[2026-03-07 12:00:00Z],
+               ~U[2026-03-07 12:20:00Z],
+               ~U[2026-03-07 12:00:00Z]
+             ]
+
+      assert Repo.get!(Match, m1.id).table_id == ctx.table2.id
+    end
+
+    test "finished matches are frozen and anchor the pending queue", ctx do
+      finished = finished_match(ctx, table: ctx.table1, scheduled_at: ~U[2026-03-07 13:05:00Z])
+      [m1, m2] = for _ <- 1..2, do: pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [finished.id, m1.id, m2.id]}
+      ])
+
+      assert times([finished.id, m1.id, m2.id]) == [
+               ~U[2026-03-07 13:05:00Z],
+               ~U[2026-03-07 13:25:00Z],
+               ~U[2026-03-07 13:45:00Z]
+             ]
+
+      # Finished matches can't be moved
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table2.id, match_ids: [finished.id]}
+      ])
+
+      assert Repo.get!(Match, finished.id).table_id == ctx.table1.id
+
+      assert [%{finished: [f], pending: [p1, p2]}, _] = Matches.list_table_schedules(ctx.event.id)
+      assert {f.id, p1.id, p2.id} == {finished.id, m1.id, m2.id}
+    end
+
+    test "moving a match back to the pool clears its table and time", ctx do
+      [m1, m2] = for _ <- 1..2, do: pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id, m2.id]}
+      ])
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: nil, match_ids: [m1.id]}
+      ])
+
+      m1 = Repo.get!(Match, m1.id)
+      assert {m1.table_id, m1.scheduled_at} == {nil, nil}
+      assert times([m2.id]) == [~U[2026-03-07 12:00:00Z]]
+    end
+
+    test "ignores tables and matches from other events", ctx do
+      other_table = insert(:table)
+      other_match = insert(:match)
+      m1 = pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: other_table.id, match_ids: [m1.id]},
+        %{table_id: ctx.table1.id, match_ids: [other_match.id]}
+      ])
+
+      assert Repo.get!(Match, m1.id).table_id == nil
+      assert Repo.get!(Match, other_match.id).table_id == nil
+    end
+
+    test "update_match_duration/3 recalculates pending matches of every table", ctx do
+      finished = finished_match(ctx, table: ctx.table1, scheduled_at: ~U[2026-03-07 12:00:00Z])
+      m1 = pending_match(ctx)
+      m2 = pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id]},
+        %{table_id: ctx.table2.id, match_ids: [m2.id]}
+      ])
+
+      assert {:ok, event} =
+               Matches.update_match_duration(ctx.scope, ctx.event, %{
+                 "match_duration_minutes" => "30"
+               })
+
+      assert event.match_duration_minutes == 30
+
+      assert times([finished.id, m1.id, m2.id]) == [
+               ~U[2026-03-07 12:00:00Z],
+               ~U[2026-03-07 12:30:00Z],
+               ~U[2026-03-07 12:00:00Z]
+             ]
+    end
+
+    test "update_match_duration/3 rejects non-positive durations", ctx do
+      assert {:error, changeset} =
+               Matches.update_match_duration(ctx.scope, ctx.event, %{
+                 "match_duration_minutes" => "0"
+               })
+
+      assert "must be greater than 0" in errors_on(changeset).match_duration_minutes
+    end
+
+    test "add_match_to_table/4 appends a match to the end of the queue", ctx do
+      m1 = pending_match(ctx)
+      m2 = pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id]}
+      ])
+
+      assert :ok = Matches.add_match_to_table(ctx.scope, ctx.event, m2.id, ctx.table1.id)
+
+      assert [%{pending: [p1, p2]}, _] = Matches.list_table_schedules(ctx.event.id)
+      assert {p1.id, p2.id} == {m1.id, m2.id}
+      assert times([m1.id, m2.id]) == [~U[2026-03-07 12:00:00Z], ~U[2026-03-07 12:20:00Z]]
+    end
+
+    test "add_match_to_table/4 moving from another table recalculates it", ctx do
+      [m1, m2] = for _ <- 1..2, do: pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id, m2.id]}
+      ])
+
+      assert :ok = Matches.add_match_to_table(ctx.scope, ctx.event, m1.id, ctx.table2.id)
+      assert times([m2.id, m1.id]) == [~U[2026-03-07 12:00:00Z], ~U[2026-03-07 12:00:00Z]]
+    end
+
+    test "add_match_to_table/4 rejects finished matches and foreign tables", ctx do
+      finished = finished_match(ctx, [])
+      pending = pending_match(ctx)
+
+      assert {:error, :not_found} =
+               Matches.add_match_to_table(ctx.scope, ctx.event, finished.id, ctx.table1.id)
+
+      assert {:error, :not_found} =
+               Matches.add_match_to_table(ctx.scope, ctx.event, pending.id, insert(:table).id)
+    end
+
+    test "list_unscheduled_matches/1 lists every category, ordered by category name", ctx do
+      other_category = insert(:category, name: "AAA")
+      other_stage = insert(:stage, event: ctx.event, category: other_category)
+      other_group = insert(:group, stage: other_stage)
+      m1 = pending_match(ctx)
+      m2 = insert(:match, event: ctx.event, group: other_group)
+
+      assert Enum.map(Matches.list_unscheduled_matches(ctx.event.id), & &1.id) == [m2.id, m1.id]
+    end
+
+    test "list_unscheduled_matches/2 lists only pending matches without a table", ctx do
+      unscheduled = pending_match(ctx)
+      _assigned = pending_match(ctx, table: ctx.table1)
+      _finished = finished_match(ctx, [])
+      _bye = pending_match(ctx, is_bye: true)
+      _other_category = insert(:match, event: ctx.event)
+
+      assert [match] = Matches.list_unscheduled_matches(ctx.event.id, ctx.category.id)
+      assert match.id == unscheduled.id
+    end
+  end
 end

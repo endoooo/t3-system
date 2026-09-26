@@ -23,6 +23,7 @@ defmodule T3System.Matches.Match do
           position: pos_integer() | nil,
           scheduled_position: integer(),
           table_id: pos_integer() | nil,
+          table_position: integer(),
           is_bye: boolean(),
           scheduled_at: DateTime.t() | nil,
           event: Event.t() | Ecto.Association.NotLoaded.t(),
@@ -41,6 +42,7 @@ defmodule T3System.Matches.Match do
     field :round, :integer
     field :position, :integer
     field :scheduled_position, :integer, default: 0
+    field :table_position, :integer, default: 0
     field :is_bye, :boolean, default: false
     field :scheduled_at, :utc_datetime
     field :slot1_label, :string
@@ -72,6 +74,7 @@ defmodule T3System.Matches.Match do
     :position,
     :scheduled_position,
     :table_id,
+    :table_position,
     :scheduled_at
   ]
 

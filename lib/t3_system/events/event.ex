@@ -14,6 +14,7 @@ defmodule T3System.Events.Event do
           name: String.t(),
           address: String.t(),
           datetime: DateTime.t(),
+          match_duration_minutes: pos_integer(),
           league_id: pos_integer() | nil,
           league: League.t() | Ecto.Association.NotLoaded.t(),
           categories: [Category.t()] | Ecto.Association.NotLoaded.t(),
@@ -29,6 +30,7 @@ defmodule T3System.Events.Event do
     field :name, :string
     field :address, :string
     field :datetime, :utc_datetime
+    field :match_duration_minutes, :integer, default: 20
 
     belongs_to :league, League
 
@@ -50,6 +52,16 @@ defmodule T3System.Events.Event do
     event
     |> cast(attrs, [:name, :address, :datetime, :league_id])
     |> validate_required([:name, :address, :datetime])
+  end
+
+  @doc """
+  Changeset for the scheduling settings (the current match duration).
+  """
+  def match_duration_changeset(event, attrs) do
+    event
+    |> cast(attrs, [:match_duration_minutes])
+    |> validate_required([:match_duration_minutes])
+    |> validate_number(:match_duration_minutes, greater_than: 0)
   end
 
   def changeset_with_categories(event, attrs, categories) do

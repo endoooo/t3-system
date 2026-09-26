@@ -1,5 +1,6 @@
 {
   "dependencies": {
-    "@tailwindplus/elements": "^1.0.22"
+    "@tailwindplus/elements": "^1.0.22",
+    "sortablejs": "^1.15.7"
   }
 }
