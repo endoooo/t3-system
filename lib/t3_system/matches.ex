@@ -38,16 +38,33 @@ defmodule T3System.Matches do
   def list_stages_for_event_and_category(event_id, category_id, opts \\ []) do
     exclude_byes = Keyword.get(opts, :exclude_byes, false)
 
+    Stage
+    |> where([s], s.event_id == ^event_id and s.category_id == ^category_id)
+    |> order_by([s], s.order)
+    |> Repo.all()
+    |> preload_stage_matches(exclude_byes)
+  end
+
+  @doc """
+  Returns stages of all categories for the given event, with their category,
+  groups and bracket matches preloaded (excluding byes).
+  """
+  def list_stages_with_matches_for_event(event_id) do
+    Stage
+    |> where([s], s.event_id == ^event_id)
+    |> order_by([s], [s.category_id, s.order])
+    |> preload(:category)
+    |> Repo.all()
+    |> preload_stage_matches(true)
+  end
+
+  defp preload_stage_matches(stages, exclude_byes) do
     bracket_matches_query =
       if exclude_byes,
         do: from(m in Match, where: not m.is_bye),
         else: from(m in Match)
 
-    Stage
-    |> where([s], s.event_id == ^event_id and s.category_id == ^category_id)
-    |> order_by([s], s.order)
-    |> Repo.all()
-    |> Repo.preload(
+    Repo.preload(stages,
       groups:
         {from(g in Group, order_by: g.position),
          [

@@ -229,6 +229,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 :for={card <- @ongoing_match_cards}
                 card={card}
                 is_superuser={@is_superuser}
+                show_category
               />
             </div>
           </section>
@@ -240,6 +241,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 :for={card <- @next_match_cards}
                 card={card}
                 is_superuser={@is_superuser}
+                show_category
               />
             </div>
           </section>
@@ -1284,6 +1286,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:category_form, to_form(%{"category_id" => nil}, as: :category))
       |> assign(:tabs, @fixed_tabs)
       |> assign(:stages, [])
+      |> assign(:overview_stages, [])
       |> assign(:current_stage, nil)
       |> assign(:stage_bracket_rounds, [])
       |> assign(:table_modal, nil)
@@ -1792,7 +1795,8 @@ defmodule T3SystemWeb.EventLive.Show do
   def handle_event("open_score_modal", %{"id" => id}, socket) do
     match_id = String.to_integer(id)
 
-    score_modal = find_match_across_stages(match_id, socket.assigns.stages)
+    score_modal =
+      find_match_across_stages(match_id, socket.assigns.stages ++ socket.assigns.overview_stages)
 
     score_set_count =
       case score_modal do
@@ -2233,11 +2237,17 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp assign_all_match_cards(socket), do: socket
 
-  # Ongoing matches, and the next match of each table (in the active category)
+  # Ongoing matches, and the next match of each table (across all categories)
   defp assign_overview_match_cards(%{assigns: %{current_tab: "overview"}} = socket) do
+    stages = Matches.list_stages_with_matches_for_event(socket.assigns.event.id)
+
     cards =
-      socket.assigns.stages
-      |> Enum.flat_map(&stage_match_cards/1)
+      stages
+      |> Enum.flat_map(fn stage ->
+        stage
+        |> stage_match_cards()
+        |> Enum.map(&Map.put(&1, :category_name, stage.category.name))
+      end)
       |> Enum.reject(&(&1.is_bye or &1.finished))
 
     {ongoing, pending} = Enum.split_with(cards, & &1.ongoing)
@@ -2249,6 +2259,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> Enum.map(fn {_table_id, cards} -> Enum.min_by(cards, &{&1.table_position, &1.id}) end)
 
     socket
+    |> assign(:overview_stages, stages)
     |> assign(:ongoing_match_cards, sort_by_schedule(ongoing))
     |> assign(:next_match_cards, sort_by_schedule(next))
   end
@@ -2423,6 +2434,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
   attr :card, :map, required: true
   attr :is_superuser, :boolean, required: true
+  attr :show_category, :boolean, default: false
 
   defp match_card(assigns) do
     ~H"""
@@ -2460,9 +2472,17 @@ defmodule T3SystemWeb.EventLive.Show do
         />
       </div>
 
-      <%!-- Superuser actions --%>
-      <div :if={@is_superuser} class="flex justify-end gap-1 border-t border-border px-2 py-1.5">
+      <%!-- Footer: category and superuser actions --%>
+      <div
+        :if={@is_superuser || @show_category}
+        class="flex min-h-11 items-center justify-between gap-2 border-t border-border px-2 py-1.5"
+      >
+        <p :if={@show_category} class="min-w-0 truncate px-2 text-xs text-fg-muted">
+          {@card.category_name}
+        </p>
         <.button
+          :if={@is_superuser}
+          class="ml-auto"
           variant="ghost"
           size="sm"
           phx-click="open_score_modal"

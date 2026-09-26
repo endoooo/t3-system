@@ -829,6 +829,38 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       assert card_ids(html, "next-matches") == [next1.id, next2.id]
     end
 
+    test "overview lists matches of all categories with their category", ctx do
+      ongoing =
+        ctx.match_between.("Alice", "Bruno",
+          table: ctx.table1,
+          table_position: 0,
+          is_ongoing: true
+        )
+
+      other_category = insert(:category, name: "Juvenil")
+      associate_category(ctx.event, other_category)
+      other_stage = insert(:stage, event: ctx.event, category: other_category)
+      other_group = insert(:group, stage: other_stage)
+
+      [reg1, reg2] =
+        insert_list(2, :registration, event: ctx.event, category: other_category)
+
+      next =
+        insert(:match,
+          event: ctx.event,
+          group: other_group,
+          registration1: reg1,
+          registration2: reg2,
+          table: ctx.table2,
+          table_position: 0
+        )
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=overview&category_id=#{ctx.category.id}")
+      |> assert_has("#ongoing-matches #match-#{ongoing.id}", text: "Adulto")
+      |> assert_has("#next-matches #match-#{next.id}", text: "Juvenil")
+    end
+
     test "overview hides empty sections", ctx do
       ctx.match_between.("Alice", "Bruno", [])
 
