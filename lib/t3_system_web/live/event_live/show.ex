@@ -307,11 +307,25 @@ defmodule T3SystemWeb.EventLive.Show do
         <div :if={@current_tab == "matches"} class="px-4 py-8 sm:px-8">
           <div :if={@active_category} class="space-y-6">
             <form
-              :if={@match_filter_players != []}
-              phx-change="filter_matches_by_player"
-              class="sm:max-w-xs"
+              id="match-filters"
+              phx-change="filter_matches"
+              class="grid gap-3 sm:grid-cols-2"
             >
               <.input
+                name="view"
+                type="select"
+                label={gettext("Visualização")}
+                value={@match_view}
+                options={[
+                  {gettext("Todos"), "all"},
+                  {gettext("Em andamento"), "ongoing"},
+                  {gettext("Próximos"), "next"}
+                ]}
+                phx-debounce="0"
+                sr_only
+              />
+              <.input
+                :if={@match_filter_players != []}
                 name="player_id"
                 type="select"
                 label={gettext("Jogador")}
@@ -323,10 +337,10 @@ defmodule T3SystemWeb.EventLive.Show do
             </form>
 
             <.empty_state :if={@all_match_cards == []} icon="hero-trophy">
-              {gettext("No matches yet.")}
+              {match_view_empty_message(@match_view)}
             </.empty_state>
 
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div id="match-cards" class="grid gap-3 sm:grid-cols-2">
               <.match_card
                 :for={card <- @all_match_cards}
                 card={card}
@@ -1314,6 +1328,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:ongoing_match_cards, [])
       |> assign(:next_match_cards, [])
       |> assign(:filter_player_id, nil)
+      |> assign(:match_view, "all")
       |> assign(:match_filter_players, [])
       |> assign(:bracket_modal, nil)
       |> assign(:bracket_form, nil)
@@ -1371,6 +1386,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign_schedule()
       |> load_stage_data(current_stage)
       |> assign(:filter_player_id, filter_player_id)
+      |> assign(:match_view, parse_match_view(params["view"]))
       |> assign_all_match_cards()
       |> assign_overview_match_cards()
       |> assign_match_filter_players()
@@ -1379,10 +1395,16 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   @impl true
-  def handle_event("filter_matches_by_player", %{"player_id" => player_id}, socket) do
+  def handle_event("filter_matches", filters, socket) do
     %{event: event, active_category: active_category} = socket.assigns
-    params = %{"tab" => "matches", "category_id" => active_category.id}
-    params = if player_id != "", do: Map.put(params, "player_id", player_id), else: params
+
+    params =
+      filters
+      |> Map.take(["view", "player_id"])
+      |> Enum.reject(fn {key, value} -> value == "" or {key, value} == {"view", "all"} end)
+      |> Map.new()
+      |> Map.merge(%{"tab" => "matches", "category_id" => active_category.id})
+
     {:noreply, push_patch(socket, to: ~p"/events/#{event}?#{params}")}
   end
 
@@ -2230,12 +2252,32 @@ defmodule T3SystemWeb.EventLive.Show do
       stages
       |> Enum.flat_map(&stage_match_cards/1)
       |> filter_match_cards(socket.assigns.filter_player_id)
-      |> Enum.sort_by(fn card -> card.sort_key end)
+      |> apply_match_view(socket.assigns.match_view)
 
     assign(socket, :all_match_cards, cards)
   end
 
   defp assign_all_match_cards(socket), do: socket
+
+  defp parse_match_view(view) when view in ~w(ongoing next), do: view
+  defp parse_match_view(_view), do: "all"
+
+  defp apply_match_view(cards, "all"), do: Enum.sort_by(cards, & &1.sort_key)
+
+  defp apply_match_view(cards, "ongoing") do
+    cards |> Enum.filter(& &1.ongoing) |> sort_by_schedule()
+  end
+
+  # Matches not yet started, already placed on a table
+  defp apply_match_view(cards, "next") do
+    cards
+    |> Enum.filter(&(not is_nil(&1.table) and not &1.finished and not &1.ongoing))
+    |> sort_by_schedule()
+  end
+
+  defp match_view_empty_message("ongoing"), do: gettext("Nenhum jogo em andamento.")
+  defp match_view_empty_message("next"), do: gettext("Nenhum próximo jogo.")
+  defp match_view_empty_message(_view), do: gettext("No matches yet.")
 
   # Ongoing matches, and the next match of each table (across all categories)
   defp assign_overview_match_cards(%{assigns: %{current_tab: "overview"}} = socket) do

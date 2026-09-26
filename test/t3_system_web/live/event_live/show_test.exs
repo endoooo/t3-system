@@ -922,6 +922,98 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}")
       |> assert_has("#bracket-match-#{match.id} .sr-only", text: "Em andamento")
     end
+
+    test "matches tab views filter ongoing and next matches", ctx do
+      ongoing1 =
+        ctx.match_between.("Alice", "Bruno",
+          table: ctx.table1,
+          table_position: 0,
+          scheduled_at: ~U[2026-03-07 12:20:00Z],
+          is_ongoing: true
+        )
+
+      next1 =
+        ctx.match_between.("Carla", "Davi",
+          table: ctx.table1,
+          table_position: 1,
+          scheduled_at: ~U[2026-03-07 12:40:00Z]
+        )
+
+      ongoing2 =
+        ctx.match_between.("Gabi", "Hugo",
+          table: ctx.table2,
+          table_position: 0,
+          scheduled_at: ~U[2026-03-07 12:00:00Z],
+          is_ongoing: true
+        )
+
+      next2 =
+        ctx.match_between.("Iara", "João",
+          table: ctx.table2,
+          table_position: 1,
+          scheduled_at: ~U[2026-03-07 12:40:00Z]
+        )
+
+      finished =
+        ctx.match_between.("Elisa", "Fabio",
+          table: ctx.table2,
+          table_position: 2,
+          scheduled_at: ~U[2026-03-07 13:00:00Z]
+        )
+
+      T3System.Repo.update!(
+        Ecto.Changeset.change(finished, winner_registration_id: finished.registration1_id)
+      )
+
+      unscheduled = ctx.match_between.("Karen", "Lucas", [])
+
+      path = ~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}"
+      {:ok, view, html} = live(build_conn(), path)
+
+      assert length(card_ids(html, "match-cards")) == 6
+      assert unscheduled.id in card_ids(html, "match-cards")
+
+      html = view |> element("#match-filters") |> render_change(%{"view" => "ongoing"})
+      assert card_ids(html, "match-cards") == [ongoing2.id, ongoing1.id]
+
+      html = view |> element("#match-filters") |> render_change(%{"view" => "next"})
+
+      assert card_ids(html, "match-cards") == [next1.id, next2.id]
+    end
+
+    test "matches tab view combines with the player filter", ctx do
+      ongoing =
+        ctx.match_between.("Alice", "Bruno",
+          table: ctx.table1,
+          table_position: 0,
+          is_ongoing: true
+        )
+
+      _other_ongoing =
+        ctx.match_between.("Carla", "Davi",
+          table: ctx.table2,
+          table_position: 0,
+          is_ongoing: true
+        )
+
+      alice_id = ongoing.registration1.player_id
+
+      {:ok, _view, html} =
+        live(
+          build_conn(),
+          ~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}&view=ongoing&player_id=#{alice_id}"
+        )
+
+      assert card_ids(html, "match-cards") == [ongoing.id]
+    end
+
+    test "matches tab shows an empty message when nothing is ongoing", ctx do
+      ctx.match_between.("Alice", "Bruno", table: ctx.table1, table_position: 0)
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}&view=ongoing")
+      |> assert_has("p", text: "Nenhum jogo em andamento.")
+    end
   end
 
   defp card_ids(html, section_id) do
@@ -1171,7 +1263,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
         live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
 
       view
-      |> element("form[phx-change=filter_matches_by_player]")
+      |> element("#match-filters")
       |> render_change(%{"player_id" => to_string(alice.id)})
 
       html = render(view)
@@ -1196,7 +1288,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       assert Regex.scan(~r/id="match-\d+"/, html) |> length() == 2
 
       view
-      |> element("form[phx-change=filter_matches_by_player]")
+      |> element("#match-filters")
       |> render_change(%{"player_id" => ""})
 
       # All 3 matches should be back
