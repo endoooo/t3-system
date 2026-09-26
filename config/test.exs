@@ -23,6 +23,13 @@ config :t3_system, T3SystemWeb.Endpoint,
   secret_key_base: "vfpJVTfkhW2/UB62FI0aHHWvdXmeKqMhdxtVWi8qpbYamXrd4mzcWy6k0Rx5gdW+",
   server: false
 
+# Cloudinary requests are stubbed with Req.Test
+config :t3_system, T3System.Cloudinary,
+  cloud_name: "test-cloud",
+  api_key: "test-key",
+  api_secret: "test-secret",
+  req_options: [plug: {Req.Test, T3System.Cloudinary}]
+
 # In test we don't send emails
 config :t3_system, T3System.Mailer, adapter: Swoosh.Adapters.Test
 

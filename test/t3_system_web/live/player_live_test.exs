@@ -26,10 +26,39 @@ defmodule T3SystemWeb.PlayerLiveTest do
       |> assert_has("h1", text: "New Player")
       |> fill_in("Nome", with: "some name")
       |> fill_in("Birthdate", with: "2026-03-06")
-      |> fill_in("Picture url", with: "some picture_url")
       |> click_button("Save Player")
       |> assert_has("p", text: "Player created successfully")
       |> assert_has("td", text: "some name")
+    end
+
+    test "uploads a picture to Cloudinary when saving", %{conn: conn} do
+      Req.Test.stub(T3System.Cloudinary, fn conn ->
+        Req.Test.json(conn, %{"secure_url" => "https://res.cloudinary.com/test-cloud/p.png"})
+      end)
+
+      conn
+      |> visit(~p"/admin/players/new")
+      |> fill_in("Nome", with: "pictured player")
+      |> upload("Picture", "test/support/fixtures/player.png")
+      |> click_button("Save Player")
+      |> assert_has("p", text: "Player created successfully")
+      |> assert_has("img[src='https://res.cloudinary.com/test-cloud/p.png']")
+    end
+
+    test "shows an error and keeps the form when the upload fails", %{conn: conn} do
+      Req.Test.stub(T3System.Cloudinary, fn conn ->
+        conn
+        |> Plug.Conn.put_status(500)
+        |> Req.Test.json(%{"error" => %{"message" => "boom"}})
+      end)
+
+      conn
+      |> visit(~p"/admin/players/new")
+      |> fill_in("Nome", with: "pictured player")
+      |> upload("Picture", "test/support/fixtures/player.png")
+      |> click_button("Save Player")
+      |> assert_has("p", text: "Could not upload picture: boom")
+      |> assert_has("h1", text: "New Player")
     end
 
     test "saves new player and resets form for another", %{conn: conn} do

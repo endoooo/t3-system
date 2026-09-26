@@ -23,6 +23,20 @@ end
 config :t3_system, T3SystemWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# Cloudinary credentials, copied from the dashboard as a single URL:
+# cloudinary://<api_key>:<api_secret>@<cloud_name>
+if config_env() != :test do
+  if cloudinary_url = System.get_env("CLOUDINARY_URL") do
+    %URI{userinfo: userinfo, host: cloud_name} = URI.parse(cloudinary_url)
+    [api_key, api_secret] = String.split(userinfo, ":", parts: 2)
+
+    config :t3_system, T3System.Cloudinary,
+      cloud_name: cloud_name,
+      api_key: api_key,
+      api_secret: api_secret
+  end
+end
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||

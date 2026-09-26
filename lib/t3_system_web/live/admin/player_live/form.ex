@@ -1,6 +1,7 @@
 defmodule T3SystemWeb.Admin.PlayerLive.Form do
   use T3SystemWeb, :live_view
 
+  alias T3System.Cloudinary
   alias T3System.Players
   alias T3System.Players.Player
 
@@ -23,7 +24,31 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
         <div class="space-y-5">
           <.input field={@form[:name]} type="text" label={gettext("Nome")} />
           <.input field={@form[:birthdate]} type="date" label={gettext("Birthdate")} />
-          <.input field={@form[:picture_url]} type="text" label={gettext("Picture url")} />
+          <div>
+            <.label for={@uploads.picture.ref}>{gettext("Picture")}</.label>
+            <div class="flex items-center gap-4" phx-drop-target={@uploads.picture.ref}>
+              <%= case @uploads.picture.entries do %>
+                <% [entry | _] -> %>
+                  <.live_img_preview
+                    entry={entry}
+                    class="size-20 shrink-0 rounded-full object-cover"
+                  />
+                <% [] -> %>
+                  <.avatar src={@player.picture_url} name={@player.name} class="size-20" />
+              <% end %>
+              <.live_file_input
+                upload={@uploads.picture}
+                class="text-sm text-fg-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-raised file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-fg hover:file:bg-surface"
+              />
+            </div>
+            <p
+              :for={err <- upload_errors(@uploads.picture) ++ entry_errors(@uploads.picture)}
+              class="mt-1.5 flex items-center gap-1.5 text-sm text-danger"
+            >
+              <.icon name="hero-exclamation-circle-mini" class="size-4 shrink-0" />
+              {upload_error_to_string(err)}
+            </p>
+          </div>
         </div>
         <.form_actions>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
@@ -32,8 +57,8 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
           <.button
             :if={@live_action == :new}
             phx-disable-with={gettext("Saving...")}
-            phx-click="save_and_add_more"
-            type="button"
+            name="save_action"
+            value="add_more"
           >
             {gettext("Save and add more")}
           </.button>
@@ -49,6 +74,11 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
     {:ok,
      socket
      |> assign(:return_to, return_to(params["return_to"]))
+     |> allow_upload(:picture,
+       accept: ~w(.jpg .jpeg .png .webp),
+       max_entries: 1,
+       max_file_size: 5_000_000
+     )
      |> apply_action(socket.assigns.live_action, params)}
   end
 
@@ -79,13 +109,46 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
     {:noreply, assign(socket, form: to_form(changeset, action: :validate))}
   end
 
-  def handle_event("save", %{"player" => player_params}, socket) do
-    save_player(socket, socket.assigns.live_action, player_params)
+  def handle_event("save", %{"player" => player_params} = params, socket) do
+    action =
+      if params["save_action"] == "add_more",
+        do: :new_and_add_more,
+        else: socket.assigns.live_action
+
+    case put_uploaded_picture(socket, player_params) do
+      {:ok, player_params} ->
+        save_player(socket, action, player_params)
+
+      {:error, reason} ->
+        {:noreply,
+         put_flash(socket, :error, gettext("Could not upload picture: %{reason}", reason: reason))}
+    end
   end
 
-  def handle_event("save_and_add_more", _params, socket) do
-    player_params = socket.assigns.form.params || %{}
+  # Uploads only once the rest of the form is valid, to avoid orphaned images.
+  # On failure the entry is postponed so the user can retry without reselecting.
+  defp put_uploaded_picture(socket, player_params) do
+    if Players.change_player(socket.assigns.player, player_params).valid? do
+      socket
+      |> consume_uploaded_entries(:picture, fn %{path: path}, _entry -> upload_picture(path) end)
+      |> case do
+        [] -> {:ok, player_params}
+        [{:ok, url}] -> {:ok, Map.put(player_params, "picture_url", url)}
+        [{:error, reason}] -> {:error, reason}
+      end
+    else
+      {:ok, player_params}
+    end
+  end
 
+  defp upload_picture(path) do
+    case Cloudinary.upload_image(path, "players") do
+      {:ok, url} -> {:ok, {:ok, url}}
+      {:error, reason} -> {:postpone, {:error, reason}}
+    end
+  end
+
+  defp save_player(socket, :new_and_add_more, player_params) do
     case Players.create_player(socket.assigns.current_scope, player_params) do
       {:ok, _player} ->
         player = %Player{}
@@ -126,6 +189,13 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
         {:noreply, assign(socket, form: to_form(changeset))}
     end
   end
+
+  defp entry_errors(upload), do: Enum.flat_map(upload.entries, &upload_errors(upload, &1))
+
+  defp upload_error_to_string(:too_large), do: gettext("Picture must be at most 5MB")
+  defp upload_error_to_string(:not_accepted), do: gettext("Picture must be a JPG, PNG or WebP")
+  defp upload_error_to_string(:too_many_files), do: gettext("Only one picture is allowed")
+  defp upload_error_to_string(_), do: gettext("Invalid picture")
 
   defp return_path("index", _player), do: ~p"/admin/players"
   defp return_path("show", player), do: ~p"/admin/players/#{player}"

@@ -21,9 +21,13 @@ defmodule T3SystemWeb.Admin.PlayerLive.Index do
         rows={@streams.player_collection}
         row_click={fn {_id, player} -> JS.navigate(~p"/admin/players/#{player}") end}
       >
-        <:col :let={{_id, player}} label={gettext("Nome")}>{player.name}</:col>
+        <:col :let={{_id, player}} label={gettext("Nome")}>
+          <div class="flex items-center gap-3">
+            <.avatar src={player.picture_url} name={player.name} class="size-8" />
+            {player.name}
+          </div>
+        </:col>
         <:col :let={{_id, player}} label={gettext("Birthdate")}>{player.birthdate}</:col>
-        <:col :let={{_id, player}} label={gettext("Picture url")}>{player.picture_url}</:col>
         <:action :let={{_id, player}}>
           <div class="sr-only">
             <.link navigate={~p"/admin/players/#{player}"}>{gettext("Show")}</.link>

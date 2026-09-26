@@ -618,6 +618,37 @@ defmodule T3SystemWeb.CoreComponents do
   ## Layout & content
 
   @doc """
+  Renders a round avatar image, falling back to a placeholder icon.
+
+  ## Examples
+
+      <.avatar src={@player.picture_url} name={@player.name} class="size-10" />
+  """
+  attr :src, :string, default: nil
+  attr :name, :string, default: nil, doc: "used as the image alt text"
+  attr :class, :any, default: "size-10"
+
+  def avatar(assigns) do
+    ~H"""
+    <img
+      :if={@src}
+      src={@src}
+      alt={@name}
+      class={["shrink-0 rounded-full bg-surface-raised object-cover", @class]}
+    />
+    <div
+      :if={!@src}
+      class={[
+        "flex shrink-0 items-center justify-center rounded-full bg-surface-raised text-fg-subtle",
+        @class
+      ]}
+    >
+      <.icon name="hero-user" class="size-1/2" />
+    </div>
+    """
+  end
+
+  @doc """
   Renders the page header with title.
   """
   attr :class, :any, default: nil
