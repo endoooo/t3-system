@@ -8,6 +8,17 @@ defmodule T3System.PlayersTest do
   import T3System.Factory
 
   @invalid_attrs %{name: nil, birthdate: nil, picture_url: nil}
+  @cloudinary_url "https://res.cloudinary.com/test-cloud/image/upload/v1/players/abc.png"
+
+  defp stub_cloudinary_destroy do
+    test_pid = self()
+
+    Req.Test.stub(T3System.Cloudinary, fn conn ->
+      {:ok, body, conn} = Plug.Conn.read_body(conn)
+      send(test_pid, {:cloudinary_destroy, URI.decode_query(body)["public_id"]})
+      Req.Test.json(conn, %{"result" => "ok"})
+    end)
+  end
 
   describe "player" do
     test "list_player/0 returns all player" do
@@ -94,6 +105,37 @@ defmodule T3System.PlayersTest do
       assert_raise FunctionClauseError, fn ->
         Players.delete_player(scope, player)
       end
+    end
+
+    test "update_player/3 deletes the previous Cloudinary picture when it changes" do
+      stub_cloudinary_destroy()
+      scope = Scope.for_user(insert(:superuser))
+      player = insert(:player, picture_url: @cloudinary_url)
+
+      assert {:ok, _player} =
+               Players.update_player(scope, player, %{picture_url: "https://example.com/new.jpg"})
+
+      assert_received {:cloudinary_destroy, "players/abc"}
+    end
+
+    test "update_player/3 keeps the picture when it doesn't change" do
+      stub_cloudinary_destroy()
+      scope = Scope.for_user(insert(:superuser))
+      player = insert(:player, picture_url: @cloudinary_url)
+
+      assert {:ok, _player} = Players.update_player(scope, player, %{name: "renamed"})
+
+      refute_received {:cloudinary_destroy, _}
+    end
+
+    test "delete_player/2 deletes the player's Cloudinary picture" do
+      stub_cloudinary_destroy()
+      scope = Scope.for_user(insert(:superuser))
+      player = insert(:player, picture_url: @cloudinary_url)
+
+      assert {:ok, _player} = Players.delete_player(scope, player)
+
+      assert_received {:cloudinary_destroy, "players/abc"}
     end
 
     test "change_player/1 returns a player changeset" do

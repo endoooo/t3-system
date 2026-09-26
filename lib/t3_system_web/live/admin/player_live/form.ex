@@ -34,12 +34,30 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
                     class="size-20 shrink-0 rounded-full object-cover"
                   />
                 <% [] -> %>
-                  <.avatar src={@player.picture_url} name={@player.name} class="size-20" />
+                  <.avatar
+                    src={current_picture_url(@player, @remove_picture)}
+                    name={@player.name}
+                    size="lg"
+                  />
               <% end %>
-              <.live_file_input
-                upload={@uploads.picture}
-                class="text-sm text-fg-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-raised file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-fg hover:file:bg-surface"
-              />
+              <div class="flex flex-col items-start gap-2">
+                <.live_file_input
+                  upload={@uploads.picture}
+                  class="text-sm text-fg-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-raised file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-fg hover:file:bg-surface"
+                />
+                <.button
+                  :if={
+                    @uploads.picture.entries != [] or current_picture_url(@player, @remove_picture)
+                  }
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  phx-click="remove_picture"
+                  phx-value-ref={Enum.map_join(@uploads.picture.entries, & &1.ref)}
+                >
+                  <.icon name="hero-trash" class="size-4" /> {gettext("Remove picture")}
+                </.button>
+              </div>
             </div>
             <p
               :for={err <- upload_errors(@uploads.picture) ++ entry_errors(@uploads.picture)}
@@ -91,6 +109,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
     socket
     |> assign(:page_title, gettext("Edit Player"))
     |> assign(:player, player)
+    |> assign(:remove_picture, false)
     |> assign(:form, to_form(Players.change_player(player)))
   end
 
@@ -100,6 +119,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
     socket
     |> assign(:page_title, gettext("New Player"))
     |> assign(:player, player)
+    |> assign(:remove_picture, false)
     |> assign(:form, to_form(Players.change_player(player)))
   end
 
@@ -107,6 +127,16 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
   def handle_event("validate", %{"player" => player_params}, socket) do
     changeset = Players.change_player(socket.assigns.player, player_params)
     {:noreply, assign(socket, form: to_form(changeset, action: :validate))}
+  end
+
+  # Selected (not yet uploaded) files are simply discarded. The stored picture
+  # is only cleared on save, so "Cancelar" still leaves it untouched.
+  def handle_event("remove_picture", %{"ref" => ref}, socket) when ref != "" do
+    {:noreply, cancel_upload(socket, :picture, ref)}
+  end
+
+  def handle_event("remove_picture", _params, socket) do
+    {:noreply, assign(socket, :remove_picture, true)}
   end
 
   def handle_event("save", %{"player" => player_params} = params, socket) do
@@ -132,6 +162,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
       socket
       |> consume_uploaded_entries(:picture, fn %{path: path}, _entry -> upload_picture(path) end)
       |> case do
+        [] when socket.assigns.remove_picture -> {:ok, Map.put(player_params, "picture_url", nil)}
         [] -> {:ok, player_params}
         [{:ok, url}] -> {:ok, Map.put(player_params, "picture_url", url)}
         [{:error, reason}] -> {:error, reason}
@@ -157,6 +188,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
          socket
          |> put_flash(:info, gettext("Player created successfully"))
          |> assign(:player, player)
+         |> assign(:remove_picture, false)
          |> assign(:form, to_form(Players.change_player(player)))}
 
       {:error, %Ecto.Changeset{} = changeset} ->
@@ -189,6 +221,9 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
         {:noreply, assign(socket, form: to_form(changeset))}
     end
   end
+
+  defp current_picture_url(_player, true = _removed), do: nil
+  defp current_picture_url(player, false), do: player.picture_url
 
   defp entry_errors(upload), do: Enum.flat_map(upload.entries, &upload_errors(upload, &1))
 

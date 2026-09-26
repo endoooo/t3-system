@@ -24,7 +24,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Show do
         <:item title={gettext("Nome")}>{@player.name}</:item>
         <:item title={gettext("Birthdate")}>{@player.birthdate}</:item>
         <:item title={gettext("Picture")}>
-          <.avatar src={@player.picture_url} name={@player.name} class="size-20" />
+          <.avatar src={@player.picture_url} name={@player.name} size="lg" />
         </:item>
       </.list>
     </Layouts.settings>

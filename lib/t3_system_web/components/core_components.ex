@@ -620,26 +620,41 @@ defmodule T3SystemWeb.CoreComponents do
   @doc """
   Renders a round avatar image, falling back to a placeholder icon.
 
+  Cloudinary images are requested as face-cropped thumbnails at 2x the
+  rendered size.
+
   ## Examples
 
-      <.avatar src={@player.picture_url} name={@player.name} class="size-10" />
+      <.avatar src={@player.picture_url} name={@player.name} size="sm" />
   """
   attr :src, :string, default: nil
   attr :name, :string, default: nil, doc: "used as the image alt text"
-  attr :class, :any, default: "size-10"
+  attr :size, :string, default: "md", values: ~w(sm md lg)
+  attr :class, :any, default: nil
+
+  @avatar_sizes %{"sm" => {"size-8", 32}, "md" => {"size-10", 40}, "lg" => {"size-20", 80}}
 
   def avatar(assigns) do
+    {size_class, px} = Map.fetch!(@avatar_sizes, assigns.size)
+
+    assigns =
+      assign(assigns,
+        size_class: size_class,
+        thumbnail_url: T3System.Cloudinary.thumbnail_url(assigns.src, px * 2)
+      )
+
     ~H"""
     <img
       :if={@src}
-      src={@src}
+      src={@thumbnail_url}
       alt={@name}
-      class={["shrink-0 rounded-full bg-surface-raised object-cover", @class]}
+      class={["shrink-0 rounded-full bg-surface-raised object-cover", @size_class, @class]}
     />
     <div
       :if={!@src}
       class={[
         "flex shrink-0 items-center justify-center rounded-full bg-surface-raised text-fg-subtle",
+        @size_class,
         @class
       ]}
     >

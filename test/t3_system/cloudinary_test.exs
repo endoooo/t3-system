@@ -45,4 +45,64 @@ defmodule T3System.CloudinaryTest do
       assert Cloudinary.upload_image(@image_path, "players") == {:error, "Invalid Signature"}
     end
   end
+
+  describe "delete_image/1" do
+    test "destroys the image with a signed request" do
+      Req.Test.stub(Cloudinary, fn conn ->
+        assert conn.request_path == "/v1_1/test-cloud/image/destroy"
+
+        {:ok, body, conn} = Plug.Conn.read_body(conn)
+        params = URI.decode_query(body)
+
+        assert params["public_id"] == "players/abc"
+        assert params["api_key"] == "test-key"
+
+        expected =
+          :crypto.hash(:sha, "public_id=players/abc&timestamp=#{params["timestamp"]}test-secret")
+          |> Base.encode16(case: :lower)
+
+        assert params["signature"] == expected
+
+        Req.Test.json(conn, %{"result" => "ok"})
+      end)
+
+      assert Cloudinary.delete_image(
+               "https://res.cloudinary.com/test-cloud/image/upload/v1727/players/abc.png"
+             ) == :ok
+    end
+
+    test "treats an already deleted image as success" do
+      Req.Test.stub(Cloudinary, &Req.Test.json(&1, %{"result" => "not found"}))
+
+      assert Cloudinary.delete_image(
+               "https://res.cloudinary.com/test-cloud/image/upload/v1/players/gone.jpg"
+             ) == :ok
+    end
+
+    test "ignores nil and URLs from other hosts or accounts without a request" do
+      assert Cloudinary.delete_image(nil) == :ok
+      assert Cloudinary.delete_image("https://example.com/player.jpg") == :ok
+
+      assert Cloudinary.delete_image(
+               "https://res.cloudinary.com/other-cloud/image/upload/v1/players/abc.png"
+             ) == :ok
+    end
+  end
+
+  describe "thumbnail_url/2" do
+    test "adds a face-cropped square transformation to Cloudinary URLs" do
+      assert Cloudinary.thumbnail_url(
+               "https://res.cloudinary.com/test-cloud/image/upload/v1/players/abc.png",
+               64
+             ) ==
+               "https://res.cloudinary.com/test-cloud/image/upload/c_fill,g_face,w_64,h_64,f_auto,q_auto/v1/players/abc.png"
+    end
+
+    test "leaves other URLs and nil untouched" do
+      assert Cloudinary.thumbnail_url("https://example.com/player.jpg", 64) ==
+               "https://example.com/player.jpg"
+
+      assert Cloudinary.thumbnail_url(nil, 64) == nil
+    end
+  end
 end

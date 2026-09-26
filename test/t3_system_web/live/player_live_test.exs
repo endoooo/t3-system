@@ -4,6 +4,8 @@ defmodule T3SystemWeb.PlayerLiveTest do
   import PhoenixTest
   import T3System.Factory
 
+  alias T3System.Players
+
   setup %{conn: conn} do
     superuser = insert(:superuser)
     conn = log_in_user(conn, superuser)
@@ -33,7 +35,9 @@ defmodule T3SystemWeb.PlayerLiveTest do
 
     test "uploads a picture to Cloudinary when saving", %{conn: conn} do
       Req.Test.stub(T3System.Cloudinary, fn conn ->
-        Req.Test.json(conn, %{"secure_url" => "https://res.cloudinary.com/test-cloud/p.png"})
+        Req.Test.json(conn, %{
+          "secure_url" => "https://res.cloudinary.com/test-cloud/image/upload/v1/players/p.png"
+        })
       end)
 
       conn
@@ -42,7 +46,7 @@ defmodule T3SystemWeb.PlayerLiveTest do
       |> upload("Picture", "test/support/fixtures/player.png")
       |> click_button("Save Player")
       |> assert_has("p", text: "Player created successfully")
-      |> assert_has("img[src='https://res.cloudinary.com/test-cloud/p.png']")
+      |> assert_has("img[src^='https://res.cloudinary.com/test-cloud/image/upload/']")
     end
 
     test "shows an error and keeps the form when the upload fails", %{conn: conn} do
@@ -119,6 +123,78 @@ defmodule T3SystemWeb.PlayerLiveTest do
       |> visit(~p"/admin/players")
       |> click_link("Delete")
       |> refute_has("td", text: player.name)
+    end
+  end
+
+  describe "Picture" do
+    @old_url "https://res.cloudinary.com/test-cloud/image/upload/v1/players/old.png"
+    @new_url "https://res.cloudinary.com/test-cloud/image/upload/v2/players/new.png"
+
+    setup do
+      test_pid = self()
+
+      Req.Test.stub(T3System.Cloudinary, fn conn ->
+        case conn.request_path do
+          "/v1_1/test-cloud/image/upload" ->
+            Req.Test.json(conn, %{"secure_url" => @new_url})
+
+          "/v1_1/test-cloud/image/destroy" ->
+            {:ok, body, conn} = Plug.Conn.read_body(conn)
+            send(test_pid, {:cloudinary_destroy, URI.decode_query(body)["public_id"]})
+            Req.Test.json(conn, %{"result" => "ok"})
+        end
+      end)
+
+      :ok
+    end
+
+    test "replacing a picture deletes the old one", %{conn: conn} do
+      player = insert(:player, picture_url: @old_url)
+
+      conn
+      |> visit(~p"/admin/players/#{player}/edit")
+      |> upload("Picture", "test/support/fixtures/player.png")
+      |> click_button("Save Player")
+      |> assert_has("p", text: "Player updated successfully")
+
+      assert Players.get_player!(player.id).picture_url == @new_url
+      assert_received {:cloudinary_destroy, "players/old"}
+    end
+
+    test "removing a picture clears it and deletes it from Cloudinary", %{conn: conn} do
+      player = insert(:player, picture_url: @old_url)
+
+      conn
+      |> visit(~p"/admin/players/#{player}/edit")
+      |> click_button("Remove picture")
+      |> refute_has("button", text: "Remove picture")
+      |> click_button("Save Player")
+      |> assert_has("p", text: "Player updated successfully")
+
+      assert Players.get_player!(player.id).picture_url == nil
+      assert_received {:cloudinary_destroy, "players/old"}
+    end
+
+    test "removing a picture is discarded when cancelling", %{conn: conn} do
+      player = insert(:player, picture_url: @old_url)
+
+      conn
+      |> visit(~p"/admin/players/#{player}/edit")
+      |> click_button("Remove picture")
+      |> click_link("Cancelar")
+
+      assert Players.get_player!(player.id).picture_url == @old_url
+      refute_received {:cloudinary_destroy, _}
+    end
+
+    test "shows face-cropped thumbnails in the listing", %{conn: conn} do
+      insert(:player, picture_url: @old_url)
+
+      conn
+      |> visit(~p"/admin/players")
+      |> assert_has(
+        "img[src='https://res.cloudinary.com/test-cloud/image/upload/c_fill,g_face,w_64,h_64,f_auto,q_auto/v1/players/old.png']"
+      )
     end
   end
 

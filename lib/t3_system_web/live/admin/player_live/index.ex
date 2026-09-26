@@ -23,7 +23,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Index do
       >
         <:col :let={{_id, player}} label={gettext("Nome")}>
           <div class="flex items-center gap-3">
-            <.avatar src={player.picture_url} name={player.name} class="size-8" />
+            <.avatar src={player.picture_url} name={player.name} size="sm" />
             {player.name}
           </div>
         </:col>

@@ -6,7 +6,10 @@ defmodule T3System.Players do
   import Ecto.Query, warn: false
   alias T3System.Repo
 
+  require Logger
+
   alias T3System.Accounts.Scope
+  alias T3System.Cloudinary
   alias T3System.Players.Player
 
   @doc """
@@ -61,6 +64,8 @@ defmodule T3System.Players do
   @doc """
   Updates a player. Requires a superuser scope.
 
+  When the picture changes, the previous one is deleted from Cloudinary.
+
   ## Examples
 
       iex> update_player(superuser_scope, player, %{field: new_value})
@@ -71,13 +76,14 @@ defmodule T3System.Players do
 
   """
   def update_player(%Scope{user: %{role: "superuser"}}, %Player{} = player, attrs) do
-    player
-    |> Player.changeset(attrs)
-    |> Repo.update()
+    with {:ok, updated} <- player |> Player.changeset(attrs) |> Repo.update() do
+      if updated.picture_url != player.picture_url, do: delete_picture(player)
+      {:ok, updated}
+    end
   end
 
   @doc """
-  Deletes a player. Requires a superuser scope.
+  Deletes a player and their Cloudinary picture. Requires a superuser scope.
 
   ## Examples
 
@@ -89,7 +95,18 @@ defmodule T3System.Players do
 
   """
   def delete_player(%Scope{user: %{role: "superuser"}}, %Player{} = player) do
-    Repo.delete(player)
+    with {:ok, deleted} <- Repo.delete(player) do
+      delete_picture(deleted)
+      {:ok, deleted}
+    end
+  end
+
+  # Best effort: a leftover image in Cloudinary shouldn't fail the DB change.
+  defp delete_picture(%Player{picture_url: url}) do
+    case Cloudinary.delete_image(url) do
+      :ok -> :ok
+      {:error, reason} -> Logger.warning("Failed to delete player picture #{url}: #{reason}")
+    end
   end
 
   @doc """

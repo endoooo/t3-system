@@ -33,19 +33,89 @@ defmodule T3System.Cloudinary do
         |> Enum.map(fn {key, value} -> {key, to_string(value)} end)
         |> Kernel.++([{"file", File.stream!(path, 2048)}])
 
-      [
-        url: "https://api.cloudinary.com/v1_1/#{config[:cloud_name]}/image/upload",
-        form_multipart: fields
-      ]
-      |> Keyword.merge(config[:req_options] || [])
-      |> Req.post()
-      |> case do
-        {:ok, %Req.Response{status: 200, body: %{"secure_url" => url}}} -> {:ok, url}
-        {:ok, %Req.Response{body: body}} -> {:error, error_message(body)}
-        {:error, exception} -> {:error, Exception.message(exception)}
+      case post(config, "upload", form_multipart: fields) do
+        {:ok, %{"secure_url" => url}} -> {:ok, url}
+        {:ok, body} -> {:error, error_message(body)}
+        {:error, reason} -> {:error, reason}
       end
     end
   end
+
+  @doc """
+  Deletes the image behind a URL previously returned by `upload_image/2`.
+
+  URLs that don't belong to the configured Cloudinary account (or `nil`) are
+  ignored and return `:ok`, so callers can pass any stored picture URL.
+  """
+  @spec delete_image(String.t() | nil) :: :ok | {:error, term()}
+  def delete_image(url) do
+    with {:ok, config} <- fetch_config(),
+         {:ok, public_id} <- public_id(url, config[:cloud_name]) do
+      params = %{"public_id" => public_id, "timestamp" => System.os_time(:second)}
+
+      fields =
+        Map.merge(params, %{
+          "api_key" => config[:api_key],
+          "signature" => sign(params, config[:api_secret])
+        })
+
+      # "not found" means the image is already gone, which is what we wanted.
+      case post(config, "destroy", form: fields) do
+        {:ok, %{"result" => result}} when result in ["ok", "not found"] -> :ok
+        {:ok, body} -> {:error, error_message(body)}
+        {:error, reason} -> {:error, reason}
+      end
+    else
+      :ignore -> :ok
+      error -> error
+    end
+  end
+
+  @doc """
+  Returns a square, face-centered thumbnail URL of `size` pixels for a
+  Cloudinary image URL. Other URLs are returned unchanged.
+  """
+  @spec thumbnail_url(String.t() | nil, pos_integer()) :: String.t() | nil
+  def thumbnail_url(url, size) when is_binary(url) do
+    if String.starts_with?(url, "https://res.cloudinary.com/") do
+      String.replace(
+        url,
+        "/image/upload/",
+        "/image/upload/c_fill,g_face,w_#{size},h_#{size},f_auto,q_auto/",
+        global: false
+      )
+    else
+      url
+    end
+  end
+
+  def thumbnail_url(url, _size), do: url
+
+  defp post(config, action, options) do
+    [url: "https://api.cloudinary.com/v1_1/#{config[:cloud_name]}/image/#{action}"]
+    |> Keyword.merge(options)
+    |> Keyword.merge(config[:req_options] || [])
+    |> Req.post()
+    |> case do
+      {:ok, %Req.Response{body: body}} -> {:ok, body}
+      {:error, exception} -> {:error, Exception.message(exception)}
+    end
+  end
+
+  # https://res.cloudinary.com/<cloud>/image/upload/v123/players/abc.png -> "players/abc"
+  defp public_id(url, cloud_name) when is_binary(url) do
+    prefix = "https://res.cloudinary.com/#{cloud_name}/image/upload/"
+
+    with true <- String.starts_with?(url, prefix),
+         [_, public_id] <-
+           Regex.run(~r{^(?:v\d+/)?(.+)\.\w+$}, String.replace_prefix(url, prefix, "")) do
+      {:ok, public_id}
+    else
+      _ -> :ignore
+    end
+  end
+
+  defp public_id(_url, _cloud_name), do: :ignore
 
   # https://cloudinary.com/documentation/authentication_signatures
   defp sign(params, api_secret) do
