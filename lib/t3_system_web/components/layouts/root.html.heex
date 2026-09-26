@@ -8,6 +8,20 @@
       {assigns[:page_title]}
     </.live_title>
 
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="T3 System" />
+    <meta
+      property="og:title"
+      content={
+        if assigns[:page_title], do: "#{assigns[:page_title]} · T3 System", else: "T3 System"
+      }
+    />
+    <meta :if={assigns[:page_description]} name="description" content={@page_description} />
+    <meta :if={assigns[:page_description]} property="og:description" content={@page_description} />
+    <meta property="og:image" content={url(~p"/images/og-image.png")} />
+    <meta property="og:image:width" content="512" />
+    <meta property="og:image:height" content="512" />
+
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

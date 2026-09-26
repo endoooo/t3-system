@@ -36,6 +36,20 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("span", text: event.address)
     end
 
+    test "renders link preview meta tags", %{conn: conn} do
+      event = insert(:event, name: "Copa T3")
+
+      html = conn |> get(~p"/events/#{event}") |> html_response(200)
+
+      assert html =~ ~s(<meta property="og:title" content="Copa T3 · T3 System")
+
+      assert html =~
+               ~s(<meta property="og:description" content="Acompanhe os jogos e resultados do evento")
+
+      assert html =~
+               ~r{<meta property="og:image" content="https?://[^"]+/images/og-image.png"}
+    end
+
     test "displays formatted datetime", %{conn: conn} do
       event = insert(:event)
 

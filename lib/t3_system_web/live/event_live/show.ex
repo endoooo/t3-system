@@ -1242,6 +1242,7 @@ defmodule T3SystemWeb.EventLive.Show do
     socket =
       socket
       |> assign(:page_title, event.name)
+      |> assign(:page_description, gettext("Acompanhe os jogos e resultados do evento"))
       |> assign(:event, event)
       |> assign(:is_superuser, is_superuser)
       |> assign(:category_form, to_form(%{"category_id" => nil}, as: :category))
