@@ -31,6 +31,10 @@ mix ecto.gen.migration migration_description
 mix ecto.reset
 ```
 
+## Git workflow
+
+This is a hobby project — commit directly on `main`. No feature branches or PRs needed.
+
 ## Architecture
 
 Standard Phoenix 1.8 app with LiveView. Two main OTP apps: `T3System` (business logic) and `T3SystemWeb` (web layer).
