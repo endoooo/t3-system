@@ -25,6 +25,7 @@ defmodule T3System.Matches.Match do
           table_id: pos_integer() | nil,
           table_position: integer(),
           is_bye: boolean(),
+          is_ongoing: boolean(),
           scheduled_at: DateTime.t() | nil,
           event: Event.t() | Ecto.Association.NotLoaded.t(),
           table: Table.t() | Ecto.Association.NotLoaded.t(),
@@ -44,6 +45,7 @@ defmodule T3System.Matches.Match do
     field :scheduled_position, :integer, default: 0
     field :table_position, :integer, default: 0
     field :is_bye, :boolean, default: false
+    field :is_ongoing, :boolean, default: false
     field :scheduled_at, :utc_datetime
     field :slot1_label, :string
     field :slot2_label, :string
@@ -68,6 +70,7 @@ defmodule T3System.Matches.Match do
     :registration2_id,
     :winner_registration_id,
     :is_bye,
+    :is_ongoing,
     :slot1_label,
     :slot2_label,
     :round,
@@ -86,6 +89,7 @@ defmodule T3System.Matches.Match do
     |> validate_required([:event_id])
     |> validate_context()
     |> validate_winner()
+    |> clear_ongoing_when_finished()
     |> validate_different_registrations()
     |> cast_assoc(:sets, with: &MatchSet.changeset/2)
     |> validate_set_winners()
@@ -113,6 +117,15 @@ defmodule T3System.Matches.Match do
       else
         add_error(changeset, :winner_registration_id, "must be one of the match participants")
       end
+    end
+  end
+
+  # A match is either pending, ongoing or finished: finishing it ends the game
+  defp clear_ongoing_when_finished(changeset) do
+    if is_nil(get_field(changeset, :winner_registration_id)) do
+      changeset
+    else
+      put_change(changeset, :is_ongoing, false)
     end
   end
 

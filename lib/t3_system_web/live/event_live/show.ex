@@ -221,57 +221,84 @@ defmodule T3SystemWeb.EventLive.Show do
         </div>
 
         <%!-- Tab: Overview --%>
-        <div :if={@current_tab == "overview"} class="space-y-4 px-4 py-8 sm:px-8">
-          <div :if={@is_superuser} class="flex justify-end">
-            <.button phx-click="open_new_registration" variant="primary">
-              <.icon name="hero-plus" /> {gettext("Nova inscrição")}
-            </.button>
-          </div>
+        <div :if={@current_tab == "overview"} class="space-y-8 px-4 py-8 sm:px-8">
+          <section :if={@ongoing_match_cards != []} id="ongoing-matches" class="space-y-4">
+            <.section_title>{gettext("Em andamento")}</.section_title>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.match_card
+                :for={card <- @ongoing_match_cards}
+                card={card}
+                is_superuser={@is_superuser}
+              />
+            </div>
+          </section>
 
-          <ul
-            :if={@active_category}
-            id="registrations"
-            phx-update="stream"
-            class="grid gap-3 sm:grid-cols-2"
-          >
-            <li id="registrations-empty" class="hidden only:block sm:col-span-2">
-              <.empty_state icon="hero-user-group">
-                {gettext("Nenhuma inscrição ainda.")}
-              </.empty_state>
-            </li>
-            <.card
-              :for={{id, reg} <- @streams.registrations}
-              id={id}
-              tag="li"
-              class="flex items-start gap-2"
+          <section :if={@next_match_cards != []} id="next-matches" class="space-y-4">
+            <.section_title>{gettext("Próximos jogos")}</.section_title>
+            <div class="grid gap-3 sm:grid-cols-2">
+              <.match_card
+                :for={card <- @next_match_cards}
+                card={card}
+                is_superuser={@is_superuser}
+              />
+            </div>
+          </section>
+
+          <section class="space-y-4">
+            <.section_title>
+              {gettext("Jogadores")}
+              <:actions :if={@is_superuser}>
+                <.button phx-click="open_new_registration" variant="primary">
+                  <.icon name="hero-plus" /> {gettext("Nova inscrição")}
+                </.button>
+              </:actions>
+            </.section_title>
+
+            <ul
+              :if={@active_category}
+              id="registrations"
+              phx-update="stream"
+              class="grid gap-3 sm:grid-cols-2"
             >
-              <div class="min-w-0 flex-1 space-y-2">
-                <h3 class="font-display text-lg font-black">{reg.player.name}</h3>
-                <.final_standing final_standing={reg.final_standing} />
-                <p class="text-sm text-primary">{reg.club.name}</p>
-              </div>
-              <div :if={@is_superuser} class="-mt-1.5 -mr-1.5 flex">
-                <.icon_button
-                  name="hero-pencil-mini"
-                  sr_label={gettext("Edit")}
-                  phx-click="open_edit_registration"
-                  phx-value-id={reg.id}
-                />
-                <.icon_button
-                  name="hero-x-circle-mini"
-                  sr_label={gettext("Remove")}
-                  tone="danger"
-                  phx-click="delete_registration"
-                  phx-value-id={reg.id}
-                  data-confirm={gettext("Are you sure?")}
-                />
-              </div>
-            </.card>
-          </ul>
+              <li id="registrations-empty" class="hidden only:block sm:col-span-2">
+                <.empty_state icon="hero-user-group">
+                  {gettext("Nenhuma inscrição ainda.")}
+                </.empty_state>
+              </li>
+              <.card
+                :for={{id, reg} <- @streams.registrations}
+                id={id}
+                tag="li"
+                class="flex items-start gap-2"
+              >
+                <div class="min-w-0 flex-1 space-y-2">
+                  <h3 class="font-display text-lg font-black">{reg.player.name}</h3>
+                  <.final_standing final_standing={reg.final_standing} />
+                  <p class="text-sm text-primary">{reg.club.name}</p>
+                </div>
+                <div :if={@is_superuser} class="-mt-1.5 -mr-1.5 flex">
+                  <.icon_button
+                    name="hero-pencil-mini"
+                    sr_label={gettext("Edit")}
+                    phx-click="open_edit_registration"
+                    phx-value-id={reg.id}
+                  />
+                  <.icon_button
+                    name="hero-x-circle-mini"
+                    sr_label={gettext("Remove")}
+                    tone="danger"
+                    phx-click="delete_registration"
+                    phx-value-id={reg.id}
+                    data-confirm={gettext("Are you sure?")}
+                  />
+                </div>
+              </.card>
+            </ul>
 
-          <.empty_state :if={!@active_category}>
-            {gettext("No category selected.")}
-          </.empty_state>
+            <.empty_state :if={!@active_category}>
+              {gettext("No category selected.")}
+            </.empty_state>
+          </section>
         </div>
 
         <%!-- Tab: Matches --%>
@@ -499,14 +526,19 @@ defmodule T3SystemWeb.EventLive.Show do
                             set_wins={sorted_sets != [] && sw2}
                           />
                           <div
-                            :if={@is_superuser || match.scheduled_at || match.table}
+                            :if={
+                              @is_superuser || match.scheduled_at || match.table || match.is_ongoing
+                            }
                             class="flex min-h-7 items-center justify-between gap-2 border-t border-border px-2.5"
                           >
-                            <p class="text-xs text-fg-muted">
-                              {if match.scheduled_at,
-                                do: Calendar.strftime(match.scheduled_at, "%H:%M")}
-                              {if match.table, do: match.table.name}
-                            </p>
+                            <div class="flex min-w-0 items-center gap-2">
+                              <.ongoing_dot :if={match.is_ongoing} />
+                              <p class="text-xs text-fg-muted">
+                                {if match.scheduled_at,
+                                  do: Calendar.strftime(match.scheduled_at, "%H:%M")}
+                                {if match.table, do: match.table.name}
+                              </p>
+                            </div>
                             <%!-- Superuser actions --%>
                             <div :if={@is_superuser} class="-mr-1.5 flex">
                               <.icon_button
@@ -1042,7 +1074,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
           <p class="text-sm text-fg-muted">
             {gettext(
-              "O primeiro jogo de cada mesa começa no horário do evento e os seguintes a cada intervalo de duração. Arraste os jogos para reordenar ou trocar de mesa. Jogos finalizados ficam fixos."
+              "O primeiro jogo de cada mesa começa no horário do evento e os seguintes a cada intervalo de duração. Arraste os jogos para reordenar ou trocar de mesa. Jogos finalizados ficam fixos. Marque o próximo jogo de cada mesa como em andamento quando ele começar."
             )}
           </p>
 
@@ -1078,7 +1110,11 @@ defmodule T3SystemWeb.EventLive.Show do
               <li class="hidden p-2 text-center text-xs text-fg-subtle only:block">
                 {gettext("Nenhum jogo na fila.")}
               </li>
-              <.schedule_match_card :for={match <- pending} match={match} />
+              <.schedule_match_card
+                :for={{match, index} <- Enum.with_index(pending)}
+                match={match}
+                can_toggle_ongoing={index == 0}
+              />
             </ul>
             <.button
               variant="ghost"
@@ -1272,6 +1308,8 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:unscheduled_modal, nil)
       |> assign(:unscheduled_category_id, nil)
       |> assign(:all_match_cards, [])
+      |> assign(:ongoing_match_cards, [])
+      |> assign(:next_match_cards, [])
       |> assign(:filter_player_id, nil)
       |> assign(:match_filter_players, [])
       |> assign(:bracket_modal, nil)
@@ -1331,6 +1369,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> load_stage_data(current_stage)
       |> assign(:filter_player_id, filter_player_id)
       |> assign_all_match_cards()
+      |> assign_overview_match_cards()
       |> assign_match_filter_players()
 
     {:noreply, socket}
@@ -1847,6 +1886,21 @@ defmodule T3SystemWeb.EventLive.Show do
     {:noreply, assign_schedule(socket)}
   end
 
+  def handle_event("set_match_ongoing", %{"id" => id, "ongoing" => ongoing}, socket) do
+    %{current_scope: scope, event: event} = socket.assigns
+
+    case Matches.set_match_ongoing(scope, event, parse_id(id), ongoing == "true") do
+      :ok ->
+        {:noreply, assign_schedule(socket)}
+
+      {:error, :not_found} ->
+        {:noreply,
+         socket
+         |> put_flash(:error, gettext("Não foi possível atualizar a partida."))
+         |> assign_schedule()}
+    end
+  end
+
   def handle_event("open_unscheduled_modal", params, socket) do
     table_id = parse_id(params["table_id"])
 
@@ -2156,6 +2210,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> load_stage_data(current_stage)
       |> assign(:current_stage, current_stage)
       |> assign_all_match_cards()
+      |> assign_overview_match_cards()
     else
       socket
     end
@@ -2177,6 +2232,36 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   defp assign_all_match_cards(socket), do: socket
+
+  # Ongoing matches, and the next match of each table (in the active category)
+  defp assign_overview_match_cards(%{assigns: %{current_tab: "overview"}} = socket) do
+    cards =
+      socket.assigns.stages
+      |> Enum.flat_map(&stage_match_cards/1)
+      |> Enum.reject(&(&1.is_bye or &1.finished))
+
+    {ongoing, pending} = Enum.split_with(cards, & &1.ongoing)
+
+    next =
+      pending
+      |> Enum.filter(& &1.table)
+      |> Enum.group_by(& &1.table.id)
+      |> Enum.map(fn {_table_id, cards} -> Enum.min_by(cards, &{&1.table_position, &1.id}) end)
+
+    socket
+    |> assign(:ongoing_match_cards, sort_by_schedule(ongoing))
+    |> assign(:next_match_cards, sort_by_schedule(next))
+  end
+
+  defp assign_overview_match_cards(socket), do: socket
+
+  # By time, then table (in the tables' listing order); matches without time go last
+  defp sort_by_schedule(cards) do
+    Enum.sort_by(cards, fn card ->
+      {is_nil(card.scheduled_at), card.scheduled_at && DateTime.to_unix(card.scheduled_at),
+       card.table && card.table.name, card.id}
+    end)
+  end
 
   defp filter_match_cards(cards, nil), do: cards
 
@@ -2264,6 +2349,10 @@ defmodule T3SystemWeb.EventLive.Show do
       sort_key: sort_key,
       scheduled_at: match.scheduled_at,
       table: match.table,
+      table_position: match.table_position,
+      is_bye: match.is_bye,
+      finished: not is_nil(match.winner_registration_id),
+      ongoing: match.is_ongoing,
       has_sets: sorted_sets != [],
       p1_scores: Enum.map(sorted_sets, &format_set_score(&1.score1)),
       p2_scores: Enum.map(sorted_sets, &format_set_score(&1.score2)),
@@ -2340,6 +2429,7 @@ defmodule T3SystemWeb.EventLive.Show do
     <.card id={"match-#{@card.id}"} padded={false}>
       <%!-- Card header --%>
       <div class="flex items-center gap-4 border-b border-border px-4 py-2.5">
+        <.ongoing_dot :if={@card.ongoing} class="-mr-2" />
         <p class="min-w-0 flex-1 truncate font-display text-sm font-bold text-fg-muted">
           {@card.label}
         </p>
@@ -2387,6 +2477,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
   attr :match, :map, required: true
   attr :frozen, :boolean, default: false, doc: "finished matches can't be dragged"
+  attr :can_toggle_ongoing, :boolean, default: false, doc: "only the next match can be ongoing"
 
   defp schedule_match_card(assigns) do
     ~H"""
@@ -2430,7 +2521,45 @@ defmodule T3SystemWeb.EventLive.Show do
       >
         {slot_label(@match, slot)}
       </p>
+      <button
+        :if={@can_toggle_ongoing}
+        type="button"
+        role="switch"
+        aria-checked={to_string(@match.is_ongoing)}
+        phx-click="set_match_ongoing"
+        phx-value-id={@match.id}
+        phx-value-ongoing={to_string(!@match.is_ongoing)}
+        class="mt-2 flex w-full items-center justify-between gap-2 border-t border-border pt-2 text-xs text-fg-muted transition-colors hover:text-fg"
+      >
+        <span class="flex items-center gap-1.5">
+          <.ongoing_dot :if={@match.is_ongoing} />
+          {gettext("Em andamento")}
+        </span>
+        <span class={[
+          "inline-flex w-8 shrink-0 rounded-full p-0.5 inset-ring inset-ring-border transition-colors",
+          if(@match.is_ongoing, do: "bg-primary", else: "bg-surface-raised")
+        ]}>
+          <span class={[
+            "size-3.5 rounded-full bg-white shadow-xs transition-transform",
+            @match.is_ongoing && "translate-x-3.5"
+          ]}>
+          </span>
+        </span>
+      </button>
     </li>
+    """
+  end
+
+  attr :class, :any, default: nil
+
+  defp ongoing_dot(assigns) do
+    ~H"""
+    <span class={["relative flex size-2 shrink-0", @class]} title={gettext("Em andamento")}>
+      <span class="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75">
+      </span>
+      <span class="relative inline-flex size-2 rounded-full bg-primary"></span>
+      <span class="sr-only">{gettext("Em andamento")}</span>
+    </span>
     """
   end
 

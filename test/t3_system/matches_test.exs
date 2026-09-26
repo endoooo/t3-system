@@ -1028,6 +1028,75 @@ defmodule T3System.MatchesTest do
                Matches.add_match_to_table(ctx.scope, ctx.event, pending.id, insert(:table).id)
     end
 
+    test "set_match_ongoing/4 marks only the first pending match of a table", ctx do
+      [m1, m2] = for _ <- 1..2, do: pending_match(ctx)
+      unscheduled = pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id, m2.id]}
+      ])
+
+      assert {:error, :not_found} = Matches.set_match_ongoing(ctx.scope, ctx.event, m2.id, true)
+
+      assert {:error, :not_found} =
+               Matches.set_match_ongoing(ctx.scope, ctx.event, unscheduled.id, true)
+
+      assert :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, m1.id, true)
+      assert Repo.get!(Match, m1.id).is_ongoing
+
+      assert :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, m1.id, false)
+      refute Repo.get!(Match, m1.id).is_ongoing
+    end
+
+    test "set_match_ongoing/4 skips finished matches at the top of the queue", ctx do
+      finished_match(ctx, table: ctx.table1, table_position: 0)
+      m1 = pending_match(ctx, table: ctx.table1, table_position: 1)
+
+      assert :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, m1.id, true)
+    end
+
+    test "a match pushed down the queue stops being ongoing", ctx do
+      [m1, m2] = for _ <- 1..2, do: pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id, m2.id]}
+      ])
+
+      :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, m1.id, true)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m2.id, m1.id]}
+      ])
+
+      refute Repo.get!(Match, m1.id).is_ongoing
+    end
+
+    test "a match moved back to the pool stops being ongoing", ctx do
+      m1 = pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id]}
+      ])
+
+      :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, m1.id, true)
+      Matches.update_table_schedule(ctx.scope, ctx.event, [%{table_id: nil, match_ids: [m1.id]}])
+
+      refute Repo.get!(Match, m1.id).is_ongoing
+    end
+
+    test "finishing a match clears its ongoing flag", ctx do
+      reg1 = insert(:registration, event: ctx.event, category: ctx.category)
+      reg2 = insert(:registration, event: ctx.event, category: ctx.category)
+
+      match =
+        pending_match(ctx, registration1: reg1, registration2: reg2, is_ongoing: true)
+
+      assert {:ok, match} =
+               Matches.update_match(ctx.scope, match, %{winner_registration_id: reg1.id})
+
+      refute match.is_ongoing
+    end
+
     test "list_unscheduled_matches/1 lists every category, ordered by category name", ctx do
       other_category = insert(:category, name: "AAA")
       other_stage = insert(:stage, event: ctx.event, category: other_category)

@@ -697,11 +697,13 @@ defmodule T3System.Matches do
     reschedule_table(event, table_id)
   end
 
-  # Matches moved to the pool lose their table and time
+  # Matches moved to the pool lose their table and time, and can't be ongoing
   defp write_schedule_list(movable, %{table_id: nil, match_ids: ids}) do
     movable
     |> where([m], m.id in ^ids)
-    |> Repo.update_all(set: [table_id: nil, table_position: 0, scheduled_at: nil])
+    |> Repo.update_all(
+      set: [table_id: nil, table_position: 0, scheduled_at: nil, is_ongoing: false]
+    )
   end
 
   defp write_schedule_list(movable, %{table_id: table_id, match_ids: ids}) do
@@ -712,6 +714,33 @@ defmodule T3System.Matches do
       |> where([m], m.id == ^id)
       |> Repo.update_all(set: [table_id: table_id, table_position: index])
     end)
+  end
+
+  @doc """
+  Marks a match as being played (or not). Only the first pending match of a
+  table queue can be ongoing. Requires a superuser scope.
+  """
+  @spec set_match_ongoing(Scope.t(), Event.t(), pos_integer(), boolean()) ::
+          :ok | {:error, :not_found}
+  def set_match_ongoing(%Scope{user: %{role: "superuser"}}, %Event{} = event, match_id, ongoing?) do
+    with %Match{winner_registration_id: nil, is_bye: false, table_id: table_id} = match
+         when not is_nil(table_id) <- Repo.get_by(Match, id: match_id, event_id: event.id),
+         ^match_id <- first_pending_match_id(table_id) do
+      match |> Ecto.Changeset.change(is_ongoing: ongoing?) |> Repo.update!()
+      :ok
+    else
+      _ -> {:error, :not_found}
+    end
+  end
+
+  defp first_pending_match_id(table_id) do
+    from(m in Match,
+      where: m.table_id == ^table_id and is_nil(m.winner_registration_id) and not m.is_bye,
+      order_by: [m.table_position, m.id],
+      limit: 1,
+      select: m.id
+    )
+    |> Repo.one()
   end
 
   @doc """
@@ -753,7 +782,8 @@ defmodule T3System.Matches do
 
   # The first pending match starts right after the latest finished match (whose
   # time is frozen), or at the event start when nothing was played yet. Each
-  # following match starts one match duration later.
+  # following match starts one match duration later. Only the first pending
+  # match can be ongoing, so the ones pushed down the queue stop being ongoing.
   defp reschedule_table(%Event{} = event, table_id) do
     {finished, pending} =
       Match
@@ -775,9 +805,12 @@ defmodule T3System.Matches do
     |> Enum.with_index()
     |> Enum.each(fn {match, index} ->
       scheduled_at = DateTime.add(start_at, index * event.match_duration_minutes, :minute)
+      is_ongoing = index == 0 and match.is_ongoing
 
       from(m in Match, where: m.id == ^match.id)
-      |> Repo.update_all(set: [table_position: index, scheduled_at: scheduled_at])
+      |> Repo.update_all(
+        set: [table_position: index, scheduled_at: scheduled_at, is_ongoing: is_ongoing]
+      )
     end)
   end
 

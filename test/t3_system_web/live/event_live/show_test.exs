@@ -728,6 +728,178 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     end
   end
 
+  describe "ongoing matches" do
+    setup %{conn: conn} do
+      event = insert(:event, datetime: ~U[2026-03-07 12:00:00Z], match_duration_minutes: 20)
+      category = insert(:category, name: "Adulto")
+      associate_category(event, category)
+      stage = insert(:stage, event: event, category: category, name: "Fase 1")
+      group = insert(:group, stage: stage, name: "Grupo A")
+
+      match_between = fn name1, name2, attrs ->
+        [reg1, reg2] =
+          for name <- [name1, name2] do
+            insert(:registration,
+              event: event,
+              category: category,
+              player: build(:player, name: name)
+            )
+          end
+
+        insert(
+          :match,
+          [event: event, group: group, registration1: reg1, registration2: reg2] ++ attrs
+        )
+      end
+
+      %{
+        conn: log_in_user(conn, insert(:superuser)),
+        event: event,
+        category: category,
+        stage: stage,
+        table1: insert(:table, event: event, name: "Mesa 1"),
+        table2: insert(:table, event: event, name: "Mesa 2"),
+        match_between: match_between
+      }
+    end
+
+    test "only the first pending match of a table can be toggled as ongoing", ctx do
+      m1 = ctx.match_between.("Alice", "Bruno", table: ctx.table1, table_position: 0)
+      m2 = ctx.match_between.("Carla", "Davi", table: ctx.table1, table_position: 1)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> refute_has("#schedule-match-#{m2.id} button[role=switch]")
+      |> assert_has("#schedule-match-#{m1.id} button[role=switch][aria-checked=false]")
+      |> click_button("#schedule-match-#{m1.id} button[role=switch]", "Em andamento")
+      |> assert_has("#schedule-match-#{m1.id} button[role=switch][aria-checked=true]")
+      |> click_button("#schedule-match-#{m1.id} button[role=switch]", "Em andamento")
+      |> assert_has("#schedule-match-#{m1.id} button[role=switch][aria-checked=false]")
+    end
+
+    test "overview lists ongoing and next matches ordered by time, then table", ctx do
+      # Mesa 2 runs ahead: its ongoing match started earlier
+      ongoing1 =
+        ctx.match_between.("Alice", "Bruno",
+          table: ctx.table1,
+          table_position: 0,
+          scheduled_at: ~U[2026-03-07 12:20:00Z],
+          is_ongoing: true
+        )
+
+      next1 =
+        ctx.match_between.("Carla", "Davi",
+          table: ctx.table1,
+          table_position: 1,
+          scheduled_at: ~U[2026-03-07 12:40:00Z]
+        )
+
+      _later1 =
+        ctx.match_between.("Elisa", "Fabio",
+          table: ctx.table1,
+          table_position: 2,
+          scheduled_at: ~U[2026-03-07 13:00:00Z]
+        )
+
+      ongoing2 =
+        ctx.match_between.("Gabi", "Hugo",
+          table: ctx.table2,
+          table_position: 0,
+          scheduled_at: ~U[2026-03-07 12:00:00Z],
+          is_ongoing: true
+        )
+
+      next2 =
+        ctx.match_between.("Iara", "João",
+          table: ctx.table2,
+          table_position: 1,
+          scheduled_at: ~U[2026-03-07 12:40:00Z]
+        )
+
+      _unscheduled = ctx.match_between.("Karen", "Lucas", [])
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=overview")
+      |> assert_has("#ongoing-matches h2", text: "Em andamento")
+      |> assert_has("#next-matches h2", text: "Próximos jogos")
+
+      {:ok, _view, html} = live(build_conn(), ~p"/events/#{ctx.event}?tab=overview")
+
+      assert card_ids(html, "ongoing-matches") == [ongoing2.id, ongoing1.id]
+      assert card_ids(html, "next-matches") == [next1.id, next2.id]
+    end
+
+    test "overview hides empty sections", ctx do
+      ctx.match_between.("Alice", "Bruno", [])
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=overview")
+      |> refute_has("#ongoing-matches")
+      |> refute_has("#next-matches")
+    end
+
+    test "overview shows the first pending match as next when nothing is ongoing", ctx do
+      m1 = ctx.match_between.("Alice", "Bruno", table: ctx.table1, table_position: 0)
+      _m2 = ctx.match_between.("Carla", "Davi", table: ctx.table1, table_position: 1)
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=overview")
+      |> refute_has("#ongoing-matches")
+      |> assert_has("#next-matches #match-#{m1.id}", text: "Alice")
+      |> refute_has("#next-matches", text: "Carla")
+    end
+
+    test "matches tab flags ongoing matches", ctx do
+      ongoing =
+        ctx.match_between.("Alice", "Bruno",
+          table: ctx.table1,
+          table_position: 0,
+          is_ongoing: true
+        )
+
+      pending = ctx.match_between.("Carla", "Davi", table: ctx.table1, table_position: 1)
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=matches")
+      |> assert_has("#match-#{ongoing.id} .sr-only", text: "Em andamento")
+      |> refute_has("#match-#{pending.id} .sr-only", text: "Em andamento")
+    end
+
+    test "bracket tab flags ongoing matches", ctx do
+      stage =
+        insert(:stage,
+          event: ctx.event,
+          category: ctx.category,
+          type: "bracket",
+          rounds: 1,
+          order: 2
+        )
+
+      match =
+        insert(:match,
+          event: ctx.event,
+          group: nil,
+          stage: stage,
+          round: 1,
+          position: 1,
+          table: ctx.table1,
+          is_ongoing: true
+        )
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}")
+      |> assert_has("#bracket-match-#{match.id} .sr-only", text: "Em andamento")
+    end
+  end
+
+  defp card_ids(html, section_id) do
+    html
+    |> LazyHTML.from_document()
+    |> LazyHTML.query("##{section_id} [id^=match-]")
+    |> LazyHTML.attribute("id")
+    |> Enum.map(fn "match-" <> id -> String.to_integer(id) end)
+  end
+
   describe "superuser - matches tab ordering" do
     test "orders matches by stage order, then group position and scheduled_position", %{
       conn: conn
