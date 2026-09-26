@@ -597,14 +597,14 @@ defmodule T3System.Matches do
   # ---------------------------------------------------------------------------
 
   @doc """
-  Returns match counts per category for a given event.
+  Returns match counts per category for a given event. Byes are not counted.
   """
   @spec count_matches_per_category(pos_integer()) :: [
           %{category_name: String.t(), count: integer()}
         ]
   def count_matches_per_category(event_id) do
     Match
-    |> where([m], m.event_id == ^event_id)
+    |> where([m], m.event_id == ^event_id and not m.is_bye)
     |> join(:left, [m], g in Group, on: m.group_id == g.id)
     |> join(:inner, [m, g], s in Stage, on: s.id == coalesce(m.stage_id, g.stage_id))
     |> join(:inner, [m, g, s], c in Category, on: c.id == s.category_id)
@@ -615,7 +615,7 @@ defmodule T3System.Matches do
   end
 
   @doc """
-  Returns finished vs unfinished match counts for a given event.
+  Returns finished vs unfinished match counts for a given event. Byes are not counted.
   """
   @spec count_matches_by_status(pos_integer()) :: %{
           finished: integer(),
@@ -624,7 +624,7 @@ defmodule T3System.Matches do
   def count_matches_by_status(event_id) do
     result =
       Match
-      |> where([m], m.event_id == ^event_id)
+      |> where([m], m.event_id == ^event_id and not m.is_bye)
       |> select([m], %{
         finished: count() |> filter(not is_nil(m.winner_registration_id)),
         unfinished: count() |> filter(is_nil(m.winner_registration_id))
@@ -636,13 +636,14 @@ defmodule T3System.Matches do
 
   @doc """
   Returns match counts per table and unassigned unfinished count for a given event.
+  Byes are not counted.
   """
   @spec count_matches_per_table(pos_integer()) ::
           {%{pos_integer() => %{finished: integer(), unfinished: integer()}}, integer()}
   def count_matches_per_table(event_id) do
     rows =
       Match
-      |> where([m], m.event_id == ^event_id)
+      |> where([m], m.event_id == ^event_id and not m.is_bye)
       |> group_by([m], m.table_id)
       |> select([m], %{
         table_id: m.table_id,

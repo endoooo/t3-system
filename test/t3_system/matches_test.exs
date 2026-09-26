@@ -670,6 +670,18 @@ defmodule T3System.MatchesTest do
       assert [%{category_name: "Singles", count: 3}] = result
     end
 
+    test "excludes byes" do
+      event = insert(:event)
+      cat = insert(:category, name: "Cat")
+      stage = insert(:stage, event: event, category: cat, order: 1)
+      group = insert(:group, stage: stage)
+
+      insert(:match, event: event, group: group)
+      insert(:match, event: event, group: group, is_bye: true)
+
+      assert [%{category_name: "Cat", count: 1}] = Matches.count_matches_per_category(event.id)
+    end
+
     test "returns empty list for event with no matches" do
       event = insert(:event)
       assert Matches.count_matches_per_category(event.id) == []
@@ -715,6 +727,19 @@ defmodule T3System.MatchesTest do
 
       result = Matches.count_matches_by_status(event.id)
       assert result == %{finished: 1, unfinished: 2}
+    end
+
+    test "excludes byes" do
+      event = insert(:event)
+      stage = insert(:stage, event: event)
+      group = insert(:group, stage: stage)
+      reg = insert(:registration, event: event)
+
+      insert(:match, event: event, group: group)
+      insert(:match, event: event, group: group, is_bye: true)
+      insert(:match, event: event, group: group, registration1: reg, winner: reg, is_bye: true)
+
+      assert Matches.count_matches_by_status(event.id) == %{finished: 0, unfinished: 1}
     end
 
     test "returns zeros for event with no matches" do
@@ -766,6 +791,23 @@ defmodule T3System.MatchesTest do
       assert table_counts[table1.id] == %{finished: 1, unfinished: 1}
       assert table_counts[table2.id] == %{finished: 0, unfinished: 1}
       assert unassigned == 2
+    end
+
+    test "excludes byes" do
+      event = insert(:event)
+      table = insert(:table, event: event)
+      stage = insert(:stage, event: event)
+      group = insert(:group, stage: stage)
+
+      insert(:match, event: event, group: group, table: table)
+      insert(:match, event: event, group: group, table: table, is_bye: true)
+      insert(:match, event: event, group: group)
+      insert(:match, event: event, group: group, is_bye: true)
+
+      {table_counts, unassigned} = Matches.count_matches_per_table(event.id)
+
+      assert table_counts[table.id] == %{finished: 0, unfinished: 1}
+      assert unassigned == 1
     end
 
     test "returns empty map and zero for event with no matches" do
