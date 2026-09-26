@@ -13,7 +13,7 @@ defmodule T3System.CloudinaryTest do
 
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         assert body =~ ~s(name="api_key"\r\n\r\ntest-key)
-        assert body =~ ~s(name="folder"\r\n\r\nplayers)
+        assert body =~ ~s(name="folder"\r\n\r\nt3_system_test/players)
         assert body =~ ~s(name="file")
 
         [_, timestamp] = Regex.run(~r/name="timestamp"\r\n\r\n(\d+)/, body)
@@ -22,7 +22,7 @@ defmodule T3System.CloudinaryTest do
         expected =
           :crypto.hash(
             :sha,
-            "folder=players&timestamp=#{timestamp}&transformation=c_limit,w_800,h_800test-secret"
+            "folder=t3_system_test/players&timestamp=#{timestamp}&transformation=c_limit,w_800,h_800test-secret"
           )
           |> Base.encode16(case: :lower)
 
@@ -54,11 +54,14 @@ defmodule T3System.CloudinaryTest do
         {:ok, body, conn} = Plug.Conn.read_body(conn)
         params = URI.decode_query(body)
 
-        assert params["public_id"] == "players/abc"
+        assert params["public_id"] == "t3_system_test/players/abc"
         assert params["api_key"] == "test-key"
 
         expected =
-          :crypto.hash(:sha, "public_id=players/abc&timestamp=#{params["timestamp"]}test-secret")
+          :crypto.hash(
+            :sha,
+            "public_id=t3_system_test/players/abc&timestamp=#{params["timestamp"]}test-secret"
+          )
           |> Base.encode16(case: :lower)
 
         assert params["signature"] == expected
@@ -67,7 +70,7 @@ defmodule T3System.CloudinaryTest do
       end)
 
       assert Cloudinary.delete_image(
-               "https://res.cloudinary.com/test-cloud/image/upload/v1727/players/abc.png"
+               "https://res.cloudinary.com/test-cloud/image/upload/v1727/t3_system_test/players/abc.png"
              ) == :ok
     end
 

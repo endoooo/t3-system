@@ -4,14 +4,16 @@ defmodule T3System.Cloudinary do
 
   Configured via `config :t3_system, T3System.Cloudinary`, which reads the
   `CLOUDINARY_URL` env var (`cloudinary://<api_key>:<api_secret>@<cloud_name>`)
-  in `config/runtime.exs`.
+  in `config/runtime.exs`. The optional `CLOUDINARY_FOLDER` env var sets a root
+  folder (e.g. `t3_system_dev`) that all uploads are nested under.
   """
 
   # Caps stored images at 800x800 without cropping, keeping uploads small.
   @incoming_transformation "c_limit,w_800,h_800"
 
   @doc """
-  Uploads the image at `path` into the given Cloudinary `folder`.
+  Uploads the image at `path` into `folder`, nested under the configured root
+  folder (e.g. `"players"` becomes `"t3_system/players"`).
 
   Returns the image's `secure_url` on success.
   """
@@ -19,7 +21,8 @@ defmodule T3System.Cloudinary do
   def upload_image(path, folder) do
     with {:ok, config} <- fetch_config() do
       params = %{
-        "folder" => folder,
+        "folder" =>
+          Enum.join(Enum.reject([config[:root_folder], folder], &(&1 in [nil, ""])), "/"),
         "timestamp" => System.os_time(:second),
         "transformation" => @incoming_transformation
       }

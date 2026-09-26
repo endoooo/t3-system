@@ -28,6 +28,7 @@ config :t3_system, T3System.Cloudinary,
   cloud_name: "test-cloud",
   api_key: "test-key",
   api_secret: "test-secret",
+  root_folder: "t3_system_test",
   req_options: [plug: {Req.Test, T3System.Cloudinary}]
 
 # In test we don't send emails

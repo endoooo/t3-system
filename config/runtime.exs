@@ -33,7 +33,9 @@ if config_env() != :test do
     config :t3_system, T3System.Cloudinary,
       cloud_name: cloud_name,
       api_key: api_key,
-      api_secret: api_secret
+      api_secret: api_secret,
+      # Root folder for all uploads, e.g. "t3_system" or "t3_system_dev"
+      root_folder: System.get_env("CLOUDINARY_FOLDER")
   end
 end
 
