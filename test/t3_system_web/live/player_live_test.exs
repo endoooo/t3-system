@@ -175,6 +175,19 @@ defmodule T3SystemWeb.PlayerLiveTest do
       assert_received {:cloudinary_destroy, "players/old"}
     end
 
+    test "opens and closes the camera modal", %{conn: conn} do
+      player = insert(:player)
+
+      conn
+      |> visit(~p"/admin/players/#{player}/edit")
+      |> assert_has("button", text: "Take photo")
+      |> refute_has("#camera-modal")
+      |> unwrap(&Phoenix.LiveViewTest.render_hook(&1, "open_camera", %{}))
+      |> assert_has("#camera-modal video")
+      |> unwrap(&Phoenix.LiveViewTest.render_hook(&1, "close_camera", %{}))
+      |> refute_has("#camera-modal")
+    end
+
     test "removing a picture is discarded when cancelling", %{conn: conn} do
       player = insert(:player, picture_url: @old_url)
 

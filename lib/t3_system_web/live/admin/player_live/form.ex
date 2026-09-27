@@ -45,18 +45,26 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
                   upload={@uploads.picture}
                   class="text-sm text-fg-muted file:mr-3 file:cursor-pointer file:rounded-md file:border-0 file:bg-surface-raised file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-fg hover:file:bg-surface"
                 />
-                <.button
-                  :if={
-                    @uploads.picture.entries != [] or current_picture_url(@player, @remove_picture)
-                  }
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  phx-click="remove_picture"
-                  phx-value-ref={Enum.map_join(@uploads.picture.entries, & &1.ref)}
-                >
-                  <.icon name="hero-trash" class="size-4" /> {gettext("Remove picture")}
-                </.button>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span id="take-picture" phx-hook=".TakePicture">
+                    <.button type="button" size="sm">
+                      <.icon name="hero-camera" class="size-4" /> {gettext("Take photo")}
+                    </.button>
+                    <input type="file" accept="image/*" capture="environment" class="hidden" />
+                  </span>
+                  <.button
+                    :if={
+                      @uploads.picture.entries != [] or current_picture_url(@player, @remove_picture)
+                    }
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    phx-click="remove_picture"
+                    phx-value-ref={Enum.map_join(@uploads.picture.entries, & &1.ref)}
+                  >
+                    <.icon name="hero-trash" class="size-4" /> {gettext("Remove picture")}
+                  </.button>
+                </div>
               </div>
             </div>
             <p
@@ -83,6 +91,112 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
           <.button navigate={return_path(@return_to, @player)}>{gettext("Cancelar")}</.button>
         </.form_actions>
       </.form>
+
+      <.modal
+        :if={@camera_open}
+        id="camera-modal"
+        title={gettext("Take photo")}
+        on_close="close_camera"
+        class="max-w-lg"
+      >
+        <div id="camera" phx-hook=".Camera" phx-update="ignore" class="space-y-5">
+          <video
+            autoplay
+            playsinline
+            muted
+            class="aspect-square w-full rounded-lg bg-black object-cover"
+          >
+          </video>
+          <p data-camera-error hidden class="flex items-center gap-1.5 text-sm text-danger">
+            <.icon name="hero-exclamation-circle-mini" class="size-4 shrink-0" />
+            {gettext("Could not access the camera. Check the browser permissions.")}
+          </p>
+          <div class="flex justify-end">
+            <.button type="button" variant="primary" data-camera-capture disabled>
+              <.icon name="hero-camera" class="size-4" /> {gettext("Capture")}
+            </.button>
+          </div>
+        </div>
+      </.modal>
+
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".TakePicture">
+        export default {
+          mounted() {
+            const input = this.el.querySelector("input[type=file]")
+
+            // Touch devices get the native camera app; desktops get the in-page camera modal
+            this.el.querySelector("button").addEventListener("click", () => {
+              if (matchMedia("(pointer: coarse)").matches || !navigator.mediaDevices?.getUserMedia) {
+                input.click()
+              } else {
+                this.pushEvent("open_camera", {})
+              }
+            })
+
+            // Keep this helper input away from the form's phx-change; hand its file to the live upload
+            input.addEventListener("change", (e) => {
+              e.stopPropagation()
+              if (input.files.length > 0) this.upload("picture", input.files)
+              input.value = ""
+            })
+          }
+        }
+      </script>
+      <script :type={Phoenix.LiveView.ColocatedHook} name=".Camera">
+        const MAX_SIZE = 1024
+
+        export default {
+          async mounted() {
+            this.video = this.el.querySelector("video")
+            this.captureButton = this.el.querySelector("[data-camera-capture]")
+            this.captureButton.addEventListener("click", () => this.capture())
+
+            try {
+              this.stream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: "environment" },
+                audio: false
+              })
+            } catch {
+              this.el.querySelector("[data-camera-error]").hidden = false
+              return
+            }
+
+            // The modal may have been closed while waiting for camera permission
+            if (this.closed) return this.stopStream()
+
+            this.video.srcObject = this.stream
+            this.captureButton.disabled = false
+          },
+          destroyed() {
+            this.closed = true
+            this.stopStream()
+          },
+          stopStream() {
+            this.stream?.getTracks().forEach((track) => track.stop())
+          },
+          capture() {
+            const { videoWidth: width, videoHeight: height } = this.video
+            const side = Math.min(width, height)
+            const size = Math.min(side, MAX_SIZE)
+
+            // Center-crop to a square, matching the round avatar
+            const canvas = document.createElement("canvas")
+            canvas.width = canvas.height = size
+            canvas
+              .getContext("2d")
+              .drawImage(this.video, (width - side) / 2, (height - side) / 2, side, side, 0, 0, size, size)
+
+            canvas.toBlob(
+              (blob) => {
+                this.upload("picture", [new File([blob], "camera.jpg", { type: "image/jpeg" })])
+                this.pushEvent("close_camera", {})
+              },
+              "image/jpeg",
+              0.9
+            )
+          }
+        }
+      </script>
     </Layouts.settings>
     """
   end
@@ -92,6 +206,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
     {:ok,
      socket
      |> assign(:return_to, return_to(params["return_to"]))
+     |> assign(:camera_open, false)
      |> allow_upload(:picture,
        accept: ~w(.jpg .jpeg .png .webp),
        max_entries: 1,
@@ -137,6 +252,14 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
 
   def handle_event("remove_picture", _params, socket) do
     {:noreply, assign(socket, :remove_picture, true)}
+  end
+
+  def handle_event("open_camera", _params, socket) do
+    {:noreply, assign(socket, :camera_open, true)}
+  end
+
+  def handle_event("close_camera", _params, socket) do
+    {:noreply, assign(socket, :camera_open, false)}
   end
 
   def handle_event("save", %{"player" => player_params} = params, socket) do
