@@ -8,6 +8,7 @@ defmodule T3System.Matches do
 
   alias T3System.Accounts.Scope
   alias T3System.Categories.Category
+  alias T3System.Events
   alias T3System.Events.Event
   alias T3System.Matches.Group
   alias T3System.Matches.Match
@@ -104,13 +105,16 @@ defmodule T3System.Matches do
     type = attrs["type"] || attrs[:type]
     rounds = attrs["rounds"] || attrs[:rounds]
 
-    if type == "bracket" and rounds do
-      create_bracket_stage(attrs)
-    else
-      %Stage{}
-      |> Stage.changeset(attrs)
-      |> Repo.insert()
-    end
+    result =
+      if type == "bracket" and rounds do
+        create_bracket_stage(attrs)
+      else
+        %Stage{}
+        |> Stage.changeset(attrs)
+        |> Repo.insert()
+      end
+
+    broadcast_change(result)
   end
 
   defp create_bracket_stage(attrs) do
@@ -133,13 +137,16 @@ defmodule T3System.Matches do
     stage
     |> Stage.changeset(attrs)
     |> Repo.update()
+    |> broadcast_change()
   end
 
   @doc """
   Deletes a stage. Requires a superuser scope.
   """
   def delete_stage(%Scope{user: %{role: "superuser"}}, %Stage{} = stage) do
-    Repo.delete(stage)
+    stage
+    |> Repo.delete()
+    |> broadcast_change()
   end
 
   @doc """
@@ -170,6 +177,7 @@ defmodule T3System.Matches do
           Repo.rollback(changeset)
       end
     end)
+    |> broadcast_change()
   end
 
   # ---------------------------------------------------------------------------
@@ -234,6 +242,7 @@ defmodule T3System.Matches do
       on_conflict: :nothing
     )
 
+    broadcast_group_change(group_id)
     :ok
   end
 
@@ -260,6 +269,7 @@ defmodule T3System.Matches do
       |> Repo.delete_all()
     end)
 
+    broadcast_group_change(group_id)
     :ok
   end
 
@@ -278,11 +288,15 @@ defmodule T3System.Matches do
           i < j,
           do: {r1, r2}
 
-    Repo.transaction(fn ->
-      from(m in Match, where: m.group_id == ^group.id) |> Repo.delete_all()
-      {count, _} = Repo.insert_all(Match, build_match_rows(pairs, group))
-      count
-    end)
+    result =
+      Repo.transaction(fn ->
+        from(m in Match, where: m.group_id == ^group.id) |> Repo.delete_all()
+        {count, _} = Repo.insert_all(Match, build_match_rows(pairs, group))
+        count
+      end)
+
+    Events.broadcast_event_updated(group.stage.event_id)
+    result
   end
 
   defp build_match_rows([], _group), do: []
@@ -403,6 +417,7 @@ defmodule T3System.Matches do
       %Group{}
       |> Group.changeset(attrs)
       |> Repo.insert()
+      |> broadcast_change()
     end
   end
 
@@ -413,13 +428,16 @@ defmodule T3System.Matches do
     group
     |> Group.changeset(attrs)
     |> Repo.update()
+    |> broadcast_change()
   end
 
   @doc """
   Deletes a group. Requires a superuser scope.
   """
   def delete_group(%Scope{user: %{role: "superuser"}}, %Group{} = group) do
-    Repo.delete(group)
+    group
+    |> Repo.delete()
+    |> broadcast_change()
   end
 
   @doc """
@@ -453,6 +471,7 @@ defmodule T3System.Matches do
     match
     |> Match.changeset(slot_attrs)
     |> Repo.update()
+    |> broadcast_change()
   end
 
   # Generates 2^rounds - 1 placeholder matches for a bracket stage.
@@ -536,20 +555,23 @@ defmodule T3System.Matches do
     %Match{}
     |> Match.changeset(attrs)
     |> Repo.insert()
+    |> broadcast_change()
   end
 
   @doc """
   Updates a match. Requires a superuser scope.
   """
   def update_match(%Scope{user: %{role: "superuser"}}, %Match{} = match, attrs) do
-    match |> Match.changeset(attrs) |> Repo.update()
+    match |> Match.changeset(attrs) |> Repo.update() |> broadcast_change()
   end
 
   @doc """
   Deletes a match. Requires a superuser scope.
   """
   def delete_match(%Scope{user: %{role: "superuser"}}, %Match{} = match) do
-    Repo.delete(match)
+    match
+    |> Repo.delete()
+    |> broadcast_change()
   end
 
   @doc """
@@ -675,6 +697,7 @@ defmodule T3System.Matches do
       |> Enum.each(&reschedule_table(event, &1))
     end)
 
+    Events.broadcast_event_updated(event.id)
     :ok
   end
 
@@ -694,6 +717,7 @@ defmodule T3System.Matches do
          %Match{winner_registration_id: nil, is_bye: false} = match <-
            Repo.get_by(Match, id: match_id, event_id: event.id) do
       Repo.transaction(fn -> append_to_table(event, match, table_id) end)
+      Events.broadcast_event_updated(event.id)
       :ok
     else
       _ -> {:error, :not_found}
@@ -744,6 +768,7 @@ defmodule T3System.Matches do
          when not is_nil(table_id) <- Repo.get_by(Match, id: match_id, event_id: event.id),
          ^match_id <- first_pending_match_id(table_id) do
       match |> Ecto.Changeset.change(is_ongoing: ongoing?) |> Repo.update!()
+      Events.broadcast_event_updated(event.id)
       :ok
     else
       _ -> {:error, :not_found}
@@ -766,6 +791,8 @@ defmodule T3System.Matches do
   @spec recalculate_table_schedule(Scope.t(), Event.t(), pos_integer()) :: :ok
   def recalculate_table_schedule(%Scope{user: %{role: "superuser"}}, %Event{} = event, table_id) do
     reschedule_table(event, table_id)
+    Events.broadcast_event_updated(event.id)
+    :ok
   end
 
   @doc """
@@ -788,6 +815,7 @@ defmodule T3System.Matches do
           Repo.rollback(changeset)
       end
     end)
+    |> broadcast_change()
   end
 
   @doc """
@@ -861,6 +889,7 @@ defmodule T3System.Matches do
     %MatchSet{}
     |> MatchSet.changeset(attrs)
     |> Repo.insert()
+    |> broadcast_change()
   end
 
   @doc """
@@ -870,13 +899,16 @@ defmodule T3System.Matches do
     match_set
     |> MatchSet.changeset(attrs)
     |> Repo.update()
+    |> broadcast_change()
   end
 
   @doc """
   Deletes a match set. Requires a superuser scope.
   """
   def delete_match_set(%Scope{user: %{role: "superuser"}}, %MatchSet{} = match_set) do
-    Repo.delete(match_set)
+    match_set
+    |> Repo.delete()
+    |> broadcast_change()
   end
 
   @doc """
@@ -961,4 +993,46 @@ defmodule T3System.Matches do
 
     {table_counts, unassigned}
   end
+
+  # ---------------------------------------------------------------------------
+  # Broadcasts
+  # ---------------------------------------------------------------------------
+
+  # Notifies the subscribers of the event a changed record belongs to
+  defp broadcast_change({:ok, %Event{id: event_id}} = result) do
+    Events.broadcast_event_updated(event_id)
+    result
+  end
+
+  defp broadcast_change({:ok, %Group{stage_id: stage_id}} = result) do
+    from(s in Stage, where: s.id == ^stage_id, select: s.event_id)
+    |> Repo.one()
+    |> maybe_broadcast_event_updated()
+
+    result
+  end
+
+  defp broadcast_change({:ok, %MatchSet{match_id: match_id}} = result) do
+    from(m in Match, where: m.id == ^match_id, select: m.event_id)
+    |> Repo.one()
+    |> maybe_broadcast_event_updated()
+
+    result
+  end
+
+  defp broadcast_change({:ok, %{event_id: event_id}} = result) do
+    Events.broadcast_event_updated(event_id)
+    result
+  end
+
+  defp broadcast_change(result), do: result
+
+  defp broadcast_group_change(group_id) do
+    from(g in Group, join: s in assoc(g, :stage), where: g.id == ^group_id, select: s.event_id)
+    |> Repo.one()
+    |> maybe_broadcast_event_updated()
+  end
+
+  defp maybe_broadcast_event_updated(nil), do: :ok
+  defp maybe_broadcast_event_updated(event_id), do: Events.broadcast_event_updated(event_id)
 end

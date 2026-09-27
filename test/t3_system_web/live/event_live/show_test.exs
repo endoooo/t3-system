@@ -5,6 +5,10 @@ defmodule T3SystemWeb.EventLive.ShowTest do
   import PhoenixTest
   import T3System.Factory
 
+  alias T3System.Accounts.Scope
+  alias T3System.Events
+  alias T3System.Matches
+
   # Helper to associate a category with an event via the join table
   defp associate_category(event, category) do
     T3System.Repo.insert_all("events_categories", [
@@ -1384,7 +1388,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       refute render(view) =~ "Editar Resultados"
 
       # Verify scores persisted
-      updated_match = T3System.Matches.get_match!(match.id)
+      updated_match = Matches.get_match!(match.id)
       assert updated_match.winner_registration_id == reg1.id
       assert [set] = updated_match.sets
       assert set.score1 == 11
@@ -1413,6 +1417,75 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       # At 1 row, remove buttons should be hidden
       refute has_element?(view, "button[phx-click=remove_score_row]")
+    end
+  end
+
+  describe "live updates" do
+    setup do
+      event = insert(:event)
+      category = insert(:category, name: "Adulto")
+      associate_category(event, category)
+      stage = insert(:stage, event: event, category: category, name: "Fase 1")
+      group = insert(:group, stage: stage, name: "Grupo A")
+      table = insert(:table, event: event, name: "Mesa 1")
+
+      [reg1, reg2] =
+        for name <- ["Alice", "Bruno"] do
+          insert(:registration,
+            event: event,
+            category: category,
+            player: build(:player, name: name)
+          )
+        end
+
+      match =
+        insert(:match,
+          event: event,
+          group: group,
+          registration1: reg1,
+          registration2: reg2,
+          table: table,
+          table_position: 0
+        )
+
+      %{
+        scope: Scope.for_user(insert(:superuser)),
+        event: event,
+        category: category,
+        match: match
+      }
+    end
+
+    test "overview shows a match as ongoing once it is marked elsewhere", ctx do
+      {:ok, view, _html} = live(build_conn(), ~p"/events/#{ctx.event}?tab=overview")
+
+      refute has_element?(view, "#ongoing-matches #match-#{ctx.match.id}")
+
+      :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, ctx.match.id, true)
+
+      assert has_element?(view, "#ongoing-matches #match-#{ctx.match.id}")
+    end
+
+    test "refreshing keeps the current tab and filters", ctx do
+      {:ok, view, _html} =
+        live(
+          build_conn(),
+          ~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}&view=ongoing"
+        )
+
+      refute has_element?(view, "#match-#{ctx.match.id}")
+
+      {:ok, _event} =
+        Events.update_event(ctx.scope, ctx.event, %{
+          "name" => "Copa T3",
+          "category_ids" => [to_string(ctx.category.id)]
+        })
+
+      :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, ctx.match.id, true)
+
+      assert has_element?(view, "h1", "Copa T3")
+      assert has_element?(view, "#match-#{ctx.match.id}")
+      assert has_element?(view, "select option[selected]", "Adulto")
     end
   end
 end

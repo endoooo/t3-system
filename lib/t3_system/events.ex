@@ -175,6 +175,7 @@ defmodule T3System.Events do
     |> Repo.preload(:categories)
     |> Event.changeset_with_categories(attrs, fetch_categories(attrs))
     |> Repo.update()
+    |> broadcast_change()
   end
 
   @doc """
@@ -205,6 +206,41 @@ defmodule T3System.Events do
   def change_event(%Event{} = event, attrs \\ %{}) do
     Event.changeset(event, attrs)
   end
+
+  @doc """
+  Subscribes the caller to changes of the given event: the event itself and
+  its stages, groups, matches, registrations and tables.
+
+  Subscribers receive `{:event_updated, event_id}` messages.
+  """
+  @spec subscribe_event(pos_integer()) :: :ok | {:error, term()}
+  def subscribe_event(event_id) do
+    Phoenix.PubSub.subscribe(T3System.PubSub, event_topic(event_id))
+  end
+
+  @doc """
+  Notifies the subscribers of the given event that its data changed.
+
+  The calling process is not notified, since it already knows about the change.
+  """
+  @spec broadcast_event_updated(pos_integer()) :: :ok | {:error, term()}
+  def broadcast_event_updated(event_id) do
+    Phoenix.PubSub.broadcast_from(
+      T3System.PubSub,
+      self(),
+      event_topic(event_id),
+      {:event_updated, event_id}
+    )
+  end
+
+  defp event_topic(event_id), do: "event:#{event_id}"
+
+  defp broadcast_change({:ok, %Event{id: event_id}} = result) do
+    broadcast_event_updated(event_id)
+    result
+  end
+
+  defp broadcast_change(result), do: result
 
   defp fetch_categories(attrs) do
     ids =

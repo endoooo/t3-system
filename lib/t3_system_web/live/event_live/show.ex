@@ -1291,6 +1291,8 @@ defmodule T3SystemWeb.EventLive.Show do
     event = Events.get_event!(id)
     is_superuser = superuser?(socket.assigns)
 
+    if connected?(socket), do: Events.subscribe_event(event.id)
+
     socket =
       socket
       |> assign(:page_title, event.name)
@@ -1361,37 +1363,22 @@ defmodule T3SystemWeb.EventLive.Show do
 
   @impl true
   def handle_params(params, _uri, socket) do
-    event = socket.assigns.event
-    active_category = resolve_category(event, params["category_id"])
-    stages = load_stages(event, active_category)
-    {tabs, tab} = resolve_tabs(stages, params["tab"], socket.assigns.is_superuser)
-    current_stage = find_current_stage(tab, stages)
+    {:noreply, socket |> assign(:url_params, params) |> load_event_data()}
+  end
 
-    filter_player_id = parse_id(params["player_id"])
+  # Another process (e.g. a superuser in another session) changed the event:
+  # reload everything the current tab shows, keeping the URL state.
+  @impl true
+  def handle_info({:event_updated, event_id}, socket) do
+    # A single action may broadcast several times; refresh once for all of them
+    flush_event_updates(event_id)
+    event = Events.get_event!(event_id)
 
-    category_form =
-      to_form(%{"category_id" => active_category && to_string(active_category.id)}, as: :category)
-
-    socket =
-      socket
-      |> assign(:current_tab, tab)
-      |> assign(:schedule_view, tab == "management" and params["view"] == "schedule")
-      |> assign(:active_category, active_category)
-      |> assign(:category_form, category_form)
-      |> assign(:tabs, tabs)
-      |> assign(:stages, stages)
-      |> assign(:current_stage, current_stage)
-      |> load_registrations(tab, event, active_category)
-      |> load_tables(tab, event)
-      |> assign_schedule()
-      |> load_stage_data(current_stage)
-      |> assign(:filter_player_id, filter_player_id)
-      |> assign(:match_view, parse_match_view(params["view"]))
-      |> assign_all_match_cards()
-      |> assign_overview_match_cards()
-      |> assign_match_filter_players()
-
-    {:noreply, socket}
+    {:noreply,
+     socket
+     |> assign(:event, event)
+     |> assign(:page_title, event.name)
+     |> load_event_data()}
   end
 
   @impl true
@@ -2122,6 +2109,45 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   # Private helpers
+
+  defp flush_event_updates(event_id) do
+    receive do
+      {:event_updated, ^event_id} -> flush_event_updates(event_id)
+    after
+      0 -> :ok
+    end
+  end
+
+  defp load_event_data(socket) do
+    %{event: event, url_params: params} = socket.assigns
+    active_category = resolve_category(event, params["category_id"])
+    stages = load_stages(event, active_category)
+    {tabs, tab} = resolve_tabs(stages, params["tab"], socket.assigns.is_superuser)
+    current_stage = find_current_stage(tab, stages)
+
+    filter_player_id = parse_id(params["player_id"])
+
+    category_form =
+      to_form(%{"category_id" => active_category && to_string(active_category.id)}, as: :category)
+
+    socket
+    |> assign(:current_tab, tab)
+    |> assign(:schedule_view, tab == "management" and params["view"] == "schedule")
+    |> assign(:active_category, active_category)
+    |> assign(:category_form, category_form)
+    |> assign(:tabs, tabs)
+    |> assign(:stages, stages)
+    |> assign(:current_stage, current_stage)
+    |> load_registrations(tab, event, active_category)
+    |> load_tables(tab, event)
+    |> assign_schedule()
+    |> load_stage_data(current_stage)
+    |> assign(:filter_player_id, filter_player_id)
+    |> assign(:match_view, parse_match_view(params["view"]))
+    |> assign_all_match_cards()
+    |> assign_overview_match_cards()
+    |> assign_match_filter_players()
+  end
 
   defp resolve_category(event, category_id_param) do
     case Integer.parse(category_id_param || "") do

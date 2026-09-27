@@ -7,6 +7,7 @@ defmodule T3System.Tables do
   alias T3System.Repo
 
   alias T3System.Accounts.Scope
+  alias T3System.Events
   alias T3System.Tables.Table
 
   @doc """
@@ -33,6 +34,7 @@ defmodule T3System.Tables do
     %Table{}
     |> Table.changeset(attrs)
     |> Repo.insert()
+    |> broadcast_change()
   end
 
   @doc """
@@ -42,13 +44,16 @@ defmodule T3System.Tables do
     table
     |> Table.changeset(attrs)
     |> Repo.update()
+    |> broadcast_change()
   end
 
   @doc """
   Deletes a table. Requires a superuser scope.
   """
   def delete_table(%Scope{user: %{role: "superuser"}}, %Table{} = table) do
-    Repo.delete(table)
+    table
+    |> Repo.delete()
+    |> broadcast_change()
   end
 
   @doc """
@@ -57,4 +62,11 @@ defmodule T3System.Tables do
   def change_table(%Table{} = table, attrs \\ %{}) do
     Table.changeset(table, attrs)
   end
+
+  defp broadcast_change({:ok, %{event_id: event_id}} = result) do
+    Events.broadcast_event_updated(event_id)
+    result
+  end
+
+  defp broadcast_change(result), do: result
 end

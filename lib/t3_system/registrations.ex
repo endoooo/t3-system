@@ -8,6 +8,7 @@ defmodule T3System.Registrations do
 
   alias T3System.Accounts.Scope
   alias T3System.Categories.Category
+  alias T3System.Events
   alias T3System.Registrations.Registration
 
   @doc """
@@ -57,6 +58,7 @@ defmodule T3System.Registrations do
     %Registration{}
     |> Registration.changeset(attrs)
     |> Repo.insert()
+    |> broadcast_change()
   end
 
   @doc """
@@ -79,6 +81,7 @@ defmodule T3System.Registrations do
     registration
     |> Registration.changeset(attrs)
     |> Repo.update()
+    |> broadcast_change()
   end
 
   @doc """
@@ -94,7 +97,9 @@ defmodule T3System.Registrations do
 
   """
   def delete_registration(%Scope{user: %{role: "superuser"}}, %Registration{} = registration) do
-    Repo.delete(registration)
+    registration
+    |> Repo.delete()
+    |> broadcast_change()
   end
 
   @doc """
@@ -135,4 +140,11 @@ defmodule T3System.Registrations do
     |> Repo.all()
     |> Repo.preload([:player, :club, :category])
   end
+
+  defp broadcast_change({:ok, %{event_id: event_id}} = result) do
+    Events.broadcast_event_updated(event_id)
+    result
+  end
+
+  defp broadcast_change(result), do: result
 end

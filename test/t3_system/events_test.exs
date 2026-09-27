@@ -258,4 +258,39 @@ defmodule T3System.EventsTest do
       assert event.categories == []
     end
   end
+
+  describe "event broadcasts" do
+    test "update_event/3 notifies the event subscribers" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      Events.subscribe_event(event.id)
+
+      Task.async(fn -> Events.update_event(scope, event, %{"name" => "Novo nome"}) end)
+      |> Task.await()
+
+      event_id = event.id
+      assert_received {:event_updated, ^event_id}
+    end
+
+    test "the process that made the change is not notified" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      Events.subscribe_event(event.id)
+
+      {:ok, _event} = Events.update_event(scope, event, %{"name" => "Novo nome"})
+
+      refute_received {:event_updated, _}
+    end
+
+    test "subscribers of other events are not notified" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      Events.subscribe_event(insert(:event).id)
+
+      Task.async(fn -> Events.update_event(scope, event, %{"name" => "Novo nome"}) end)
+      |> Task.await()
+
+      refute_received {:event_updated, _}
+    end
+  end
 end

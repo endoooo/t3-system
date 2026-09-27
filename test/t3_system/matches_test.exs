@@ -2,6 +2,7 @@ defmodule T3System.MatchesTest do
   use T3System.DataCase
 
   alias T3System.Accounts.Scope
+  alias T3System.Events
   alias T3System.Matches
   alias T3System.Matches.Group
   alias T3System.Matches.Match
@@ -1116,6 +1117,55 @@ defmodule T3System.MatchesTest do
 
       assert [match] = Matches.list_unscheduled_matches(ctx.event.id, ctx.category.id)
       assert match.id == unscheduled.id
+    end
+  end
+
+  describe "event broadcasts" do
+    setup do
+      event = insert(:event)
+      stage = insert(:stage, event: event)
+      Events.subscribe_event(event.id)
+
+      %{scope: Scope.for_user(insert(:superuser)), event: event, stage: stage}
+    end
+
+    # Changes made by the test process itself are not broadcast back to it
+    defp in_other_process(fun), do: fun |> Task.async() |> Task.await()
+
+    test "group changes notify the subscribers of the stage's event", ctx do
+      in_other_process(fn ->
+        Matches.create_group(ctx.scope, %{"name" => "Grupo A", "stage_id" => ctx.stage.id})
+      end)
+
+      event_id = ctx.event.id
+      assert_received {:event_updated, ^event_id}
+    end
+
+    test "group membership changes notify the event subscribers", ctx do
+      group = insert(:group, stage: ctx.stage)
+      registration = insert(:registration, event: ctx.event)
+
+      in_other_process(fn ->
+        Matches.add_registration_to_group(ctx.scope, group.id, registration.id)
+      end)
+
+      event_id = ctx.event.id
+      assert_received {:event_updated, ^event_id}
+    end
+
+    test "match changes notify the event subscribers", ctx do
+      match = insert(:match, event: ctx.event, stage: ctx.stage, group: nil)
+
+      in_other_process(fn -> Matches.update_match(ctx.scope, match, %{"slot1_label" => "1A"}) end)
+
+      event_id = ctx.event.id
+      assert_received {:event_updated, ^event_id}
+    end
+
+    test "failed changes are not broadcast", ctx do
+      in_other_process(fn -> Matches.create_group(ctx.scope, %{"stage_id" => ctx.stage.id}) end)
+
+      refute_received {:event_updated, _}
     end
   end
 end
