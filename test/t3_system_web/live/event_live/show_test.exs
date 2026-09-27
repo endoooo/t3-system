@@ -103,6 +103,35 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("p", text: club.name)
     end
 
+    test "shows player avatars on registration cards", %{conn: conn} do
+      category = insert(:category)
+      event = insert(:event)
+      associate_category(event, category)
+
+      with_picture =
+        insert(:player,
+          name: "Ana Souza",
+          picture_url: "https://res.cloudinary.com/demo/image/upload/v1/players/ana.jpg"
+        )
+
+      insert(:registration, event: event, category: category, player: with_picture)
+
+      insert(:registration,
+        event: event,
+        category: category,
+        player: insert(:player, name: "João da Silva", picture_url: nil)
+      )
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> assert_has(
+        "#registrations img[src='https://res.cloudinary.com/demo/image/upload/c_fill,g_face,w_80,h_80,f_auto,q_auto/v1/players/ana.jpg']"
+      )
+      |> assert_has("#registrations span", text: "JS")
+      |> assert_has("#registrations button", text: "View picture")
+      |> refute_has("#registrations button", text: "JS")
+    end
+
     test "renders a bracket with an unscheduled match", %{conn: conn} do
       event = insert(:event)
       category = insert(:category)
@@ -416,7 +445,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> visit(stage_url(event, category, stage))
       |> click_button("Jogadores")
       |> assert_has("h2", text: "Gerenciar jogadores")
-      |> click_button("Close")
+      |> click_button("#players-modal button", "Close")
       |> refute_has("h2", text: "Gerenciar jogadores")
     end
 
@@ -451,7 +480,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> visit(stage_url(event, category, stage))
       |> click_button("Jogadores")
       |> select("Add Player", option: "#{player.name} — #{club.name}")
-      |> click_button("Close")
+      |> click_button("#players-modal button", "Close")
       |> assert_has("td", text: player.name)
     end
 

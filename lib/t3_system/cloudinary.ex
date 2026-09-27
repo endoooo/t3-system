@@ -79,20 +79,18 @@ defmodule T3System.Cloudinary do
   Cloudinary image URL. Other URLs are returned unchanged.
   """
   @spec thumbnail_url(String.t() | nil, pos_integer()) :: String.t() | nil
-  def thumbnail_url(url, size) when is_binary(url) do
+  def thumbnail_url(url, size),
+    do: transform_url(url, "c_fill,g_face,w_#{size},h_#{size},f_auto,q_auto")
+
+  defp transform_url(url, transformation) when is_binary(url) do
     if String.starts_with?(url, "https://res.cloudinary.com/") do
-      String.replace(
-        url,
-        "/image/upload/",
-        "/image/upload/c_fill,g_face,w_#{size},h_#{size},f_auto,q_auto/",
-        global: false
-      )
+      String.replace(url, "/image/upload/", "/image/upload/#{transformation}/", global: false)
     else
       url
     end
   end
 
-  def thumbnail_url(url, _size), do: url
+  defp transform_url(url, _transformation), do: url
 
   defp post(config, action, options) do
     [url: "https://api.cloudinary.com/v1_1/#{config[:cloud_name]}/image/#{action}"]

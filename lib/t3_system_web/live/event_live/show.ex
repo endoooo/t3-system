@@ -271,14 +271,15 @@ defmodule T3SystemWeb.EventLive.Show do
                 :for={{id, reg} <- @streams.registrations}
                 id={id}
                 tag="li"
-                class="flex items-start gap-2"
+                class="flex items-center gap-3"
               >
+                <.avatar src={reg.player.picture_url} name={reg.player.name} size="md" preview />
                 <div class="min-w-0 flex-1 space-y-2">
                   <h3 class="font-display text-lg font-black">{reg.player.name}</h3>
                   <.final_standing final_standing={reg.final_standing} />
                   <p class="text-sm text-primary">{reg.club.name}</p>
                 </div>
-                <div :if={@is_superuser} class="-mt-1.5 -mr-1.5 flex">
+                <div :if={@is_superuser} class="-mr-1.5 flex">
                   <.icon_button
                     name="hero-pencil-mini"
                     sr_label={gettext("Edit")}
@@ -423,9 +424,23 @@ defmodule T3SystemWeb.EventLive.Show do
                     <tbody class="tabular-nums">
                       <tr :for={row <- standings} class="text-xs even:bg-fg/[0.03]">
                         <td class="w-1 py-2.5 pl-4 text-fg-muted">{row.rank}</td>
-                        <td class={["px-2 py-2.5", row.qualified && "font-bold"]}>
-                          {row.registration.player.name}
-                          <.icon :if={row.qualified} name="hero-check-micro" class="text-primary" />
+                        <td class={["px-2 py-2", row.qualified && "font-bold"]}>
+                          <div class="flex items-center gap-2">
+                            <.avatar
+                              src={row.registration.player.picture_url}
+                              name={row.registration.player.name}
+                              size="xs"
+                              preview
+                            />
+                            <span>
+                              {row.registration.player.name}
+                              <.icon
+                                :if={row.qualified}
+                                name="hero-check-micro"
+                                class="text-primary"
+                              />
+                            </span>
+                          </div>
                         </td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.won}</td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.lost}</td>

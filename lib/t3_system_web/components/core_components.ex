@@ -618,21 +618,32 @@ defmodule T3SystemWeb.CoreComponents do
   ## Layout & content
 
   @doc """
-  Renders a round avatar image, falling back to a placeholder icon.
+  Renders a round avatar image, falling back to the name's initials (or a
+  placeholder icon when there's no name).
 
   Cloudinary images are requested as face-cropped thumbnails at 2x the
   rendered size.
 
+  With `preview`, clicking a picture opens a larger version in the
+  `picture_preview/1` overlay (rendered by the layouts).
+
   ## Examples
 
       <.avatar src={@player.picture_url} name={@player.name} size="sm" />
+      <.avatar src={@player.picture_url} name={@player.name} preview />
   """
   attr :src, :string, default: nil
-  attr :name, :string, default: nil, doc: "used as the image alt text"
-  attr :size, :string, default: "md", values: ~w(sm md lg)
+  attr :name, :string, default: nil, doc: "used as the image alt text and for the initials"
+  attr :size, :string, default: "md", values: ~w(xs sm md lg)
+  attr :preview, :boolean, default: false, doc: "open a larger picture on click"
   attr :class, :any, default: nil
 
-  @avatar_sizes %{"sm" => {"size-8", 32}, "md" => {"size-10", 40}, "lg" => {"size-20", 80}}
+  @avatar_sizes %{
+    "xs" => {"size-6 text-[0.625rem]", 24},
+    "sm" => {"size-8 text-xs", 32},
+    "md" => {"size-10 text-sm", 40},
+    "lg" => {"size-20 text-2xl", 80}
+  }
 
   def avatar(assigns) do
     {size_class, px} = Map.fetch!(@avatar_sizes, assigns.size)
@@ -640,12 +651,26 @@ defmodule T3SystemWeb.CoreComponents do
     assigns =
       assign(assigns,
         size_class: size_class,
-        thumbnail_url: T3System.Cloudinary.thumbnail_url(assigns.src, px * 2)
+        thumbnail_url: T3System.Cloudinary.thumbnail_url(assigns.src, px * 2),
+        initials: initials(assigns.name)
       )
 
     ~H"""
+    <button
+      :if={@src && @preview}
+      type="button"
+      phx-click={show_picture_preview(@src, @name)}
+      class={["shrink-0 cursor-zoom-in rounded-full", focus_ring(), @class]}
+    >
+      <span class="sr-only">{gettext("View picture")}</span>
+      <img
+        src={@thumbnail_url}
+        alt={@name}
+        class={["rounded-full bg-surface-raised object-cover", @size_class]}
+      />
+    </button>
     <img
-      :if={@src}
+      :if={@src && !@preview}
       src={@thumbnail_url}
       alt={@name}
       class={["shrink-0 rounded-full bg-surface-raised object-cover", @size_class, @class]}
@@ -658,10 +683,74 @@ defmodule T3SystemWeb.CoreComponents do
         @class
       ]}
     >
-      <.icon name="hero-user" class="size-1/2" />
+      <span :if={@initials} aria-hidden="true" class="font-semibold leading-none">
+        {@initials}
+      </span>
+      <.icon :if={!@initials} name="hero-user" class="size-1/2" />
     </div>
     """
   end
+
+  @doc """
+  Renders the overlay used by `avatar/1` with `preview` to show a larger
+  picture. Rendered once by the layouts.
+  """
+  def picture_preview(assigns) do
+    ~H"""
+    <div
+      id="picture-preview"
+      role="dialog"
+      aria-modal="true"
+      aria-label={gettext("Picture")}
+      class="fixed inset-0 z-50 hidden"
+      phx-window-keydown={hide_picture_preview()}
+      phx-key="escape"
+    >
+      <div
+        class="fixed inset-0 flex items-center justify-center bg-scrim p-4 sm:p-8"
+        phx-click={hide_picture_preview()}
+      >
+        <img
+          id="picture-preview-img"
+          class="aspect-square w-[min(80vw,80vh)] max-w-md rounded-full bg-surface-raised object-cover shadow-2xl"
+        />
+      </div>
+    </div>
+    """
+  end
+
+  defp show_picture_preview(src, name) do
+    JS.set_attribute({"src", T3System.Cloudinary.thumbnail_url(src, 896)},
+      to: "#picture-preview-img"
+    )
+    |> JS.set_attribute({"alt", name || ""}, to: "#picture-preview-img")
+    |> JS.show(
+      to: "#picture-preview",
+      time: 200,
+      transition: {"transition-opacity ease-out duration-200", "opacity-0", "opacity-100"}
+    )
+  end
+
+  defp hide_picture_preview do
+    JS.hide(
+      to: "#picture-preview",
+      time: 150,
+      transition: {"transition-opacity ease-in duration-150", "opacity-100", "opacity-0"}
+    )
+  end
+
+  # "Ana Maria da Silva" -> "AS", "Ana" -> "A"
+  defp initials(name) when is_binary(name) do
+    case String.split(name) do
+      [] -> nil
+      [single] -> first_letter(single)
+      [first | rest] -> first_letter(first) <> first_letter(List.last(rest))
+    end
+  end
+
+  defp initials(_name), do: nil
+
+  defp first_letter(word), do: word |> String.first() |> String.upcase()
 
   @doc """
   Renders the page header with title.

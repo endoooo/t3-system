@@ -60,6 +60,7 @@ defmodule T3SystemWeb.Layouts do
       </div>
     </div>
     <.flash_group flash={@flash} />
+    <.picture_preview />
     """
   end
 
@@ -191,6 +192,7 @@ defmodule T3SystemWeb.Layouts do
     </main>
 
     <.flash_group flash={@flash} />
+    <.picture_preview />
     """
   end
 
