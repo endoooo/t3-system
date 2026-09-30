@@ -751,13 +751,35 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       ctx.conn
       |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
-      |> refute_has("#schedule-match-#{finished.id}[data-match-id]")
+      |> assert_has("h2", text: "Agenda - Em andamento e próximos")
+      |> refute_has("#schedule-match-#{finished.id}")
       |> assert_has("#schedule-match-#{pending.id}[data-match-id]")
+      |> click_link("#schedule-list-finished", "Finalizados")
+      |> assert_has("h2", text: "Agenda - Finalizados")
+      |> refute_has("#schedule-match-#{finished.id}[data-match-id]")
+      |> refute_has("#schedule-match-#{pending.id}")
       |> click_button("#schedule-match-#{finished.id} button", "Editar horário")
       |> fill_in("Data e hora", with: "2026-03-07T13:00")
       |> click_button("Salvar")
       |> assert_has("#schedule-match-#{finished.id}", text: "13:00")
+      |> click_link("#schedule-list-pending", "Em andamento e próximos")
       |> assert_has("#schedule-match-#{pending.id}", text: "13:20")
+    end
+
+    test "the ongoing match time can be edited to reschedule the next ones", ctx do
+      m1 = ctx.match_between.("Alice", "Bruno", table: ctx.table, table_position: 0)
+      m2 = ctx.match_between.("Carla", "Davi", table: ctx.table, table_position: 1)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> refute_has("#schedule-match-#{m1.id} button", text: "Editar horário")
+      |> click_button("#schedule-match-#{m1.id} button[role=switch]", "Em andamento")
+      |> click_button("#schedule-match-#{m1.id} button", "Editar horário")
+      |> fill_in("Data e hora", with: "2026-03-07T12:10")
+      |> click_button("Salvar")
+      |> assert_has("#schedule-match-#{m1.id}", text: "12:10")
+      |> assert_has("#schedule-match-#{m2.id}", text: "12:30")
+      |> refute_has("#schedule-match-#{m2.id} button", text: "Editar horário")
     end
   end
 

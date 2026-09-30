@@ -1085,6 +1085,45 @@ defmodule T3System.MatchesTest do
       refute Repo.get!(Match, m1.id).is_ongoing
     end
 
+    test "a match moved to another table stops being ongoing", ctx do
+      m1 = pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id]}
+      ])
+
+      :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, m1.id, true)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: []},
+        %{table_id: ctx.table2.id, match_ids: [m1.id]}
+      ])
+
+      refute Repo.get!(Match, m1.id).is_ongoing
+    end
+
+    test "an ongoing match keeps its time and anchors the matches that follow it", ctx do
+      [m1, m2] = for _ <- 1..2, do: pending_match(ctx)
+
+      Matches.update_table_schedule(ctx.scope, ctx.event, [
+        %{table_id: ctx.table1.id, match_ids: [m1.id, m2.id]}
+      ])
+
+      :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, m1.id, true)
+
+      {:ok, _} =
+        Matches.update_match(ctx.scope, Repo.get!(Match, m1.id), %{
+          scheduled_at: ~U[2026-03-07 12:15:00Z]
+        })
+
+      :ok = Matches.recalculate_table_schedule(ctx.scope, ctx.event, ctx.table1.id)
+      assert times([m1.id, m2.id]) == [~U[2026-03-07 12:15:00Z], ~U[2026-03-07 12:35:00Z]]
+
+      # Once it's no longer ongoing, the times follow the event start again
+      :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, m1.id, false)
+      assert times([m1.id, m2.id]) == [~U[2026-03-07 12:00:00Z], ~U[2026-03-07 12:20:00Z]]
+    end
+
     test "finishing a match clears its ongoing flag", ctx do
       reg1 = insert(:registration, event: ctx.event, category: ctx.category)
       reg2 = insert(:registration, event: ctx.event, category: ctx.category)

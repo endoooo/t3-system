@@ -1051,7 +1051,36 @@ defmodule T3SystemWeb.EventLive.Show do
       <div :if={@current_tab == "management" and @is_superuser and @schedule_view} class="pb-8">
         <div class="mx-auto max-w-4xl space-y-6 px-4 py-8 sm:px-8">
           <.section_title>
-            {gettext("Agenda")}
+            <el-dropdown id="schedule-list-dropdown" class="inline-block">
+              <button
+                id="schedule-list-toggle"
+                type="button"
+                class="flex items-center gap-1 rounded-control text-left hover:text-fg-muted"
+              >
+                {gettext("Agenda")} - {schedule_list_label(@schedule_list)}
+                <.icon name="hero-chevron-down-mini" class="size-5 shrink-0" />
+              </button>
+              <el-menu
+                anchor="bottom start"
+                popover
+                class="w-64 rounded-control bg-surface py-1 font-sans text-sm font-normal shadow-lg outline -outline-offset-1 outline-border transition-discrete [--anchor-gap:--spacing(1)] data-closed:opacity-0 data-leave:transition data-leave:duration-100 data-leave:ease-in"
+              >
+                <.link
+                  :for={list <- ~w(pending finished)}
+                  id={"schedule-list-#{list}"}
+                  patch={
+                    ~p"/events/#{@event}?#{schedule_params(@current_tab, @active_category, list)}"
+                  }
+                  class={[
+                    "flex items-center justify-between gap-2 px-4 py-2 text-fg focus:bg-fg/5 focus:outline-none",
+                    list == @schedule_list && "font-semibold"
+                  ]}
+                >
+                  {schedule_list_label(list)}
+                  <.icon :if={list == @schedule_list} name="hero-check-mini" class="size-4" />
+                </.link>
+              </el-menu>
+            </el-dropdown>
             <:actions>
               <.button
                 variant="ghost"
@@ -1103,9 +1132,14 @@ defmodule T3SystemWeb.EventLive.Show do
             </button>
           </div>
 
-          <p class="text-sm text-fg-muted">
+          <p :if={@schedule_list == "pending"} class="text-sm text-fg-muted">
             {gettext(
-              "O primeiro jogo de cada mesa começa no horário do evento e os seguintes a cada intervalo de duração. Arraste os jogos para reordenar ou trocar de mesa. Jogos finalizados ficam fixos. Marque o próximo jogo de cada mesa como em andamento quando ele começar."
+              "O primeiro jogo de cada mesa começa no horário do evento e os seguintes a cada intervalo de duração. Arraste os jogos para reordenar ou trocar de mesa. Marque o próximo jogo de cada mesa como em andamento quando ele começar e ajuste o horário dele para reagendar os seguintes."
+            )}
+          </p>
+          <p :if={@schedule_list == "finished"} class="text-sm text-fg-muted">
+            {gettext(
+              "Jogos finalizados ficam fixos. Quando não há jogo em andamento, o próximo jogo da mesa começa uma duração após o último finalizado."
             )}
           </p>
 
@@ -1127,12 +1161,16 @@ defmodule T3SystemWeb.EventLive.Show do
           >
             <h3 class="flex h-7 items-center gap-2 text-sm font-semibold">
               <span class="truncate">{table.name}</span>
-              <.badge>{length(pending)}</.badge>
+              <.badge>{length(if(@schedule_list == "finished", do: finished, else: pending))}</.badge>
             </h3>
-            <ul :if={finished != []} class="space-y-2">
+            <ul :if={@schedule_list == "finished"} class="space-y-2">
+              <li :if={finished == []} class="p-2 text-center text-xs text-fg-subtle">
+                {gettext("Nenhum jogo finalizado.")}
+              </li>
               <.schedule_match_card :for={match <- finished} match={match} frozen />
             </ul>
             <ul
+              :if={@schedule_list == "pending"}
               id={"schedule-list-table-#{table.id}"}
               data-schedule-list
               data-table-id={table.id}
@@ -1148,6 +1186,7 @@ defmodule T3SystemWeb.EventLive.Show do
               />
             </ul>
             <.button
+              :if={@schedule_list == "pending"}
               variant="ghost"
               size="sm"
               class="w-full"
@@ -1339,6 +1378,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:unscheduled_matches, [])
       |> assign(:duration_form, nil)
       |> assign(:schedule_view, false)
+      |> assign(:schedule_list, "pending")
       |> assign(:unscheduled_modal, nil)
       |> assign(:unscheduled_category_id, nil)
       |> assign(:all_match_cards, [])
@@ -1996,7 +2036,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
     case Matches.update_match(scope, match, %{"scheduled_at" => scheduled_at}) do
       {:ok, _} ->
-        # A finished match's time anchors the pending matches that follow it
+        # A finished or ongoing match's time anchors the pending matches that follow it
         if match.table_id, do: Matches.recalculate_table_schedule(scope, event, match.table_id)
 
         {:noreply,
@@ -2148,6 +2188,7 @@ defmodule T3SystemWeb.EventLive.Show do
     socket
     |> assign(:current_tab, tab)
     |> assign(:schedule_view, tab == "management" and params["view"] == "schedule")
+    |> assign(:schedule_list, parse_schedule_list(params["list"]))
     |> assign(:active_category, active_category)
     |> assign(:category_form, category_form)
     |> assign(:tabs, tabs)
@@ -2598,7 +2639,7 @@ defmodule T3SystemWeb.EventLive.Show do
           {Calendar.strftime(@match.scheduled_at, "%H:%M")}
         </span>
         <.icon_button
-          :if={@frozen}
+          :if={@frozen or (@can_toggle_ongoing and @match.is_ongoing)}
           name="hero-pencil-micro"
           sr_label={gettext("Editar horário")}
           class="-my-1.5 -mr-2"
@@ -2664,6 +2705,19 @@ defmodule T3SystemWeb.EventLive.Show do
       <span class="sr-only">{gettext("Em andamento")}</span>
     </span>
     """
+  end
+
+  defp parse_schedule_list("finished"), do: "finished"
+  defp parse_schedule_list(_list), do: "pending"
+
+  defp schedule_list_label("finished"), do: gettext("Finalizados")
+  defp schedule_list_label(_list), do: gettext("Em andamento e próximos")
+
+  defp schedule_params(current_tab, active_category, list) do
+    current_tab
+    |> tab_params(active_category, "management")
+    |> Map.put("view", "schedule")
+    |> then(&if(list == "finished", do: Map.put(&1, "list", list), else: &1))
   end
 
   defp schedule_match_label(%{group: %Group{} = group}),
