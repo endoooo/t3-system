@@ -2,6 +2,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Index do
   use T3SystemWeb, :live_view
 
   alias T3System.Categories
+  alias T3SystemWeb.Admin.CategoryFormat
 
   @impl true
   def render(assigns) do
@@ -23,7 +24,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Index do
       >
         <:col :let={{_id, category}} label={gettext("Nome")}>{category.name}</:col>
         <:col :let={{_id, category}} label={gettext("Formato")}>
-          {T3SystemWeb.Admin.CategoryLive.format_label(category.format)}
+          {CategoryFormat.format_label(category.format)}
         </:col>
         <:action :let={{_id, category}}>
           <div class="sr-only">

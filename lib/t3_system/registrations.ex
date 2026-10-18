@@ -13,7 +13,7 @@ defmodule T3System.Registrations do
   alias T3System.Registrations.Registration
   alias T3System.Registrations.RegistrationPlayer
 
-  @players_preload [registration_players: [:player, :club]]
+  @players_preload Registration.players_preload()
 
   @doc """
   Returns the list of registrations.
@@ -85,7 +85,7 @@ defmodule T3System.Registrations do
     Repo.transact(fn ->
       registration
       |> replace_players(attrs)
-      |> changeset(drop_player_ids(attrs))
+      |> changeset(attrs)
       |> Repo.update()
     end)
     |> broadcast_change()
@@ -94,10 +94,12 @@ defmodule T3System.Registrations do
   # Editing replaces the registration's players: when new players are given,
   # the current rows are deleted first and the given ones inserted. Updating
   # rows in place could swap players or positions between existing rows, which
-  # would hit the (non-deferred) unique indexes mid-save. Matches, groups and
-  # final standing belong to the registration, so they are untouched.
+  # would hit the (non-deferred) unique indexes mid-save. Given row ids no
+  # longer match a current row, so `cast_assoc` inserts them as new rows.
+  # Matches, groups and final standing belong to the registration, so they are
+  # untouched.
   defp replace_players(registration, attrs) do
-    if players_key(attrs) do
+    if players_given?(attrs) do
       Repo.delete_all(
         from rp in RegistrationPlayer, where: rp.registration_id == ^registration.id
       )
@@ -108,23 +110,8 @@ defmodule T3System.Registrations do
     end
   end
 
-  defp drop_player_ids(attrs) do
-    case players_key(attrs) do
-      nil -> attrs
-      key -> Map.update!(attrs, key, &drop_ids/1)
-    end
-  end
-
-  defp players_key(attrs) do
-    Enum.find([:registration_players, "registration_players"], &Map.has_key?(attrs, &1))
-  end
-
-  defp drop_ids(rows) when is_list(rows), do: Enum.map(rows, &drop_id/1)
-  defp drop_ids(%{} = rows), do: Map.new(rows, fn {index, row} -> {index, drop_id(row)} end)
-  defp drop_ids(rows), do: rows
-
-  defp drop_id(%{} = row), do: Map.drop(row, [:id, "id"])
-  defp drop_id(row), do: row
+  defp players_given?(attrs),
+    do: Map.has_key?(attrs, :registration_players) or Map.has_key?(attrs, "registration_players")
 
   @doc """
   Deletes a registration. Requires a superuser scope.

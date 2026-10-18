@@ -23,6 +23,15 @@ defmodule T3System.Categories.Category do
   @spec formats() :: [String.t()]
   def formats, do: @formats
 
+  @doc """
+  How many players a registration has in a category (or format): 1 for
+  singles, 2 for doubles.
+  """
+  @spec player_count(t() | String.t()) :: pos_integer()
+  def player_count(%__MODULE__{format: format}), do: player_count(format)
+  def player_count("doubles"), do: 2
+  def player_count("singles"), do: 1
+
   @doc false
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
   def changeset(category, attrs) do

@@ -3,7 +3,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Form do
 
   alias T3System.Categories
   alias T3System.Categories.Category
-  alias T3SystemWeb.Admin.CategoryLive
+  alias T3SystemWeb.Admin.CategoryFormat
 
   @impl true
   def render(assigns) do
@@ -27,7 +27,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Form do
             field={@form[:format]}
             type="select"
             label={gettext("Formato")}
-            options={CategoryLive.format_options()}
+            options={CategoryFormat.format_options()}
             disabled={@format_locked}
           />
           <p :if={@format_locked} id="category-format-locked" class="mt-1 text-sm text-fg-muted">

@@ -1,4 +1,4 @@
-defmodule T3SystemWeb.Admin.CategoryLive do
+defmodule T3SystemWeb.Admin.CategoryFormat do
   @moduledoc """
   Shared display helpers for category formats.
   """

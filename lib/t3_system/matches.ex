@@ -18,8 +18,7 @@ defmodule T3System.Matches do
   alias T3System.Tables
   alias T3System.Tables.Table
 
-  # A registration's players in position order, each with player and club.
-  @registration_preload [registration_players: [:player, :club]]
+  @registration_preload Registration.players_preload()
 
   # ---------------------------------------------------------------------------
   # Stages

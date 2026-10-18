@@ -39,6 +39,13 @@ defmodule T3System.Registrations.Registration do
     timestamps(type: :utc_datetime)
   end
 
+  @doc """
+  The preload for a registration's players in position order, each with its
+  player and club.
+  """
+  @spec players_preload() :: keyword()
+  def players_preload, do: [registration_players: [:player, :club]]
+
   @required_fields [:event_id, :category_id]
   @optional_fields [:final_standing]
 
@@ -83,7 +90,7 @@ defmodule T3System.Registrations.Registration do
     player_ids = players |> Enum.map(& &1.player_id) |> Enum.reject(&is_nil/1)
 
     cond do
-      length(player_ids) != player_count(format) ->
+      length(player_ids) != Category.player_count(format) ->
         add_error(changeset, :registration_players, player_count_message(format))
 
       length(Enum.uniq(player_ids)) != length(player_ids) ->
@@ -93,9 +100,6 @@ defmodule T3System.Registrations.Registration do
         changeset
     end
   end
-
-  defp player_count("doubles"), do: 2
-  defp player_count(_singles), do: 1
 
   defp player_count_message("doubles"), do: "a doubles registration must have exactly 2 players"
   defp player_count_message(_singles), do: "a singles registration must have exactly 1 player"
