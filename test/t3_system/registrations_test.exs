@@ -264,6 +264,164 @@ defmodule T3System.RegistrationsTest do
       assert {player_id, club_id} == {new_player.id, new_club.id}
     end
 
+    test "update_registration/3 swaps the positions of a pair" do
+      scope = Scope.for_user(insert(:superuser))
+      registration = insert(:doubles_registration)
+      [rp1, rp2] = registration.registration_players
+
+      assert {:ok, %Registration{}} =
+               Registrations.update_registration(scope, registration, %{
+                 registration_players: [
+                   %{id: rp1.id, player_id: rp1.player_id, club_id: rp1.club_id, position: 2},
+                   %{id: rp2.id, player_id: rp2.player_id, club_id: rp2.club_id, position: 1}
+                 ]
+               })
+
+      assert [rp2.player_id, rp1.player_id] ==
+               Enum.map(
+                 Registrations.get_registration!(registration.id).registration_players,
+                 & &1.player_id
+               )
+    end
+
+    test "update_registration/3 swaps the players between the rows of a pair" do
+      scope = Scope.for_user(insert(:superuser))
+      registration = insert(:doubles_registration)
+      [rp1, rp2] = registration.registration_players
+
+      assert {:ok, %Registration{}} =
+               Registrations.update_registration(scope, registration, %{
+                 "registration_players" => %{
+                   "0" => %{
+                     "id" => to_string(rp1.id),
+                     "player_id" => to_string(rp2.player_id),
+                     "club_id" => to_string(rp2.club_id),
+                     "position" => "1"
+                   },
+                   "1" => %{
+                     "id" => to_string(rp2.id),
+                     "player_id" => to_string(rp1.player_id),
+                     "club_id" => to_string(rp1.club_id),
+                     "position" => "2"
+                   }
+                 }
+               })
+
+      assert [{rp2.player_id, rp2.club_id}, {rp1.player_id, rp1.club_id}] ==
+               Enum.map(
+                 Registrations.get_registration!(registration.id).registration_players,
+                 &{&1.player_id, &1.club_id}
+               )
+    end
+
+    test "update_registration/3 substitutes a partner and changes a club" do
+      scope = Scope.for_user(insert(:superuser))
+      registration = insert(:doubles_registration)
+      [rp1, rp2] = registration.registration_players
+      substitute = insert(:player)
+      new_club = insert(:club)
+
+      assert {:ok, %Registration{}} =
+               Registrations.update_registration(scope, registration, %{
+                 registration_players: [
+                   %{id: rp1.id, player_id: rp1.player_id, club_id: new_club.id, position: 1},
+                   %{id: rp2.id, player_id: substitute.id, club_id: rp2.club_id, position: 2}
+                 ]
+               })
+
+      assert [{rp1.player_id, new_club.id}, {substitute.id, rp2.club_id}] ==
+               Enum.map(
+                 Registrations.get_registration!(registration.id).registration_players,
+                 &{&1.player_id, &1.club_id}
+               )
+    end
+
+    test "update_registration/3 rejects a substitute already in another pair" do
+      scope = Scope.for_user(insert(:superuser))
+      registration = insert(:doubles_registration)
+      [rp1, rp2] = registration.registration_players
+
+      other =
+        insert(:doubles_registration,
+          event: registration.event,
+          category: registration.category
+        )
+
+      [taken, _] = other.registration_players
+
+      assert {:error, changeset} =
+               Registrations.update_registration(scope, registration, %{
+                 registration_players: [
+                   %{id: rp1.id, player_id: rp1.player_id, club_id: rp1.club_id, position: 1},
+                   %{id: rp2.id, player_id: taken.player_id, club_id: rp2.club_id, position: 2}
+                 ]
+               })
+
+      assert %{registration_players: [%{}, %{player_id: ["already registered in this category"]}]} =
+               errors_on(changeset)
+    end
+
+    test "update_registration/3 rejects the same player twice in a pair" do
+      scope = Scope.for_user(insert(:superuser))
+      registration = insert(:doubles_registration)
+      [rp1, rp2] = registration.registration_players
+
+      assert {:error, changeset} =
+               Registrations.update_registration(scope, registration, %{
+                 registration_players: [
+                   %{id: rp1.id, player_id: rp1.player_id, club_id: rp1.club_id, position: 1},
+                   %{id: rp2.id, player_id: rp1.player_id, club_id: rp2.club_id, position: 2}
+                 ]
+               })
+
+      assert %{registration_players: ["a pair must have two different players"]} =
+               errors_on(changeset)
+    end
+
+    test "update_registration/3 keeps matches, groups and final standing with the pair" do
+      scope = Scope.for_user(insert(:superuser))
+      registration = insert(:doubles_registration, final_standing: 1)
+      [rp1, rp2] = registration.registration_players
+      opponent = insert(:doubles_registration, event: registration.event)
+      group = insert(:group)
+      T3System.Matches.add_registration_to_group(scope, group.id, registration.id)
+
+      match =
+        insert(:match,
+          event: registration.event,
+          group: group,
+          registration1_id: registration.id,
+          registration2_id: opponent.id,
+          winner_registration_id: registration.id
+        )
+
+      insert(:match_set, match: match, winner_registration_id: registration.id)
+
+      assert {:ok, %Registration{}} =
+               Registrations.update_registration(scope, registration, %{
+                 registration_players: [
+                   %{id: rp1.id, player_id: rp1.player_id, club_id: rp1.club_id, position: 1},
+                   %{id: rp2.id, player_id: insert(:player).id, club_id: rp2.club_id, position: 2}
+                 ]
+               })
+
+      updated =
+        Registrations.get_registration!(registration.id)
+        |> Repo.preload([:groups, :matches_as_registration1])
+
+      assert updated.final_standing == 1
+      assert [%{id: group_id}] = updated.groups
+      assert group_id == group.id
+
+      assert [%{id: match_id, winner_registration_id: winner_id}] =
+               updated.matches_as_registration1
+
+      assert {match_id, winner_id} == {match.id, registration.id}
+
+      assert [%{winner_registration_id: ^winner_id}] =
+               Repo.preload(Repo.get!(T3System.Matches.Match, match.id), :sets).sets
+    end
+
     test "update_registration/3 moving to a category where the player is taken is rejected" do
       scope = Scope.for_user(insert(:superuser))
       registration = insert(:registration)

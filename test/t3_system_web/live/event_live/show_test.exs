@@ -28,6 +28,37 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     end)
   end
 
+  # An event with a doubles category and the pair Ana (Clube A) / Bia (Clube B).
+  defp pair_setup do
+    category = insert(:category, format: "doubles")
+    event = insert(:event)
+    associate_category(event, category)
+    ana = insert(:player, name: "Ana")
+    bia = insert(:player, name: "Bia")
+    club_a = insert(:club, name: "Clube A")
+    club_b = insert(:club, name: "Clube B")
+
+    registration =
+      insert(:doubles_registration,
+        event: event,
+        category: category,
+        registration_players: [
+          build(:registration_player, player: ana, club: club_a, position: 1),
+          build(:registration_player, player: bia, club: club_b, position: 2)
+        ]
+      )
+
+    %{
+      event: event,
+      category: category,
+      registration: registration,
+      ana: ana,
+      bia: bia,
+      club_a: club_a,
+      club_b: club_b
+    }
+  end
+
   defp add_to_group(group, registration) do
     now = DateTime.utc_now(:second)
 
@@ -409,6 +440,89 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> visit(~p"/events/#{event}")
       |> click_button("Edit")
       |> assert_has("h2", text: "Editar Inscrição")
+    end
+
+    test "edit modal for a pair shows both players and clubs", %{conn: conn} do
+      %{event: event, ana: ana, bia: bia, club_a: club_a, club_b: club_b} = pair_setup()
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Edit")
+      |> assert_has("h2", text: "Editar Inscrição")
+      |> assert_has("#player-autocomplete[value='#{ana.name}']")
+      |> assert_has("#player-autocomplete-1[value='#{bia.name}']")
+      |> assert_has("#registration-form select[name$='[0][club_id]'] option[selected]",
+        text: club_a.name
+      )
+      |> assert_has("#registration-form select[name$='[1][club_id]'] option[selected]",
+        text: club_b.name
+      )
+    end
+
+    test "substitutes a partner and changes a club of a pair", %{conn: conn} do
+      %{event: event} = pair_setup()
+      cris = insert(:player, name: "Cris")
+      club_c = insert(:club, name: "Clube C")
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Edit")
+      |> select_pair_player(1, cris)
+      |> select("Clube 1", option: club_c.name)
+      |> click_button("Salvar")
+      |> refute_has("h2", text: "Editar Inscrição")
+      |> assert_has("h3", text: "Ana / Cris")
+      |> assert_has("#registrations", text: "Clube C / Clube B")
+    end
+
+    test "swaps the players of a pair between rows", %{conn: conn} do
+      %{event: event, ana: ana, bia: bia} = pair_setup()
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Edit")
+      |> select_pair_player(0, bia)
+      |> select_pair_player(1, ana)
+      |> click_button("Salvar")
+      |> assert_has("h3", text: "Bia / Ana")
+    end
+
+    test "edit pickers hide other pairs' players but keep the pair's own", %{conn: conn} do
+      %{event: event, category: category, ana: ana, bia: bia, registration: pair} = pair_setup()
+      other = insert(:doubles_registration, event: event, category: category)
+      [taken, _] = Enum.map(other.registration_players, & &1.player)
+      free = insert(:player, name: "Livre")
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> within("#registrations-#{pair.id}", &click_button(&1, "Edit"))
+      |> refute_has("#registration-form el-option", text: taken.name)
+      |> assert_has("#player-combobox-0 el-option", text: ana.name)
+      |> assert_has("#player-combobox-0 el-option", text: bia.name)
+      |> assert_has("#player-combobox-1 el-option", text: bia.name)
+      |> assert_has("#player-combobox-1 el-option", text: free.name)
+    end
+
+    test "editing a pair rejects the same player twice", %{conn: conn} do
+      %{event: event, bia: bia} = pair_setup()
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Edit")
+      |> select_pair_player(0, bia)
+      |> click_button("Salvar")
+      |> assert_has("#registration-form", text: "a pair must have two different players")
+      |> assert_has("#registration-form select[name$='[club_id]']", count: 2)
+    end
+
+    test "deletes a pair", %{conn: conn} do
+      %{event: event} = pair_setup()
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> assert_has("h3", text: "Ana / Bia")
+      |> click_button("Remove")
+      |> refute_has("h3", text: "Ana / Bia")
     end
 
     test "deletes a registration", %{conn: conn} do

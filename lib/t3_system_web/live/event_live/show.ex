@@ -1596,7 +1596,7 @@ defmodule T3SystemWeb.EventLive.Show do
      assign(socket,
        modal: {:edit, reg},
        form: form,
-       available_players: socket.assigns.players,
+       available_players: unregistered_players(socket, reg),
        selected_players: selected_players
      )}
   end
@@ -2893,18 +2893,27 @@ defmodule T3SystemWeb.EventLive.Show do
     Enum.reject(category_registrations, &MapSet.member?(taken_ids, &1.id))
   end
 
-  defp unregistered_players(socket) do
+  # Players not yet registered in the active category. When editing, the
+  # edited registration's own players stay available.
+  defp unregistered_players(socket, editing \\ nil) do
     case socket.assigns.active_category do
       nil ->
         socket.assigns.players
 
       category ->
         registered_ids =
-          Registrations.list_registered_player_ids(socket.assigns.event.id, category.id)
+          socket.assigns.event.id
+          |> Registrations.list_registered_player_ids(category.id)
+          |> MapSet.difference(MapSet.new(own_player_ids(editing)))
 
         Enum.reject(socket.assigns.players, &MapSet.member?(registered_ids, &1.id))
     end
   end
+
+  defp own_player_ids(%Registration{registration_players: players}),
+    do: Enum.map(players, & &1.player_id)
+
+  defp own_player_ids(nil), do: []
 
   # The comboboxes push their selection outside the form, so merge every
   # selected player into the submitted params at its row index.
