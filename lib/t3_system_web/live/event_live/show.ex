@@ -637,50 +637,61 @@ defmodule T3SystemWeb.EventLive.Show do
             class="space-y-6"
           >
             <div class="space-y-5">
-              <div
-                id={"player-combobox-#{@combobox_key}"}
-                phx-hook=".PlayerCombobox"
-                phx-update="ignore"
-              >
-                <.label for="player-autocomplete">{gettext("Jogador")}</.label>
-                <el-autocomplete class="relative block">
-                  <input
-                    id="player-autocomplete"
-                    type="text"
-                    placeholder={gettext("Buscar jogador...")}
-                    value={@player_search}
-                    phx-mounted={JS.focus()}
-                    class={[field_class(), "pr-12"]}
-                  />
-                  <button
-                    type="button"
-                    class="absolute inset-y-0 right-0 flex items-center rounded-r-control px-3"
-                  >
-                    <.icon name="hero-chevron-up-down" class="size-5 text-fg-muted" />
-                  </button>
-                  <el-options
-                    anchor="bottom end"
-                    popover
-                    class="max-h-60 w-(--input-width) overflow-auto rounded-control bg-surface py-1 text-base shadow-lg outline -outline-offset-1 outline-border transition-discrete [--anchor-gap:--spacing(1)] data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0 sm:text-sm"
-                  >
-                    <el-option
-                      :for={player <- @available_players}
-                      value={player.name}
-                      data-player-id={player.id}
-                      class="block truncate px-4 py-2 text-fg select-none aria-selected:bg-primary aria-selected:text-on-primary"
+              <.inputs_for :let={rp} field={@form[:registration_players]}>
+                <input type="hidden" name={rp[:position].name} value={rp[:position].value || 1} />
+                <input type="hidden" name={rp[:player_id].name} value={rp[:player_id].value} />
+                <div
+                  id={"player-combobox-#{@combobox_key}"}
+                  phx-hook=".PlayerCombobox"
+                  phx-update="ignore"
+                >
+                  <.label for="player-autocomplete">{gettext("Jogador")}</.label>
+                  <el-autocomplete class="relative block">
+                    <input
+                      id="player-autocomplete"
+                      type="text"
+                      placeholder={gettext("Buscar jogador...")}
+                      value={@player_search}
+                      phx-mounted={JS.focus()}
+                      class={[field_class(), "pr-12"]}
+                    />
+                    <button
+                      type="button"
+                      class="absolute inset-y-0 right-0 flex items-center rounded-r-control px-3"
                     >
-                      {player.name}
-                    </el-option>
-                  </el-options>
-                </el-autocomplete>
-              </div>
-              <.input
-                field={@form[:club_id]}
-                type="select"
-                label={gettext("Clube")}
-                options={Enum.map(@clubs, &{&1.name, &1.id})}
-                prompt={gettext("Selecione um clube")}
-              />
+                      <.icon name="hero-chevron-up-down" class="size-5 text-fg-muted" />
+                    </button>
+                    <el-options
+                      anchor="bottom end"
+                      popover
+                      class="max-h-60 w-(--input-width) overflow-auto rounded-control bg-surface py-1 text-base shadow-lg outline -outline-offset-1 outline-border transition-discrete [--anchor-gap:--spacing(1)] data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0 sm:text-sm"
+                    >
+                      <el-option
+                        :for={player <- @available_players}
+                        value={player.name}
+                        data-player-id={player.id}
+                        class="block truncate px-4 py-2 text-fg select-none aria-selected:bg-primary aria-selected:text-on-primary"
+                      >
+                        {player.name}
+                      </el-option>
+                    </el-options>
+                  </el-autocomplete>
+                </div>
+                <p
+                  :for={msg <- player_errors(rp[:player_id])}
+                  class="mt-1.5 flex items-center gap-1.5 text-sm text-danger"
+                >
+                  <.icon name="hero-exclamation-circle-mini" class="size-4 shrink-0" />
+                  {msg}
+                </p>
+                <.input
+                  field={rp[:club_id]}
+                  type="select"
+                  label={gettext("Clube")}
+                  options={Enum.map(@clubs, &{&1.name, &1.id})}
+                  prompt={gettext("Selecione um clube")}
+                />
+              </.inputs_for>
               <.input
                 field={@form[:final_standing]}
                 type="number"
@@ -1526,7 +1537,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
   def handle_event("open_new_registration", _params, socket) do
     form =
-      Registrations.change_registration(%Registration{})
+      Registrations.change_registration(%Registration{}, new_registration_params(nil))
       |> to_form()
 
     {:noreply,
@@ -1542,22 +1553,19 @@ defmodule T3SystemWeb.EventLive.Show do
   def handle_event("open_edit_registration", %{"id" => id}, socket) do
     reg = Registrations.get_registration!(id)
 
-    form =
-      Registrations.change_registration(reg)
-      |> to_form()
+    [first | _] = reg.registration_players
 
-    player_name =
-      Enum.find_value(socket.assigns.players, "", fn p ->
-        if p.id == reg.player_id, do: p.name
-      end)
+    form =
+      Registrations.change_registration(reg, edit_registration_params(reg))
+      |> to_form()
 
     {:noreply,
      assign(socket,
        modal: {:edit, reg},
        form: form,
        available_players: socket.assigns.players,
-       player_search: player_name,
-       selected_player_id: reg.player_id
+       player_search: first.player.name,
+       selected_player_id: first.player_id
      )}
   end
 
@@ -1567,7 +1575,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
   def handle_event("select_player", %{"id" => id, "name" => name}, socket) do
     # Merge into the current params so other fields (e.g. club) are preserved
-    attrs = Map.put(socket.assigns.form.params, "player_id", id)
+    attrs = put_player_id(socket.assigns.form.params, id)
 
     form =
       case socket.assigns.modal do
@@ -1610,7 +1618,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
         # Keep the modal open for the next registration, preserving the selected club
         form =
-          Registrations.change_registration(%Registration{}, %{"club_id" => attrs["club_id"]})
+          Registrations.change_registration(
+            %Registration{},
+            new_registration_params(get_in(attrs, ["registration_players", "0", "club_id"]))
+          )
           |> to_form()
 
         {:noreply,
@@ -2407,7 +2418,7 @@ defmodule T3SystemWeb.EventLive.Show do
   defp filter_match_cards(cards, nil), do: cards
 
   defp filter_match_cards(cards, player_id) do
-    Enum.filter(cards, &(&1.p1_player_id == player_id or &1.p2_player_id == player_id))
+    Enum.filter(cards, &(player_id in &1.p1_player_ids or player_id in &1.p2_player_ids))
   end
 
   defp stage_match_cards(stage) do
@@ -2507,8 +2518,8 @@ defmodule T3SystemWeb.EventLive.Show do
           not is_nil(match.winner_registration_id),
       p1_name: card_player_name(match, 1, source),
       p2_name: card_player_name(match, 2, source),
-      p1_player_id: card_player_id(match.registration1),
-      p2_player_id: card_player_id(match.registration2)
+      p1_player_ids: card_player_ids(match.registration1),
+      p2_player_ids: card_player_ids(match.registration2)
     }
   end
 
@@ -2530,8 +2541,10 @@ defmodule T3SystemWeb.EventLive.Show do
   defp card_player_name(match, 2, :group), do: match_player_name(match.registration2)
   defp card_player_name(match, slot, :bracket), do: slot_label(match, slot)
 
-  defp card_player_id(%{player: %{id: id}}), do: id
-  defp card_player_id(_), do: nil
+  defp card_player_ids(%Registration{registration_players: players}),
+    do: MapSet.new(players, & &1.player_id)
+
+  defp card_player_ids(_), do: MapSet.new()
 
   defp assign_match_filter_players(%{assigns: %{current_tab: "matches", stages: stages}} = socket) do
     players =
@@ -2558,7 +2571,8 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp extract_players_from_match(match) do
     [match.registration1, match.registration2]
-    |> Enum.filter(&match?(%{player: %{id: _}}, &1))
+    |> Enum.filter(&match?(%Registration{}, &1))
+    |> Enum.flat_map(& &1.registration_players)
     |> Enum.map(&{&1.player.name, &1.player.id})
   end
 
@@ -2860,8 +2874,42 @@ defmodule T3SystemWeb.EventLive.Show do
   defp ensure_player_id(attrs, socket) do
     case socket.assigns[:selected_player_id] do
       nil -> attrs
-      id -> Map.put(attrs, "player_id", to_string(id))
+      id -> put_player_id(attrs, id)
     end
+  end
+
+  # The singles modal edits one registration player, at params index "0".
+  defp put_player_id(attrs, id) do
+    players = Map.get(attrs, "registration_players") || %{}
+    first = players |> Map.get("0", %{}) |> Map.put("player_id", to_string(id))
+    Map.put(attrs, "registration_players", Map.put(players, "0", first))
+  end
+
+  defp new_registration_params(club_id) do
+    %{"registration_players" => %{"0" => %{"position" => "1", "club_id" => club_id}}}
+  end
+
+  defp edit_registration_params(%Registration{registration_players: players}) do
+    %{
+      "registration_players" =>
+        players
+        |> Enum.with_index()
+        |> Map.new(fn {rp, index} ->
+          {to_string(index),
+           %{
+             "id" => to_string(rp.id),
+             "player_id" => to_string(rp.player_id),
+             "club_id" => to_string(rp.club_id),
+             "position" => to_string(rp.position)
+           }}
+        end)
+    }
+  end
+
+  defp player_errors(field) do
+    if Phoenix.Component.used_input?(field),
+      do: Enum.map(field.errors, &translate_error/1),
+      else: []
   end
 
   defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
@@ -2947,14 +2995,13 @@ defmodule T3SystemWeb.EventLive.Show do
     "grid-column: #{match.round}; grid-row: #{start} / span #{span};"
   end
 
-  defp match_player_name(%Registration{player: %{name: _}} = registration),
+  defp match_player_name(%Registration{registration_players: [_ | _]} = registration),
     do: player_names(registration_players(registration))
 
   defp match_player_name(_), do: gettext("TBD")
 
   # A registration's players as the display list `PlayerComponents` takes.
-  defp registration_players(%Registration{player: player, club: club}),
-    do: [%{player: player, club: club}]
+  defp registration_players(%Registration{registration_players: players}), do: players
 
   defp registration_label(registration),
     do: player_names_with_clubs(registration_players(registration))

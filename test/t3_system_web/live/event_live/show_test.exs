@@ -95,7 +95,12 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       associate_category(event, category)
       player = insert(:player)
       club = insert(:club)
-      insert(:registration, event: event, category: category, player: player, club: club)
+
+      insert(:registration,
+        event: event,
+        category: category,
+        registration_players: [build(:registration_player, player: player, club: club)]
+      )
 
       conn
       |> visit(~p"/events/#{event}")
@@ -114,12 +119,20 @@ defmodule T3SystemWeb.EventLive.ShowTest do
           picture_url: "https://res.cloudinary.com/demo/image/upload/v1/players/ana.jpg"
         )
 
-      insert(:registration, event: event, category: category, player: with_picture)
+      insert(:registration,
+        event: event,
+        category: category,
+        registration_players: [build(:registration_player, player: with_picture)]
+      )
 
       insert(:registration,
         event: event,
         category: category,
-        player: insert(:player, name: "João da Silva", picture_url: nil)
+        registration_players: [
+          build(:registration_player,
+            player: insert(:player, name: "João da Silva", picture_url: nil)
+          )
+        ]
       )
 
       conn
@@ -161,7 +174,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}?tab=stage-#{stage.id}&category_id=#{category.id}")
-      |> assert_has("span", text: registration.player.name)
+      |> assert_has("span", text: hd(registration.registration_players).player.name)
     end
 
     test "does not show add registration button for anonymous users", %{conn: conn} do
@@ -328,7 +341,12 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       player = insert(:player)
       club = insert(:club)
       associate_category(event, category)
-      insert(:registration, event: event, category: category, player: player, club: club)
+
+      insert(:registration,
+        event: event,
+        category: category,
+        registration_players: [build(:registration_player, player: player, club: club)]
+      )
 
       conn
       |> visit(~p"/events/#{event}")
@@ -346,8 +364,18 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       player1 = insert(:player)
       player2 = insert(:player)
       club = insert(:club)
-      insert(:registration, event: event, category: category1, player: player1, club: club)
-      insert(:registration, event: event, category: category2, player: player2, club: club)
+
+      insert(:registration,
+        event: event,
+        category: category1,
+        registration_players: [build(:registration_player, player: player1, club: club)]
+      )
+
+      insert(:registration,
+        event: event,
+        category: category2,
+        registration_players: [build(:registration_player, player: player2, club: club)]
+      )
 
       conn
       |> visit(~p"/events/#{event}")
@@ -430,7 +458,11 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       club = insert(:club)
 
       registration =
-        insert(:registration, event: event, category: category, player: player, club: club)
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: player, club: club)]
+        )
 
       add_to_group(group, registration)
 
@@ -457,7 +489,12 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     } do
       player = insert(:player)
       club = insert(:club)
-      insert(:registration, event: event, category: category, player: player, club: club)
+
+      insert(:registration,
+        event: event,
+        category: category,
+        registration_players: [build(:registration_player, player: player, club: club)]
+      )
 
       conn
       |> visit(stage_url(event, category, stage))
@@ -474,7 +511,12 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     } do
       player = insert(:player)
       club = insert(:club)
-      insert(:registration, event: event, category: category, player: player, club: club)
+
+      insert(:registration,
+        event: event,
+        category: category,
+        registration_players: [build(:registration_player, player: player, club: club)]
+      )
 
       conn
       |> visit(stage_url(event, category, stage))
@@ -495,7 +537,11 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       club = insert(:club)
 
       registration =
-        insert(:registration, event: event, category: category, player: player, club: club)
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: player, club: club)]
+        )
 
       add_to_group(group, registration)
 
@@ -520,9 +566,18 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       club = insert(:club)
 
       reg_taken =
-        insert(:registration, event: event, category: category, player: player_taken, club: club)
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: player_taken, club: club)]
+        )
 
-      insert(:registration, event: event, category: category, player: player_free, club: club)
+      insert(:registration,
+        event: event,
+        category: category,
+        registration_players: [build(:registration_player, player: player_free, club: club)]
+      )
+
       add_to_group(group2, reg_taken)
 
       conn
@@ -614,14 +669,18 @@ defmodule T3SystemWeb.EventLive.ShowTest do
           insert(:registration,
             event: event,
             category: category,
-            player: build(:player, name: name1)
+            registration_players: [
+              build(:registration_player, player: build(:player, name: name1))
+            ]
           )
 
         reg2 =
           insert(:registration,
             event: event,
             category: category,
-            player: build(:player, name: name2)
+            registration_players: [
+              build(:registration_player, player: build(:player, name: name2))
+            ]
           )
 
         insert(
@@ -797,7 +856,9 @@ defmodule T3SystemWeb.EventLive.ShowTest do
             insert(:registration,
               event: event,
               category: category,
-              player: build(:player, name: name)
+              registration_players: [
+                build(:registration_player, player: build(:player, name: name))
+              ]
             )
           end
 
@@ -1051,7 +1112,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
           is_ongoing: true
         )
 
-      alice_id = ongoing.registration1.player_id
+      alice_id = hd(ongoing.registration1.registration_players).player_id
 
       {:ok, _view, html} =
         live(
@@ -1097,8 +1158,21 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       p_s2 = insert(:player, name: "PlayerStage2A")
       p_s2b = insert(:player, name: "PlayerStage2B")
-      reg_s2a = insert(:registration, event: event, category: category, player: p_s2, club: club)
-      reg_s2b = insert(:registration, event: event, category: category, player: p_s2b, club: club)
+
+      reg_s2a =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: p_s2, club: club)]
+        )
+
+      reg_s2b =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: p_s2b, club: club)]
+        )
+
       add_to_group(group_s2, reg_s2a)
       add_to_group(group_s2, reg_s2b)
 
@@ -1123,12 +1197,47 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       p5 = insert(:player, name: "PlayerGA3")
       p6 = insert(:player, name: "PlayerGA4")
 
-      reg1 = insert(:registration, event: event, category: category, player: p1, club: club)
-      reg2 = insert(:registration, event: event, category: category, player: p2, club: club)
-      reg3 = insert(:registration, event: event, category: category, player: p3, club: club)
-      reg4 = insert(:registration, event: event, category: category, player: p4, club: club)
-      reg5 = insert(:registration, event: event, category: category, player: p5, club: club)
-      reg6 = insert(:registration, event: event, category: category, player: p6, club: club)
+      reg1 =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: p1, club: club)]
+        )
+
+      reg2 =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: p2, club: club)]
+        )
+
+      reg3 =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: p3, club: club)]
+        )
+
+      reg4 =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: p4, club: club)]
+        )
+
+      reg5 =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: p5, club: club)]
+        )
+
+      reg6 =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: p6, club: club)]
+        )
 
       add_to_group(group_a, reg1)
       add_to_group(group_a, reg2)
@@ -1204,12 +1313,25 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       carol = insert(:player, name: "Carol")
 
       reg_alice =
-        insert(:registration, event: event, category: category, player: alice, club: club)
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: alice, club: club)]
+        )
 
-      reg_bob = insert(:registration, event: event, category: category, player: bob, club: club)
+      reg_bob =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: bob, club: club)]
+        )
 
       reg_carol =
-        insert(:registration, event: event, category: category, player: carol, club: club)
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: carol, club: club)]
+        )
 
       add_to_group(group, reg_alice)
       add_to_group(group, reg_bob)
@@ -1308,6 +1430,60 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       assert match_count == 2
     end
 
+    test "filters by a player in position 2 of a registration", %{
+      conn: conn,
+      event: event,
+      category: category
+    } do
+      group = insert(:group, stage: insert(:stage, event: event, category: category, order: 2))
+      edu = insert(:player, name: "Edu")
+
+      pair =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [
+            build(:registration_player, player: build(:player, name: "Dani"), position: 1),
+            build(:registration_player, player: edu, position: 2)
+          ]
+        )
+
+      add_to_group(group, pair)
+
+      other =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [
+            build(:registration_player, player: build(:player, name: "Fabi"))
+          ]
+        )
+
+      add_to_group(group, other)
+
+      insert(:match,
+        event: event,
+        group: group,
+        stage: nil,
+        registration1: other,
+        registration2: pair,
+        scheduled_position: 1
+      )
+
+      {:ok, view, html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      assert html =~ ~s(<option value="#{edu.id}">Edu</option>)
+
+      view
+      |> element("#match-filters")
+      |> render_change(%{"player_id" => to_string(edu.id)})
+
+      html = render(view)
+      assert Regex.scan(~r/id="match-\d+"/, html) |> length() == 1
+      assert html =~ "Dani / Edu"
+    end
+
     test "selecting a player navigates with player_id param", %{
       conn: conn,
       event: event,
@@ -1378,8 +1554,21 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       player1 = insert(:player)
       player2 = insert(:player)
       club = insert(:club)
-      reg1 = insert(:registration, event: event, category: category, player: player1, club: club)
-      reg2 = insert(:registration, event: event, category: category, player: player2, club: club)
+
+      reg1 =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: player1, club: club)]
+        )
+
+      reg2 =
+        insert(:registration,
+          event: event,
+          category: category,
+          registration_players: [build(:registration_player, player: player2, club: club)]
+        )
+
       add_to_group(group, reg1)
       add_to_group(group, reg2)
 
@@ -1485,7 +1674,9 @@ defmodule T3SystemWeb.EventLive.ShowTest do
           insert(:registration,
             event: event,
             category: category,
-            player: build(:player, name: name)
+            registration_players: [
+              build(:registration_player, player: build(:player, name: name))
+            ]
           )
         end
 

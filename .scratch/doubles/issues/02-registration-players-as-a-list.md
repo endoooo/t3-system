@@ -4,15 +4,15 @@
 
 **Blocked by:** 01 (Show a registration's players through one shared display component)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Migration creates the registration-player rows from existing registrations with no data loss, then drops the old player and club columns
-- [ ] The database rejects the same player twice in one event + category, and two rows with the same position in one registration
-- [ ] Registrations are created and updated with nested players. A uniqueness violation shows as a validation error on the offending player
-- [ ] Registrations, matches and groups preload ordered players with player and club
-- [ ] The registered-player-ids lookup returns every player in any position
-- [ ] The schedule player filter matches a player on either side by the set of player ids on that side
-- [ ] Factory updated. Existing tests pass, including the singles add/edit/delete modal flows
-- [ ] `mix precommit` passes
+- [x] Migration creates the registration-player rows from existing registrations with no data loss, then drops the old player and club columns
+- [x] The database rejects the same player twice in one event + category, and two rows with the same position in one registration
+- [x] Registrations are created and updated with nested players. A uniqueness violation shows as a validation error on the offending player
+- [x] Registrations, matches and groups preload ordered players with player and club
+- [x] The registered-player-ids lookup returns every player in any position
+- [x] The schedule player filter matches a player on either side by the set of player ids on that side
+- [x] Factory updated. Existing tests pass, including the singles add/edit/delete modal flows
+- [x] `mix precommit` passes
 
 ## Comments

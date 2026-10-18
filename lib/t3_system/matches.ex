@@ -18,6 +18,9 @@ defmodule T3System.Matches do
   alias T3System.Tables
   alias T3System.Tables.Table
 
+  # A registration's players in position order, each with player and club.
+  @registration_preload [registration_players: [:player, :club]]
+
   # ---------------------------------------------------------------------------
   # Stages
   # ---------------------------------------------------------------------------
@@ -69,13 +72,13 @@ defmodule T3System.Matches do
       groups:
         {from(g in Group, order_by: g.position),
          [
-           registrations: [:player, :club],
+           registrations: @registration_preload,
            matches: [
              :sets,
              :table,
-             registration1: [:player, :club],
-             registration2: [:player, :club],
-             winner: [:player]
+             registration1: @registration_preload,
+             registration2: @registration_preload,
+             winner: @registration_preload
            ]
          ]},
       matches:
@@ -83,9 +86,9 @@ defmodule T3System.Matches do
          [
            :sets,
            :table,
-           registration1: [:player, :club],
-           registration2: [:player, :club],
-           winner: [:player]
+           registration1: @registration_preload,
+           registration2: @registration_preload,
+           winner: @registration_preload
          ]}
     )
   end
@@ -206,12 +209,12 @@ defmodule T3System.Matches do
     |> order_by([g], g.position)
     |> Repo.all()
     |> Repo.preload(
-      registrations: [:player, :club],
+      registrations: @registration_preload,
       matches: [
         :sets,
-        registration1: [:player, :club],
-        registration2: [:player, :club],
-        winner: [:player]
+        registration1: @registration_preload,
+        registration2: @registration_preload,
+        winner: @registration_preload
       ]
     )
   end
@@ -220,7 +223,7 @@ defmodule T3System.Matches do
   Returns a group with its registrations (including player and club) preloaded.
   """
   def get_group_with_registrations!(id) do
-    Repo.get!(Group, id) |> Repo.preload([:matches, registrations: [:player, :club]])
+    Repo.get!(Group, id) |> Repo.preload([:matches, registrations: @registration_preload])
   end
 
   @doc """
@@ -525,9 +528,9 @@ defmodule T3System.Matches do
       :group,
       :stage,
       :sets,
-      registration1: [:player],
-      registration2: [:player],
-      winner: [:player]
+      registration1: @registration_preload,
+      registration2: @registration_preload,
+      winner: @registration_preload
     ])
   end
 
@@ -542,9 +545,9 @@ defmodule T3System.Matches do
       :group,
       :stage,
       :sets,
-      registration1: [:player],
-      registration2: [:player],
-      winner: [:player]
+      registration1: @registration_preload,
+      registration2: @registration_preload,
+      winner: @registration_preload
     ])
   end
 
@@ -588,8 +591,8 @@ defmodule T3System.Matches do
   @schedule_preloads [
     group: [stage: :category],
     stage: :category,
-    registration1: :player,
-    registration2: :player
+    registration1: @registration_preload,
+    registration2: @registration_preload
   ]
 
   @doc """

@@ -10,6 +10,9 @@ defmodule T3System.Registrations do
   alias T3System.Categories.Category
   alias T3System.Events
   alias T3System.Registrations.Registration
+  alias T3System.Registrations.RegistrationPlayer
+
+  @players_preload [registration_players: [:player, :club]]
 
   @doc """
   Returns the list of registrations.
@@ -21,7 +24,7 @@ defmodule T3System.Registrations do
 
   """
   def list_registrations do
-    Repo.all(Registration) |> Repo.preload([:player, :event, :club, :category])
+    Repo.all(Registration) |> Repo.preload([:event, :category | @players_preload])
   end
 
   @doc """
@@ -39,7 +42,7 @@ defmodule T3System.Registrations do
 
   """
   def get_registration!(id) do
-    Repo.get!(Registration, id) |> Repo.preload([:player, :event, :club, :category])
+    Repo.get!(Registration, id) |> Repo.preload([:event, :category | @players_preload])
   end
 
   @doc """
@@ -116,29 +119,34 @@ defmodule T3System.Registrations do
   end
 
   @doc """
-  Returns the set of player IDs already registered for a given event and category.
+  Returns the set of player IDs already registered for a given event and
+  category, in any position of any registration.
   """
   def list_registered_player_ids(event_id, category_id) do
-    Registration
-    |> where([r], r.event_id == ^event_id and r.category_id == ^category_id)
-    |> select([r], r.player_id)
+    RegistrationPlayer
+    |> join(:inner, [rp], r in assoc(rp, :registration))
+    |> where([_rp, r], r.event_id == ^event_id and r.category_id == ^category_id)
+    |> select([rp], rp.player_id)
     |> Repo.all()
     |> MapSet.new()
   end
 
   @doc """
-  Returns registrations for a given event and category, with player, club, and category preloaded.
+  Returns registrations for a given event and category, with their ordered
+  players (each with player and club) and category preloaded. Sorted by final
+  standing, then by the first player's name.
   """
   def list_registrations_by_event_and_category(event_id, %Category{id: category_id}) do
     Registration
-    |> join(:inner, [r], p in assoc(r, :player))
+    |> join(:left, [r], rp in assoc(r, :registration_players), on: rp.position == 1)
+    |> join(:left, [_r, rp], p in assoc(rp, :player))
     |> where([r], r.event_id == ^event_id and r.category_id == ^category_id)
-    |> order_by([r, p],
+    |> order_by([r, _rp, p],
       asc_nulls_last: r.final_standing,
       asc: fragment("? COLLATE \"und-x-icu\"", p.name)
     )
     |> Repo.all()
-    |> Repo.preload([:player, :club, :category])
+    |> Repo.preload([:category | @players_preload])
   end
 
   defp broadcast_change({:ok, %{event_id: event_id}} = result) do

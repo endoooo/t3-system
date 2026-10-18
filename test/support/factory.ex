@@ -14,6 +14,7 @@ defmodule T3System.Factory do
   alias T3System.Matches.Stage
   alias T3System.Players.Player
   alias T3System.Registrations.Registration
+  alias T3System.Registrations.RegistrationPlayer
   alias T3System.Tables.Table
 
   def user_factory do
@@ -66,12 +67,22 @@ defmodule T3System.Factory do
     }
   end
 
+  # Singles by default: one registration player. Pass your own list with
+  # `registration_players: [build(:registration_player, player: p, club: c)]`.
+  # Each row's event and category are copied from the registration by the DB.
   def registration_factory do
     %Registration{
-      player: build(:player),
       event: build(:event),
+      category: build(:category),
+      registration_players: [build(:registration_player)]
+    }
+  end
+
+  def registration_player_factory do
+    %RegistrationPlayer{
+      player: build(:player),
       club: build(:club),
-      category: build(:category)
+      position: 1
     }
   end
 
