@@ -59,7 +59,7 @@ defmodule T3System.Registrations do
   """
   def create_registration(%Scope{user: %{role: "superuser"}}, attrs) do
     %Registration{}
-    |> Registration.changeset(attrs)
+    |> changeset(attrs)
     |> Repo.insert()
     |> broadcast_change()
   end
@@ -82,7 +82,7 @@ defmodule T3System.Registrations do
         attrs
       ) do
     registration
-    |> Registration.changeset(attrs)
+    |> changeset(attrs)
     |> Repo.update()
     |> broadcast_change()
   end
@@ -115,7 +115,21 @@ defmodule T3System.Registrations do
 
   """
   def change_registration(%Registration{} = registration, attrs \\ %{}) do
-    Registration.changeset(registration, attrs)
+    changeset(registration, attrs)
+  end
+
+  # The registration changeset plus the player rules of its category's format
+  # (singles: 1 player, doubles: 2 different players).
+  defp changeset(registration, attrs) do
+    changeset = Registration.changeset(registration, attrs)
+    Registration.validate_players(changeset, category_format(changeset))
+  end
+
+  defp category_format(changeset) do
+    case Ecto.Changeset.get_field(changeset, :category_id) do
+      nil -> nil
+      id -> Repo.one(from c in Category, where: c.id == ^id, select: c.format)
+    end
   end
 
   @doc """

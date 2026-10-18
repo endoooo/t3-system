@@ -59,4 +59,42 @@ defmodule T3System.Registrations.Registration do
       message: "player already registered in this category"
     )
   end
+
+  @doc """
+  Validates the registration's players against its category's format: exactly
+  1 player for singles and exactly 2 different players for doubles. A `nil`
+  format (unknown category) skips the check.
+  """
+  @spec validate_players(Ecto.Changeset.t(), String.t() | nil) :: Ecto.Changeset.t()
+  def validate_players(changeset, nil), do: changeset
+
+  def validate_players(changeset, format) do
+    case get_field(changeset, :registration_players) do
+      %Ecto.Association.NotLoaded{} -> changeset
+      # An empty list is already rejected by `cast_assoc(required: true)`.
+      [] -> changeset
+      players -> validate_player_list(changeset, format, players)
+    end
+  end
+
+  defp validate_player_list(changeset, format, players) do
+    player_ids = Enum.map(players, & &1.player_id)
+
+    cond do
+      length(players) != player_count(format) ->
+        add_error(changeset, :registration_players, player_count_message(format))
+
+      length(Enum.uniq(player_ids)) != length(player_ids) ->
+        add_error(changeset, :registration_players, "a pair must have two different players")
+
+      true ->
+        changeset
+    end
+  end
+
+  defp player_count("doubles"), do: 2
+  defp player_count(_singles), do: 1
+
+  defp player_count_message("doubles"), do: "a doubles registration must have exactly 2 players"
+  defp player_count_message(_singles), do: "a singles registration must have exactly 1 player"
 end

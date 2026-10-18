@@ -152,6 +152,99 @@ defmodule T3System.RegistrationsTest do
       assert {:ok, %Registration{}} = Registrations.create_registration(scope, attrs)
     end
 
+    test "create_registration/2 rejects a player count that doesn't match the format" do
+      scope = Scope.for_user(insert(:superuser))
+      event = insert(:event)
+      singles = insert(:category)
+      doubles = insert(:category, format: "doubles")
+
+      rows = fn count ->
+        for position <- 1..count//1 do
+          %{player_id: insert(:player).id, club_id: insert(:club).id, position: position}
+        end
+      end
+
+      attrs = fn category, count ->
+        %{event_id: event.id, category_id: category.id, registration_players: rows.(count)}
+      end
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs.(singles, 0))
+      assert %{registration_players: [_ | _]} = errors_on(changeset)
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs.(singles, 2))
+
+      assert %{registration_players: ["a singles registration must have exactly 1 player"]} =
+               errors_on(changeset)
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs.(doubles, 1))
+
+      assert %{registration_players: ["a doubles registration must have exactly 2 players"]} =
+               errors_on(changeset)
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs.(doubles, 3))
+
+      assert %{registration_players: ["a doubles registration must have exactly 2 players"]} =
+               errors_on(changeset)
+
+      assert {:ok, %Registration{}} = Registrations.create_registration(scope, attrs.(doubles, 2))
+    end
+
+    test "create_registration/2 rejects the same player twice in one pair" do
+      scope = Scope.for_user(insert(:superuser))
+      player = insert(:player)
+
+      attrs = %{
+        event_id: insert(:event).id,
+        category_id: insert(:category, format: "doubles").id,
+        registration_players: [
+          %{player_id: player.id, club_id: insert(:club).id, position: 1},
+          %{player_id: player.id, club_id: insert(:club).id, position: 2}
+        ]
+      }
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+
+      assert %{registration_players: ["a pair must have two different players"]} =
+               errors_on(changeset)
+    end
+
+    test "create_registration/2 rejects a partner already in another pair of the category" do
+      scope = Scope.for_user(insert(:superuser))
+      existing = insert(:doubles_registration)
+      [_, partner] = existing.registration_players
+
+      attrs = %{
+        event_id: existing.event_id,
+        category_id: existing.category_id,
+        registration_players: [
+          %{player_id: insert(:player).id, club_id: insert(:club).id, position: 1},
+          %{player_id: partner.player_id, club_id: insert(:club).id, position: 2}
+        ]
+      }
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+
+      assert %{registration_players: [%{}, %{player_id: ["already registered in this category"]}]} =
+               errors_on(changeset)
+    end
+
+    test "create_registration/2 accepts a singles player in a doubles category of the event" do
+      scope = Scope.for_user(insert(:superuser))
+      singles = insert(:registration)
+      [rp] = singles.registration_players
+
+      attrs = %{
+        event_id: singles.event_id,
+        category_id: insert(:category, format: "doubles").id,
+        registration_players: [
+          %{player_id: rp.player_id, club_id: rp.club_id, position: 1},
+          %{player_id: insert(:player).id, club_id: insert(:club).id, position: 2}
+        ]
+      }
+
+      assert {:ok, %Registration{}} = Registrations.create_registration(scope, attrs)
+    end
+
     test "update_registration/3 replaces the players" do
       scope = Scope.for_user(insert(:superuser))
       registration = insert(:registration)

@@ -16,6 +16,18 @@ defmodule T3SystemWeb.EventLive.ShowTest do
     ])
   end
 
+  # Picks a player in the registration modal's combobox at row `index`, like the
+  # `.PlayerCombobox` hook does.
+  defp select_pair_player(session, index, player) do
+    unwrap(session, fn view ->
+      render_click(view, "select_player", %{
+        "index" => to_string(index),
+        "id" => to_string(player.id),
+        "name" => player.name
+      })
+    end)
+  end
+
   defp add_to_group(group, registration) do
     now = DateTime.utc_now(:second)
 
@@ -309,6 +321,70 @@ defmodule T3SystemWeb.EventLive.ShowTest do
         })
       end)
       |> assert_has("#registration-form select option[selected]", text: club.name)
+    end
+
+    test "singles modal shows one player + club row", %{conn: conn} do
+      category = insert(:category)
+      event = insert(:event)
+      associate_category(event, category)
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Nova inscrição")
+      |> assert_has("#registration-form label", text: "Jogador", exact: true)
+      |> assert_has("#registration-form label", text: "Clube", exact: true)
+      |> refute_has("#registration-form label", text: "Jogador 2")
+    end
+
+    test "adds a pair via the doubles modal and keeps both clubs", %{conn: conn} do
+      category = insert(:category, format: "doubles")
+      event = insert(:event)
+      ana = insert(:player, name: "Ana")
+      bia = insert(:player, name: "Bia")
+      [club_a, club_b] = insert_list(2, :club)
+      associate_category(event, category)
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Nova inscrição")
+      |> assert_has("#registration-form label", text: "Jogador 1")
+      |> assert_has("#registration-form label", text: "Jogador 2")
+      |> select_pair_player(0, ana)
+      |> select_pair_player(1, bia)
+      |> select("Clube 1", option: club_a.name)
+      |> select("Clube 2", option: club_b.name)
+      |> click_button("Salvar")
+      |> assert_has("h3", text: "Ana / Bia")
+      |> assert_has("#registrations", text: "#{club_a.name} / #{club_b.name}")
+      |> assert_has("#flash-info", text: "Ana / Bia")
+      |> assert_has("h2", text: "Nova Inscrição")
+      |> assert_has("#registration-form select[name$='[0][club_id]'] option[selected]",
+        text: club_a.name
+      )
+      |> assert_has("#registration-form select[name$='[1][club_id]'] option[selected]",
+        text: club_b.name
+      )
+    end
+
+    test "doubles pickers hide registered players and the first row's choice", %{conn: conn} do
+      category = insert(:category, format: "doubles")
+      event = insert(:event)
+      associate_category(event, category)
+      existing = insert(:doubles_registration, event: event, category: category)
+      [first, partner] = Enum.map(existing.registration_players, & &1.player)
+      ana = insert(:player, name: "Ana")
+      bia = insert(:player, name: "Bia")
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Nova inscrição")
+      |> refute_has("el-option", text: first.name)
+      |> refute_has("el-option", text: partner.name)
+      |> assert_has("#player-combobox-1 el-option", text: "Ana")
+      |> select_pair_player(0, ana)
+      |> refute_has("#player-combobox-1 el-option", text: "Ana")
+      |> assert_has("#player-combobox-1 el-option", text: "Bia")
+      |> assert_has("#player-combobox-0 el-option", text: bia.name)
     end
 
     test "shows edit and remove buttons on registration cards", %{conn: conn} do

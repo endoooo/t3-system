@@ -4,16 +4,16 @@
 
 **Blocked by:** 02 (Store a registration's players as a list), 03 (Categories have a singles/doubles format)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] The modal shows two player + club rows for a doubles category and one row for singles
-- [ ] After adding a pair, the modal stays open with both clubs kept
-- [ ] Pickers hide players already registered in the event + category (either position), and the second picker hides the first row's choice
-- [ ] The context rejects 0 or 2 players for singles, 1 or 3 for doubles, and the same player twice in one pair, with a clear error
-- [ ] The context rejects a player already in another registration of the same event + category, in either position
-- [ ] The same player can be registered in a singles and a doubles category of one event
-- [ ] Registration cards show "Ana / Bia" with both avatars and each partner's club. The flash names both players
-- [ ] Registrations context tests and event page (PhoenixTest) tests cover the above. A doubles factory variant exists
-- [ ] `mix precommit` passes
+- [x] The modal shows two player + club rows for a doubles category and one row for singles
+- [x] After adding a pair, the modal stays open with both clubs kept
+- [x] Pickers hide players already registered in the event + category (either position), and the second picker hides the first row's choice
+- [x] The context rejects 0 or 2 players for singles, 1 or 3 for doubles, and the same player twice in one pair, with a clear error
+- [x] The context rejects a player already in another registration of the same event + category, in either position
+- [x] The same player can be registered in a singles and a doubles category of one event
+- [x] Registration cards show "Ana / Bia" with both avatars and each partner's club. The flash names both players
+- [x] Registrations context tests and event page (PhoenixTest) tests cover the above. A doubles factory variant exists
+- [x] `mix precommit` passes
 
 ## Comments

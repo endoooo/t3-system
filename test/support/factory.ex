@@ -78,6 +78,20 @@ defmodule T3System.Factory do
     }
   end
 
+  # A pair in a doubles category: two different players, each with their own
+  # club. `insert(:doubles_registration, event: e, category: c)` with `c` a
+  # doubles category, or pass your own `registration_players`.
+  def doubles_registration_factory do
+    %Registration{
+      event: build(:event),
+      category: build(:category, format: "doubles"),
+      registration_players: [
+        build(:registration_player, position: 1),
+        build(:registration_player, position: 2)
+      ]
+    }
+  end
+
   def registration_player_factory do
     %RegistrationPlayer{
       player: build(:player),
