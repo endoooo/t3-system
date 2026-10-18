@@ -92,4 +92,75 @@ defmodule T3System.CategoriesTest do
       assert %Ecto.Changeset{} = Categories.change_category(category)
     end
   end
+
+  describe "category format" do
+    test "create_category/2 defaults the format to singles" do
+      scope = Scope.for_user(insert(:superuser))
+
+      assert {:ok, %Category{format: "singles"}} =
+               Categories.create_category(scope, %{name: "Livre"})
+    end
+
+    test "create_category/2 creates a doubles category" do
+      scope = Scope.for_user(insert(:superuser))
+
+      assert {:ok, %Category{format: "doubles"}} =
+               Categories.create_category(scope, %{name: "Duplas Livre", format: "doubles"})
+    end
+
+    test "create_category/2 rejects an unknown format" do
+      scope = Scope.for_user(insert(:superuser))
+
+      assert {:error, changeset} =
+               Categories.create_category(scope, %{name: "Equipes", format: "team"})
+
+      assert %{format: ["is invalid"]} = errors_on(changeset)
+    end
+
+    test "create_category/2 rejects a blank format" do
+      scope = Scope.for_user(insert(:superuser))
+
+      assert {:error, changeset} =
+               Categories.create_category(scope, %{name: "Livre", format: nil})
+
+      assert %{format: ["can't be blank"]} = errors_on(changeset)
+    end
+
+    test "update_category/3 changes the format while the category has no registrations" do
+      scope = Scope.for_user(insert(:superuser))
+      category = insert(:category)
+
+      assert {:ok, %Category{format: "doubles"}} =
+               Categories.update_category(scope, category, %{format: "doubles"})
+    end
+
+    test "update_category/3 rejects a format change once the category has a registration" do
+      scope = Scope.for_user(insert(:superuser))
+      category = insert(:category)
+      insert(:registration, category: category)
+
+      assert {:error, changeset} =
+               Categories.update_category(scope, category, %{format: "doubles"})
+
+      assert %{format: [_message]} = errors_on(changeset)
+      assert Categories.get_category!(category.id).format == "singles"
+    end
+
+    test "update_category/3 still renames a category that has registrations" do
+      scope = Scope.for_user(insert(:superuser))
+      category = insert(:category)
+      insert(:registration, category: category)
+
+      assert {:ok, %Category{name: "Renamed", format: "singles"}} =
+               Categories.update_category(scope, category, %{name: "Renamed", format: "singles"})
+    end
+
+    test "format_locked?/1 is true only once the category has a registration in any event" do
+      category = insert(:category)
+      refute Categories.format_locked?(category)
+
+      insert(:registration, category: category)
+      assert Categories.format_locked?(category)
+    end
+  end
 end

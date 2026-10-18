@@ -8,6 +8,7 @@ defmodule T3System.Categories do
 
   alias T3System.Accounts.Scope
   alias T3System.Categories.Category
+  alias T3System.Registrations.Registration
 
   @doc """
   Returns the list of categories.
@@ -79,7 +80,31 @@ defmodule T3System.Categories do
   def update_category(%Scope{user: %{role: "superuser"}}, %Category{} = category, attrs) do
     category
     |> Category.changeset(attrs)
+    |> validate_format_unlocked(category)
     |> Repo.update()
+  end
+
+  @doc """
+  Returns true when the category's format can no longer change, because a
+  registration exists for it in any event.
+  """
+  @spec format_locked?(Category.t()) :: boolean()
+  def format_locked?(%Category{id: nil}), do: false
+
+  def format_locked?(%Category{id: id}) do
+    Repo.exists?(from r in Registration, where: r.category_id == ^id)
+  end
+
+  defp validate_format_unlocked(changeset, category) do
+    if Ecto.Changeset.get_change(changeset, :format) && format_locked?(category) do
+      Ecto.Changeset.add_error(
+        changeset,
+        :format,
+        "can't be changed once the category has registrations"
+      )
+    else
+      changeset
+    end
   end
 
   @doc """
