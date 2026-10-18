@@ -273,12 +273,17 @@ defmodule T3SystemWeb.EventLive.Show do
                 tag="li"
                 class="flex items-center gap-3"
               >
-                <.avatar src={reg.player.picture_url} name={reg.player.name} size="md" preview />
-                <div class="min-w-0 flex-1 space-y-2">
-                  <h3 class="font-display text-lg font-black">{reg.player.name}</h3>
+                <.players
+                  players={registration_players(reg)}
+                  avatar_size="md"
+                  show_clubs
+                  names_tag="h3"
+                  class="flex-1 gap-3"
+                  body_class="space-y-2"
+                  names_class="font-display text-lg font-black"
+                >
                   <.final_standing final_standing={reg.final_standing} />
-                  <p class="text-sm text-primary">{reg.club.name}</p>
-                </div>
+                </.players>
                 <div :if={@is_superuser} class="-mr-1.5 flex">
                   <.icon_button
                     name="hero-pencil-mini"
@@ -425,22 +430,16 @@ defmodule T3SystemWeb.EventLive.Show do
                       <tr :for={row <- standings} class="text-xs even:bg-fg/[0.03]">
                         <td class="w-1 py-2.5 pl-4 text-fg-muted">{row.rank}</td>
                         <td class={["px-2 py-2", row.qualified && "font-bold"]}>
-                          <div class="flex items-center gap-2">
-                            <.avatar
-                              src={row.registration.player.picture_url}
-                              name={row.registration.player.name}
-                              size="xs"
-                              preview
+                          <.players
+                            players={registration_players(row.registration)}
+                            avatar_size="xs"
+                          >
+                            <.icon
+                              :if={row.qualified}
+                              name="hero-check-micro"
+                              class="text-primary"
                             />
-                            <span>
-                              {row.registration.player.name}
-                              <.icon
-                                :if={row.qualified}
-                                name="hero-check-micro"
-                                class="text-primary"
-                              />
-                            </span>
-                          </div>
+                          </.players>
                         </td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.won}</td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.lost}</td>
@@ -721,8 +720,10 @@ defmodule T3SystemWeb.EventLive.Show do
                   class="flex items-center justify-between gap-3 rounded-control py-1 pr-1 pl-2 hover:bg-fg/5"
                 >
                   <span class="min-w-0 truncate text-sm">
-                    {reg.player.name}
-                    <span class="ml-1 text-xs text-fg-muted">{reg.club.name}</span>
+                    {player_names(registration_players(reg))}
+                    <span class="ml-1 text-xs text-fg-muted">
+                      {player_clubs(registration_players(reg))}
+                    </span>
                   </span>
                   <.button
                     variant="danger"
@@ -746,7 +747,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 label={gettext("Add Player")}
                 prompt={gettext("Selecione um jogador...")}
                 value=""
-                options={Enum.map(available, &{"#{&1.player.name} — #{&1.club.name}", &1.id})}
+                options={Enum.map(available, &{registration_label(&1), &1.id})}
               />
             </form>
 
@@ -975,7 +976,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 options={
                   Enum.map(
                     @stage_bracket_registrations,
-                    &{"#{&1.player.name} — #{&1.club.name}", &1.id}
+                    &{registration_label(&1), &1.id}
                   )
                 }
                 value={registration_id}
@@ -1621,7 +1622,12 @@ defmodule T3SystemWeb.EventLive.Show do
            selected_player_id: nil
          )
          |> update(:combobox_key, &(&1 + 1))
-         |> put_flash(:info, gettext("Inscrição de %{name} adicionada.", name: reg.player.name))}
+         |> put_flash(
+           :info,
+           gettext("Inscrição de %{name} adicionada.",
+             name: player_names(registration_players(reg))
+           )
+         )}
 
       {_, {:ok, reg}} ->
         reg = Registrations.get_registration!(reg.id)
@@ -2806,7 +2812,7 @@ defmodule T3SystemWeb.EventLive.Show do
   defp label_and_player(assigns) do
     name =
       case assigns.registration do
-        %Registration{} = registration -> registration.player.name
+        %Registration{} = registration -> player_names(registration_players(registration))
         _ -> nil
       end
 
@@ -2923,9 +2929,14 @@ defmodule T3SystemWeb.EventLive.Show do
       2 -> {match.registration2, match.slot2_label}
     end
     |> case do
-      {%Registration{} = registration, _} -> registration.player.name
-      {_, label} when label not in [nil, ""] -> label
-      _ -> if match.is_bye, do: gettext("Bye"), else: gettext("TBD")
+      {%Registration{} = registration, _} ->
+        player_names(registration_players(registration))
+
+      {_, label} when label not in [nil, ""] ->
+        label
+
+      _ ->
+        if match.is_bye, do: gettext("Bye"), else: gettext("TBD")
     end
   end
 
@@ -2936,8 +2947,17 @@ defmodule T3SystemWeb.EventLive.Show do
     "grid-column: #{match.round}; grid-row: #{start} / span #{span};"
   end
 
-  defp match_player_name(%{player: %{name: name}}), do: name
+  defp match_player_name(%Registration{player: %{name: _}} = registration),
+    do: player_names(registration_players(registration))
+
   defp match_player_name(_), do: gettext("TBD")
+
+  # A registration's players as the display list `PlayerComponents` takes.
+  defp registration_players(%Registration{player: player, club: club}),
+    do: [%{player: player, club: club}]
+
+  defp registration_label(registration),
+    do: player_names_with_clubs(registration_players(registration))
 
   defp parse_id(nil), do: nil
 

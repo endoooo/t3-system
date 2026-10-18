@@ -4,12 +4,12 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] One shared component renders a list of players: names joined by " / ", overlapping avatars, and optional clubs
-- [ ] Every place that showed a registration's player name, avatar or club uses the component
-- [ ] Event page output for singles registrations is unchanged
-- [ ] Existing event page tests pass without changes to their assertions
-- [ ] `mix precommit` passes
+- [x] One shared component renders a list of players: names joined by " / ", overlapping avatars, and optional clubs
+- [x] Every place that showed a registration's player name, avatar or club uses the component
+- [x] Event page output for singles registrations is unchanged
+- [x] Existing event page tests pass without changes to their assertions
+- [x] `mix precommit` passes
 
 ## Comments
