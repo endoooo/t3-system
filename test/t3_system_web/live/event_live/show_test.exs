@@ -1920,4 +1920,222 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       assert has_element?(view, "select option[selected]", "Adulto")
     end
   end
+
+  describe "doubles category" do
+    setup %{conn: conn} do
+      event = insert(:event, datetime: ~U[2026-03-07 12:00:00Z], match_duration_minutes: 20)
+      doubles = insert(:category, name: "Duplas", format: "doubles")
+      singles = insert(:category, name: "Simples")
+      associate_category(event, doubles)
+      associate_category(event, singles)
+
+      bia = insert(:player, name: "Bia Costa")
+
+      pair = fn name1, player2, club1, club2 ->
+        insert(:doubles_registration,
+          event: event,
+          category: doubles,
+          registration_players: [
+            build(:registration_player,
+              player: build(:player, name: name1),
+              club: build(:club, name: club1),
+              position: 1
+            ),
+            build(:registration_player,
+              player: player2,
+              club: build(:club, name: club2),
+              position: 2
+            )
+          ]
+        )
+      end
+
+      %{
+        conn: log_in_user(conn, insert(:superuser)),
+        event: event,
+        doubles: doubles,
+        singles: singles,
+        bia: bia,
+        ana_bia: pair.("Ana Lima", bia, "Clube A", "Clube B"),
+        caio_duda: pair.("Caio Melo", build(:player, name: "Duda Reis"), "Clube C", "Clube D")
+      }
+    end
+
+    # A match between two registrations in a new group of `category`.
+    defp group_match(ctx, category, reg1, reg2, attrs \\ []) do
+      stage =
+        insert(:stage,
+          event: ctx.event,
+          category: category,
+          order: System.unique_integer([:positive])
+        )
+
+      group = insert(:group, stage: stage)
+      add_to_group(group, reg1)
+      add_to_group(group, reg2)
+
+      insert(
+        :match,
+        [event: ctx.event, group: group, stage: nil, registration1: reg1, registration2: reg2] ++
+          attrs
+      )
+    end
+
+    test "a pair is added to a group from the picker and shown in the group table", ctx do
+      stage = insert(:stage, event: ctx.event, category: ctx.doubles, name: "Grupos")
+      group = insert(:group, stage: stage)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.doubles.id}")
+      |> click_button("Jogadores")
+      |> select("Add Player", option: "Ana Lima — Clube A / Bia Costa — Clube B")
+      |> assert_has("#players-modal li", text: "Ana Lima / Bia Costa")
+      |> click_button("#players-modal button", "Close")
+      |> assert_has("#group-#{group.id} td", text: "Ana Lima / Bia Costa")
+      |> assert_has("#group-#{group.id} td button", text: "View picture", count: 2)
+    end
+
+    test "the bracket shows pairs with the winner and final-standing highlights", ctx do
+      stage =
+        insert(:stage,
+          event: ctx.event,
+          category: ctx.doubles,
+          type: "bracket",
+          rounds: 1,
+          name: "Final"
+        )
+
+      T3System.Repo.update!(Ecto.Changeset.change(ctx.ana_bia, final_standing: 1))
+      T3System.Repo.update!(Ecto.Changeset.change(ctx.caio_duda, final_standing: 2))
+
+      match =
+        insert(:match,
+          event: ctx.event,
+          stage: stage,
+          group: nil,
+          round: 1,
+          position: 1,
+          registration1: ctx.ana_bia,
+          registration2: ctx.caio_duda,
+          winner_registration_id: ctx.ana_bia.id
+        )
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.doubles.id}")
+      |> assert_has("#bracket-match-#{match.id} .bg-gold\\/15 .font-bold",
+        text: "Ana Lima / Bia Costa"
+      )
+      |> assert_has("#bracket-match-#{match.id} .bg-silver\\/20", text: "Caio Melo / Duda Reis")
+      |> visit(~p"/events/#{ctx.event}?category_id=#{ctx.doubles.id}")
+      |> assert_has("#registrations", text: "Campeão")
+      |> assert_has("#registrations", text: "Vice-campeão")
+    end
+
+    test "set scores and the winner are recorded for a doubles match", ctx do
+      match = group_match(ctx, ctx.doubles, ctx.ana_bia, ctx.caio_duda)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.doubles.id}")
+      |> click_button("#match-#{match.id} button", "Resultados")
+      |> assert_has("#score-modal", text: "Ana Lima / Bia Costa")
+      |> fill_in("Set 1, P1", with: "11")
+      |> fill_in("Set 1, P2", with: "8")
+      |> select("Vencedor da partida", option: "Caio Melo / Duda Reis")
+      |> click_button("#score-modal button", "Salvar")
+      |> refute_has("#score-modal")
+      |> assert_has("#match-#{match.id} span.font-bold", text: "Caio Melo / Duda Reis")
+      |> assert_has("#match-#{match.id} span", text: "11")
+
+      assert Matches.get_match!(match.id).winner_registration_id == ctx.caio_duda.id
+    end
+
+    test "doubles and singles matches share a table on the schedule", ctx do
+      table = insert(:table, event: ctx.event, name: "Mesa 1")
+
+      singles_reg = fn name ->
+        insert(:registration,
+          event: ctx.event,
+          category: ctx.singles,
+          registration_players: [build(:registration_player, player: build(:player, name: name))]
+        )
+      end
+
+      doubles_match =
+        group_match(ctx, ctx.doubles, ctx.ana_bia, ctx.caio_duda,
+          table: table,
+          table_position: 0,
+          scheduled_at: ~U[2026-03-07 12:00:00Z],
+          winner_registration_id: ctx.ana_bia.id
+        )
+
+      singles_match =
+        group_match(ctx, ctx.singles, singles_reg.("Eva Nunes"), singles_reg.("Gil Dias"),
+          table: table,
+          table_position: 1
+        )
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> assert_has("#schedule-match-#{singles_match.id}", text: "Eva Nunes")
+      |> click_link("#schedule-list-finished", "Finalizados")
+      |> assert_has("#schedule-match-#{doubles_match.id} p.font-bold",
+        text: "Ana Lima / Bia Costa"
+      )
+      |> assert_has("#schedule-match-#{doubles_match.id} p", text: "Caio Melo / Duda Reis")
+    end
+
+    test "the player filter lists every partner once and finds a position-2 player's doubles and singles matches",
+         ctx do
+      eva_dani =
+        insert(:doubles_registration,
+          event: ctx.event,
+          category: ctx.doubles,
+          registration_players: [
+            build(:registration_player, player: build(:player, name: "Eva Nunes"), position: 1),
+            build(:registration_player, player: build(:player, name: "Dani Rocha"), position: 2)
+          ]
+        )
+
+      vs_caio = group_match(ctx, ctx.doubles, ctx.caio_duda, ctx.ana_bia)
+      vs_eva = group_match(ctx, ctx.doubles, ctx.ana_bia, eva_dani)
+      other = group_match(ctx, ctx.doubles, ctx.caio_duda, eva_dani)
+
+      bia_singles =
+        insert(:registration,
+          event: ctx.event,
+          category: ctx.singles,
+          registration_players: [build(:registration_player, player: ctx.bia)]
+        )
+
+      gil =
+        insert(:registration,
+          event: ctx.event,
+          category: ctx.singles,
+          registration_players: [
+            build(:registration_player, player: build(:player, name: "Gil Dias"))
+          ]
+        )
+
+      singles_match = group_match(ctx, ctx.singles, gil, bia_singles)
+
+      session =
+        visit(ctx.conn, ~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.doubles.id}")
+
+      for name <- ~w(Ana Bia Caio Dani Duda Eva Gil) do
+        assert_has(session, "#match-filters option", text: name, count: 1)
+      end
+
+      session
+      |> unwrap(fn view ->
+        view
+        |> element("#match-filters")
+        |> render_change(%{"player_id" => to_string(ctx.bia.id)})
+      end)
+      |> assert_has("#match-#{vs_caio.id}", text: "Caio Melo / Duda Reis")
+      |> assert_has("#match-#{vs_eva.id}", text: "Ana Lima / Bia Costa")
+      |> assert_has("#match-#{singles_match.id}", text: "Gil Dias")
+      |> assert_has("#match-#{singles_match.id}", text: "Simples")
+      |> refute_has("#match-#{other.id}")
+    end
+  end
 end

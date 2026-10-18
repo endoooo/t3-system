@@ -351,6 +351,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 :for={card <- @all_match_cards}
                 card={card}
                 is_superuser={@is_superuser}
+                show_category={@filter_player_id != nil}
               />
             </div>
           </div>
@@ -1394,7 +1395,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:category_form, to_form(%{"category_id" => nil}, as: :category))
       |> assign(:tabs, @fixed_tabs)
       |> assign(:stages, [])
-      |> assign(:overview_stages, [])
+      |> assign(:event_stages, [])
       |> assign(:current_stage, nil)
       |> assign(:stage_bracket_rounds, [])
       |> assign(:table_modal, nil)
@@ -1912,7 +1913,7 @@ defmodule T3SystemWeb.EventLive.Show do
     match_id = String.to_integer(id)
 
     score_modal =
-      find_match_across_stages(match_id, socket.assigns.stages ++ socket.assigns.overview_stages)
+      find_match_across_stages(match_id, socket.assigns.stages ++ socket.assigns.event_stages)
 
     score_set_count =
       case score_modal do
@@ -2376,19 +2377,35 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
+  # The category's matches; filtered by a player, that player's matches in every
+  # category (e.g. their singles and doubles matches), labeled with the category.
   defp assign_all_match_cards(%{assigns: %{current_tab: "matches"}} = socket) do
-    %{event: event, active_category: active_category} = socket.assigns
+    %{event: event, active_category: active_category, filter_player_id: player_id} =
+      socket.assigns
+
+    event_stages = Matches.list_stages_with_matches_for_event(event.id)
 
     stages =
-      Matches.list_stages_for_event_and_category(event.id, active_category.id, exclude_byes: true)
+      if player_id,
+        do: event_stages,
+        else: Enum.filter(event_stages, &(&1.category_id == active_category.id))
+
+    category_order = event.categories |> Enum.with_index() |> Map.new(fn {c, i} -> {c.id, i} end)
 
     cards =
       stages
-      |> Enum.flat_map(&stage_match_cards/1)
-      |> filter_match_cards(socket.assigns.filter_player_id)
+      |> Enum.flat_map(fn stage ->
+        for card <- stage_match_cards(stage) do
+          %{card | sort_key: {category_order[stage.category_id], card.sort_key}}
+          |> Map.put(:category_name, stage.category.name)
+        end
+      end)
+      |> filter_match_cards(player_id)
       |> apply_match_view(socket.assigns.match_view)
 
-    assign(socket, :all_match_cards, cards)
+    socket
+    |> assign(:event_stages, event_stages)
+    |> assign(:all_match_cards, cards)
   end
 
   defp assign_all_match_cards(socket), do: socket
@@ -2435,7 +2452,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> Enum.map(fn {_table_id, cards} -> Enum.min_by(cards, &{&1.table_position, &1.id}) end)
 
     socket
-    |> assign(:overview_stages, stages)
+    |> assign(:event_stages, stages)
     |> assign(:ongoing_match_cards, sort_by_schedule(ongoing))
     |> assign(:next_match_cards, sort_by_schedule(next))
   end
@@ -2581,7 +2598,10 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp card_player_ids(_), do: MapSet.new()
 
-  defp assign_match_filter_players(%{assigns: %{current_tab: "matches", stages: stages}} = socket) do
+  # Every player in any match of the event, so a partner can be found from any category
+  defp assign_match_filter_players(
+         %{assigns: %{current_tab: "matches", event_stages: stages}} = socket
+       ) do
     players =
       stages
       |> Enum.flat_map(&extract_players_from_stage/1)
