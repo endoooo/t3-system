@@ -22,6 +22,9 @@ defmodule T3SystemWeb.Admin.CategoryLive.Show do
 
       <.list>
         <:item title={gettext("Nome")}>{@category.name}</:item>
+        <:item title={gettext("Formato")}>
+          {T3SystemWeb.Admin.CategoryLive.format_label(@category.format)}
+        </:item>
       </.list>
     </Layouts.settings>
     """

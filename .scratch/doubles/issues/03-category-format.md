@@ -4,13 +4,13 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] Categories have a required format, `singles` or `doubles`, defaulting to `singles`. Existing categories are `singles`
-- [ ] A superuser can create a doubles category from the admin page
-- [ ] The format can be changed while the category has no registrations in any event
-- [ ] Once the category has a registration, the context rejects a format change and the admin form shows the picker locked with an explanation (gettext)
-- [ ] Category admin LiveView tests and categories context tests cover the above
-- [ ] `mix precommit` passes
+- [x] Categories have a required format, `singles` or `doubles`, defaulting to `singles`. Existing categories are `singles`
+- [x] A superuser can create a doubles category from the admin page
+- [x] The format can be changed while the category has no registrations in any event
+- [x] Once the category has a registration, the context rejects a format change and the admin form shows the picker locked with an explanation (gettext)
+- [x] Category admin LiveView tests and categories context tests cover the above
+- [x] `mix precommit` passes
 
 ## Comments

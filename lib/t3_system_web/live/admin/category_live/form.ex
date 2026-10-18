@@ -3,6 +3,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Form do
 
   alias T3System.Categories
   alias T3System.Categories.Category
+  alias T3SystemWeb.Admin.CategoryLive
 
   @impl true
   def render(assigns) do
@@ -21,6 +22,18 @@ defmodule T3SystemWeb.Admin.CategoryLive.Form do
         class="max-w-xl space-y-6"
       >
         <.input field={@form[:name]} type="text" label={gettext("Nome")} />
+        <div>
+          <.input
+            field={@form[:format]}
+            type="select"
+            label={gettext("Formato")}
+            options={CategoryLive.format_options()}
+            disabled={@format_locked}
+          />
+          <p :if={@format_locked} id="category-format-locked" class="mt-1 text-sm text-fg-muted">
+            {gettext("The format can't be changed because this category already has registrations.")}
+          </p>
+        </div>
         <.form_actions>
           <.button phx-disable-with={gettext("Saving...")} variant="primary">
             {gettext("Save Category")}
@@ -49,6 +62,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Form do
     socket
     |> assign(:page_title, gettext("Edit Category"))
     |> assign(:category, category)
+    |> assign(:format_locked, Categories.format_locked?(category))
     |> assign(:form, to_form(Categories.change_category(category)))
   end
 
@@ -58,6 +72,7 @@ defmodule T3SystemWeb.Admin.CategoryLive.Form do
     socket
     |> assign(:page_title, gettext("New Category"))
     |> assign(:category, category)
+    |> assign(:format_locked, false)
     |> assign(:form, to_form(Categories.change_category(category)))
   end
 

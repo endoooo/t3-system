@@ -81,4 +81,40 @@ defmodule T3SystemWeb.CategoryLiveTest do
       |> assert_has("li", text: "some updated name")
     end
   end
+
+  describe "Format" do
+    test "creates a doubles category", %{conn: conn} do
+      conn
+      |> visit(~p"/admin/categories/new")
+      |> fill_in("Nome", with: "Duplas Livre")
+      |> select("Formato", option: "Duplas")
+      |> click_button("Save Category")
+      |> assert_has("p", text: "Category created successfully")
+      |> assert_has("tr", text: "Duplas Livre")
+      |> assert_has("tr", text: "Duplas")
+    end
+
+    test "changes the format while the category has no registrations", %{conn: conn} do
+      category = insert(:category)
+
+      conn
+      |> visit(~p"/admin/categories/#{category}/edit?return_to=show")
+      |> select("Formato", option: "Duplas")
+      |> click_button("Save Category")
+      |> assert_has("p", text: "Category updated successfully")
+      |> assert_has("li", text: "Duplas")
+    end
+
+    test "locks the format once the category has a registration", %{conn: conn} do
+      category = insert(:category)
+      insert(:registration, category: category)
+
+      conn
+      |> visit(~p"/admin/categories/#{category}/edit")
+      |> assert_has("select[disabled]#category_format")
+      |> assert_has("p",
+        text: "The format can't be changed because this category already has registrations."
+      )
+    end
+  end
 end
