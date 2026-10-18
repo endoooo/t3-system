@@ -226,7 +226,7 @@ defmodule T3SystemWeb.EventLive.Show do
         <div :if={@current_tab == "overview"} class="space-y-8 px-4 py-8 sm:px-8">
           <section :if={@ongoing_match_cards != []} id="ongoing-matches" class="space-y-4">
             <.section_title>{gettext("Em andamento")}</.section_title>
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <.match_card
                 :for={card <- @ongoing_match_cards}
                 card={card}
@@ -238,7 +238,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
           <section :if={@next_match_cards != []} id="next-matches" class="space-y-4">
             <.section_title>{gettext("Próximos jogos")}</.section_title>
-            <div class="grid gap-3 sm:grid-cols-2">
+            <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <.match_card
                 :for={card <- @next_match_cards}
                 card={card}
@@ -348,7 +348,7 @@ defmodule T3SystemWeb.EventLive.Show do
               {match_view_empty_message(@match_view)}
             </.empty_state>
 
-            <div id="match-cards" class="grid gap-3 sm:grid-cols-2">
+            <div id="match-cards" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <.match_card
                 :for={card <- @all_match_cards}
                 card={card}
@@ -2629,6 +2629,7 @@ defmodule T3SystemWeb.EventLive.Show do
       <%!-- Player rows --%>
       <div class="space-y-2 p-4 pt-3">
         <.match_card_row
+          id={"tooltip-match-#{@card.id}-1"}
           name={@card.p1_name}
           won={@card.p1_won}
           has_sets={@card.has_sets}
@@ -2636,6 +2637,7 @@ defmodule T3SystemWeb.EventLive.Show do
           scores={@card.p1_scores}
         />
         <.match_card_row
+          id={"tooltip-match-#{@card.id}-2"}
           name={@card.p2_name}
           won={@card.p2_won}
           has_sets={@card.has_sets}
@@ -2790,6 +2792,7 @@ defmodule T3SystemWeb.EventLive.Show do
   defp slot_registration_id(match, 1), do: match.registration1_id
   defp slot_registration_id(match, 2), do: match.registration2_id
 
+  attr :id, :string, required: true
   attr :name, :string, required: true
   attr :won, :boolean, required: true
   attr :has_sets, :boolean, required: true
@@ -2800,13 +2803,19 @@ defmodule T3SystemWeb.EventLive.Show do
     ~H"""
     <div class="flex items-center gap-2">
       <div class="flex min-w-0 flex-1 items-center gap-2">
-        <span class={["min-w-0 truncate text-sm", @won && "font-bold"]}>{@name}</span>
+        <.tooltip
+          id={@id}
+          text={@name}
+          class={["min-w-0 truncate text-sm", @won && "font-bold"]}
+        >
+          {@name}
+        </.tooltip>
         <.icon :if={@won} name="hero-check-micro" class="shrink-0 text-primary" />
       </div>
       <span :if={@has_sets} class="w-5 shrink-0 text-center text-sm font-bold tabular-nums">
         {@set_wins}
       </span>
-      <div class="flex gap-1">
+      <div class="flex shrink-0 gap-1">
         <span :for={score <- @scores} class="w-7 text-center text-xs text-fg-muted tabular-nums">
           {score}
         </span>

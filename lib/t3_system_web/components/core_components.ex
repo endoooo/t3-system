@@ -886,6 +886,127 @@ defmodule T3SystemWeb.CoreComponents do
   end
 
   @doc """
+  Wraps content with a tooltip that emulates the browser's `title` tooltip:
+  it shows `text` near the pointer after a short hover. On touch devices a tap
+  opens it until the next touch elsewhere. Useful to reveal truncated text.
+
+  ## Examples
+
+      <.tooltip id="match-1-name" text={name} class="min-w-0 truncate">{name}</.tooltip>
+  """
+  attr :id, :string, required: true
+  attr :text, :string, required: true
+  attr :class, :any, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def tooltip(assigns) do
+    ~H"""
+    <span
+      id={@id}
+      class={@class}
+      data-tooltip={@text}
+      phx-hook=".Tooltip"
+      {@rest}
+    >
+      {render_slot(@inner_block)}
+    </span>
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".Tooltip">
+      // Hover delay before showing, like the browser's title tooltip
+      const SHOW_DELAY = 500
+      // Gap between the pointer (or the tapped element) and the tooltip
+      const OFFSET = 16
+      // Minimum distance from the viewport edges
+      const MARGIN = 8
+
+      // One tooltip element shared by every hook instance
+      let tip = null
+      let owner = null
+
+      function tipElement() {
+        if (!tip) {
+          tip = document.createElement("div")
+          tip.setAttribute("role", "tooltip")
+          tip.className =
+            "pointer-events-none fixed z-50 hidden max-w-[min(20rem,calc(100vw-1rem))] rounded-control bg-overlay px-2 py-1 text-xs break-words text-fg shadow-lg inset-ring inset-ring-border-strong"
+          document.body.appendChild(tip)
+        }
+        return tip
+      }
+
+      function show(hook, x, y) {
+        const el = tipElement()
+        el.textContent = hook.el.dataset.tooltip
+        el.classList.remove("hidden")
+        owner = hook
+
+        const { width, height } = el.getBoundingClientRect()
+        const maxLeft = window.innerWidth - width - MARGIN
+        const top = y + OFFSET + height > window.innerHeight - MARGIN ? y - OFFSET - height : y + OFFSET
+        el.style.left = `${Math.max(MARGIN, Math.min(x, maxLeft))}px`
+        el.style.top = `${Math.max(MARGIN, top)}px`
+      }
+
+      function hide(hook) {
+        if (tip && (!hook || owner === hook)) {
+          tip.classList.add("hidden")
+          owner = null
+        }
+      }
+
+      export default {
+        mounted() {
+          let timer = null
+          let pointer = { x: 0, y: 0 }
+          const cancel = () => clearTimeout(timer)
+
+          this.el.addEventListener("pointerenter", (e) => {
+            if (e.pointerType !== "mouse" || !this.el.dataset.tooltip) return
+            pointer = { x: e.clientX, y: e.clientY }
+            timer = setTimeout(() => show(this, pointer.x, pointer.y), SHOW_DELAY)
+          })
+          this.el.addEventListener("pointermove", (e) => {
+            pointer = { x: e.clientX, y: e.clientY }
+          })
+          this.el.addEventListener("pointerleave", () => {
+            cancel()
+            hide(this)
+          })
+          let pointerType = "mouse"
+          this.el.addEventListener("pointerdown", (e) => {
+            pointerType = e.pointerType
+            cancel()
+            if (pointerType === "mouse") hide(this)
+          })
+          // On touch, a tap opens the tooltip. A long press doesn't fire "click",
+          // so it keeps the device's default behavior (e.g. text selection).
+          this.el.addEventListener("click", () => {
+            if (pointerType === "mouse" || owner === this || !this.el.dataset.tooltip) return
+            const rect = this.el.getBoundingClientRect()
+            show(this, rect.left, rect.bottom - OFFSET + 4)
+          })
+
+          // On touch, the tooltip stays open until a touch anywhere else or a scroll
+          this.dismiss = (e) => {
+            if (owner === this && !this.el.contains(e.target)) hide(this)
+          }
+          this.onScroll = () => hide(this)
+          document.addEventListener("pointerdown", this.dismiss, true)
+          window.addEventListener("scroll", this.onScroll, { capture: true, passive: true })
+          this.cancel = cancel
+        },
+        destroyed() {
+          this.cancel()
+          hide(this)
+          document.removeEventListener("pointerdown", this.dismiss, true)
+          window.removeEventListener("scroll", this.onScroll, { capture: true })
+        }
+      }
+    </script>
+    """
+  end
+
+  @doc """
   Renders a small status label.
 
   ## Examples
