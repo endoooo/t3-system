@@ -78,10 +78,12 @@ defmodule T3System.Registrations.Registration do
   end
 
   defp validate_player_list(changeset, format, players) do
-    player_ids = Enum.map(players, & &1.player_id)
+    # Rows without a player (e.g. an unfilled second picker) don't count, so an
+    # incomplete pair gets the player-count error.
+    player_ids = players |> Enum.map(& &1.player_id) |> Enum.reject(&is_nil/1)
 
     cond do
-      length(players) != player_count(format) ->
+      length(player_ids) != player_count(format) ->
         add_error(changeset, :registration_players, player_count_message(format))
 
       length(Enum.uniq(player_ids)) != length(player_ids) ->

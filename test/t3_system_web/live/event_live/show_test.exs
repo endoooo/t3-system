@@ -397,6 +397,42 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       )
     end
 
+    test "saving a pair with only one player shows a clear error", %{conn: conn} do
+      category = insert(:category, format: "doubles")
+      event = insert(:event)
+      ana = insert(:player, name: "Ana")
+      club = insert(:club)
+      associate_category(event, category)
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Nova inscrição")
+      |> select_pair_player(0, ana)
+      |> select("Clube 1", option: club.name)
+      |> click_button("Salvar")
+      |> assert_has("#registration-form",
+        text: "a doubles registration must have exactly 2 players"
+      )
+      |> assert_has("h2", text: "Nova Inscrição")
+      |> refute_has("#registrations h3", text: "Ana")
+    end
+
+    test "the first doubles picker hides the second row's choice", %{conn: conn} do
+      category = insert(:category, format: "doubles")
+      event = insert(:event)
+      associate_category(event, category)
+      insert(:player, name: "Ana")
+      bia = insert(:player, name: "Bia")
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> click_button("Nova inscrição")
+      |> assert_has("#player-combobox-0 el-option", text: "Bia")
+      |> select_pair_player(1, bia)
+      |> refute_has("#player-combobox-0 el-option", text: "Bia")
+      |> assert_has("#player-combobox-0 el-option", text: "Ana")
+    end
+
     test "doubles pickers hide registered players and the first row's choice", %{conn: conn} do
       category = insert(:category, format: "doubles")
       event = insert(:event)
@@ -498,7 +534,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> within("#registrations-#{pair.id}", &click_button(&1, "Edit"))
       |> refute_has("#registration-form el-option", text: taken.name)
       |> assert_has("#player-combobox-0 el-option", text: ana.name)
-      |> assert_has("#player-combobox-0 el-option", text: bia.name)
+      |> assert_has("#player-combobox-0 el-option", text: free.name)
       |> assert_has("#player-combobox-1 el-option", text: bia.name)
       |> assert_has("#player-combobox-1 el-option", text: free.name)
     end
@@ -1729,6 +1765,35 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       assert html =~ "Alice"
       assert html =~ "Bob"
       assert html =~ "Carol"
+    end
+
+    test "player filter lists registered players without matches, from every category, once",
+         %{conn: conn, event: event, category: category, alice: alice} do
+      other_category = insert(:category, format: "doubles")
+      associate_category(event, other_category)
+      dora = insert(:player, name: "Dora")
+
+      insert(:registration,
+        event: event,
+        category: category,
+        registration_players: [build(:registration_player, player: dora)]
+      )
+
+      insert(:doubles_registration,
+        event: event,
+        category: other_category,
+        registration_players: [
+          build(:registration_player, player: alice, position: 1),
+          build(:registration_player, player: build(:player, name: "Elis"), position: 2)
+        ]
+      )
+
+      {:ok, _view, html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      assert html =~ ~s(<option value="#{dora.id}">Dora</option>)
+      assert html =~ ">Elis</option>"
+      assert Regex.scan(~r/>Alice<\/option>/, html) |> length() == 1
     end
   end
 

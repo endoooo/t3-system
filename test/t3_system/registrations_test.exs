@@ -4,6 +4,7 @@ defmodule T3System.RegistrationsTest do
   alias T3System.Accounts.Scope
   alias T3System.Registrations
   alias T3System.Registrations.Registration
+  alias T3System.Registrations.RegistrationPlayer
 
   import T3System.Factory
 
@@ -159,8 +160,9 @@ defmodule T3System.RegistrationsTest do
       doubles = insert(:category, format: "doubles")
 
       rows = fn count ->
+        # Positions stay within 1..2 so only the player count is wrong.
         for position <- 1..count//1 do
-          %{player_id: insert(:player).id, club_id: insert(:club).id, position: position}
+          %{player_id: insert(:player).id, club_id: insert(:club).id, position: min(position, 2)}
         end
       end
 
@@ -498,6 +500,38 @@ defmodule T3System.RegistrationsTest do
     test "change_registration/1 returns a registration changeset" do
       registration = insert(:registration)
       assert %Ecto.Changeset{} = Registrations.change_registration(registration)
+    end
+
+    test "create_registration/2 rejects a player position other than 1 or 2" do
+      scope = Scope.for_user(insert(:superuser))
+      category = insert(:category)
+
+      attrs = %{
+        event_id: insert(:event).id,
+        category_id: category.id,
+        registration_players: [
+          %{player_id: insert(:player).id, club_id: insert(:club).id, position: 3}
+        ]
+      }
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+      assert %{registration_players: [%{position: ["is invalid"]}]} = errors_on(changeset)
+    end
+
+    test "the database rejects a player position other than 1 or 2" do
+      registration = insert(:registration)
+
+      changeset =
+        %RegistrationPlayer{registration_id: registration.id}
+        |> RegistrationPlayer.changeset(%{
+          player_id: insert(:player).id,
+          club_id: insert(:club).id,
+          position: 2
+        })
+        |> Ecto.Changeset.force_change(:position, 0)
+
+      assert {:error, changeset} = T3System.Repo.insert(changeset)
+      assert %{position: ["must be 1 or 2"]} = errors_on(changeset)
     end
   end
 end

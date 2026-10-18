@@ -9,6 +9,7 @@ defmodule T3System.Registrations do
   alias T3System.Accounts.Scope
   alias T3System.Categories.Category
   alias T3System.Events
+  alias T3System.Players.Player
   alias T3System.Registrations.Registration
   alias T3System.Registrations.RegistrationPlayer
 
@@ -181,6 +182,26 @@ defmodule T3System.Registrations do
     |> select([rp], rp.player_id)
     |> Repo.all()
     |> MapSet.new()
+  end
+
+  @doc """
+  Returns every player registered in the event, in any category and position,
+  once each, sorted by name.
+  """
+  @spec list_event_players(pos_integer()) :: [Player.t()]
+  def list_event_players(event_id) do
+    Player
+    |> where(
+      [p],
+      p.id in subquery(
+        from rp in RegistrationPlayer,
+          join: r in assoc(rp, :registration),
+          where: r.event_id == ^event_id,
+          select: rp.player_id
+      )
+    )
+    |> order_by([p], asc: fragment("? COLLATE \"und-x-icu\"", p.name))
+    |> Repo.all()
   end
 
   @doc """

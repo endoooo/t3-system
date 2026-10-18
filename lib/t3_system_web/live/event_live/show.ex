@@ -652,7 +652,7 @@ defmodule T3SystemWeb.EventLive.Show do
                       do: gettext("Jogador %{n}", n: rp.index + 1),
                       else: gettext("Jogador")}
                   </.label>
-                  <%!-- Re-mounted (fresh options) when the key or an earlier row's player changes --%>
+                  <%!-- Re-mounted (fresh options) when the key or another row's player changes --%>
                   <div
                     id={combobox_dom_id(rp.index, @combobox_key, @selected_players)}
                     phx-hook=".PlayerCombobox"
@@ -2598,38 +2598,18 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp card_player_ids(_), do: MapSet.new()
 
-  # Every player in any match of the event, so a partner can be found from any category
-  defp assign_match_filter_players(
-         %{assigns: %{current_tab: "matches", event_stages: stages}} = socket
-       ) do
+  # Every player registered in the event (any category), so a partner can be
+  # found from any category even before they have matches.
+  defp assign_match_filter_players(%{assigns: %{current_tab: "matches", event: event}} = socket) do
     players =
-      stages
-      |> Enum.flat_map(&extract_players_from_stage/1)
-      |> Enum.uniq_by(&elem(&1, 1))
-      |> Enum.sort_by(&elem(&1, 0))
+      event.id
+      |> Registrations.list_event_players()
+      |> Enum.map(&{&1.name, &1.id})
 
     assign(socket, :match_filter_players, players)
   end
 
   defp assign_match_filter_players(socket), do: socket
-
-  defp extract_players_from_stage(stage) do
-    group_players =
-      Enum.flat_map(stage.groups, fn group ->
-        Enum.flat_map(group.matches, &extract_players_from_match/1)
-      end)
-
-    bracket_players = Enum.flat_map(stage.matches, &extract_players_from_match/1)
-
-    group_players ++ bracket_players
-  end
-
-  defp extract_players_from_match(match) do
-    [match.registration1, match.registration2]
-    |> Enum.filter(&match?(%Registration{}, &1))
-    |> Enum.flat_map(& &1.registration_players)
-    |> Enum.map(&{&1.player.name, &1.player.id})
-  end
 
   attr :card, :map, required: true
   attr :is_superuser, :boolean, required: true
@@ -2973,26 +2953,26 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp doubles?(category), do: player_rows(category) == 2
 
-  # A row's combobox offers the available players minus those picked in
-  # earlier rows (the second picker of a pair hides the first's choice).
+  # A row's combobox offers the available players minus those picked in the
+  # other rows (each picker of a pair hides the other's choice).
   defp row_players(players, selected_players, index) do
-    taken = earlier_selected_ids(selected_players, index)
+    taken = other_selected_ids(selected_players, index)
     Enum.reject(players, &(to_string(&1.id) in taken))
   end
 
-  defp earlier_selected_ids(selected_players, index) do
+  defp other_selected_ids(selected_players, index) do
     for {i, %{id: id}} <- selected_players,
-        String.to_integer(i) < index,
+        String.to_integer(i) != index,
         id not in [nil, ""],
         do: to_string(id)
   end
 
   # The combobox content is `phx-update="ignore"`, so its DOM id changes
-  # whenever its options must be rebuilt: after each add (`key`) and when an
-  # earlier row's player changes.
+  # whenever its options must be rebuilt: after each add (`key`) and when
+  # another row's player changes.
   defp combobox_dom_id(index, key, selected_players) do
-    earlier = selected_players |> earlier_selected_ids(index) |> Enum.sort()
-    Enum.join(["player-combobox-input", index, key | earlier], "-")
+    others = selected_players |> other_selected_ids(index) |> Enum.sort()
+    Enum.join(["player-combobox-input", index, key | others], "-")
   end
 
   defp player_autocomplete_id(0), do: "player-autocomplete"
