@@ -1,6 +1,6 @@
 # Doubles categories
 
-Status: ready-for-agent
+Status: resolved
 
 ## Problem Statement
 
