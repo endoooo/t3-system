@@ -23,6 +23,12 @@ defmodule T3SystemWeb.Admin.PlayerLive.Form do
       >
         <div class="space-y-5">
           <.input field={@form[:name]} type="text" label={gettext("Nome")} />
+          <.input
+            field={@form[:short_name]}
+            type="text"
+            label={gettext("Nome curto")}
+            placeholder={Player.abbreviate_name(@form[:name].value)}
+          />
           <.input field={@form[:birthdate]} type="date" label={gettext("Birthdate")} />
           <div>
             <.label for={@uploads.picture.ref}>{gettext("Picture")}</.label>

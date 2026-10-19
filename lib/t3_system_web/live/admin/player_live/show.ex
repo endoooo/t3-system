@@ -2,6 +2,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Show do
   use T3SystemWeb, :live_view
 
   alias T3System.Players
+  alias T3System.Players.Player
 
   @impl true
   def render(assigns) do
@@ -22,6 +23,7 @@ defmodule T3SystemWeb.Admin.PlayerLive.Show do
 
       <.list>
         <:item title={gettext("Nome")}>{@player.name}</:item>
+        <:item title={gettext("Nome curto")}>{Player.display_short_name(@player)}</:item>
         <:item title={gettext("Birthdate")}>{@player.birthdate}</:item>
         <:item title={gettext("Picture")}>
           <.avatar src={@player.picture_url} name={@player.name} size="lg" />

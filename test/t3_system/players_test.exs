@@ -46,6 +46,23 @@ defmodule T3System.PlayersTest do
       assert player.picture_url == "some picture_url"
     end
 
+    test "create_player/2 saves an optional short name" do
+      scope = Scope.for_user(insert(:superuser))
+
+      assert {:ok, player} = Players.create_player(scope, %{name: "Ana Julia Caceres"})
+      assert player.short_name == nil
+
+      assert {:ok, player} =
+               Players.create_player(scope, %{name: "Ana Julia Caceres", short_name: "  "})
+
+      assert player.short_name == nil
+
+      assert {:ok, player} =
+               Players.create_player(scope, %{name: "Ana Julia Caceres", short_name: "Aninha"})
+
+      assert player.short_name == "Aninha"
+    end
+
     test "create_player/2 with invalid data returns error changeset" do
       scope = Scope.for_user(insert(:superuser))
       assert {:error, %Ecto.Changeset{}} = Players.create_player(scope, @invalid_attrs)
@@ -141,6 +158,23 @@ defmodule T3System.PlayersTest do
     test "change_player/1 returns a player changeset" do
       player = insert(:player)
       assert %Ecto.Changeset{} = Players.change_player(player)
+    end
+  end
+
+  describe "Player.display_short_name/1" do
+    test "uses the short name when given" do
+      assert Player.display_short_name(%Player{name: "Ana Julia Caceres", short_name: "Aninha"}) ==
+               "Aninha"
+    end
+
+    test "otherwise abbreviates the first name and keeps the last name" do
+      assert Player.display_short_name(%Player{name: "Ana Julia Caceres"}) == "A. Caceres"
+      assert Player.display_short_name(%Player{name: "Eric Endo"}) == "E. Endo"
+      assert Player.display_short_name(%Player{name: "  Eric   Endo "}) == "E. Endo"
+    end
+
+    test "keeps a single name as is" do
+      assert Player.display_short_name(%Player{name: "William"}) == "William"
     end
   end
 end

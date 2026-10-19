@@ -33,6 +33,33 @@ defmodule T3SystemWeb.PlayerLiveTest do
       |> assert_has("td", text: "some name")
     end
 
+    test "saves a player's short name and shows it", %{conn: conn} do
+      conn
+      |> visit(~p"/admin/players/new")
+      |> fill_in("Nome", with: "Ana Julia Caceres")
+      |> fill_in("Nome curto", with: "Aninha")
+      |> click_button("Save Player")
+      |> assert_has("p", text: "Player created successfully")
+
+      player = Players.list_player() |> Enum.find(&(&1.name == "Ana Julia Caceres"))
+
+      conn
+      |> visit(~p"/admin/players/#{player}")
+      |> assert_has("li", text: "Aninha")
+    end
+
+    test "shows the derived short name when none is given", %{conn: conn} do
+      player = insert(:player, name: "Ana Julia Caceres")
+
+      conn
+      |> visit(~p"/admin/players/#{player}")
+      |> assert_has("li", text: "A. Caceres")
+
+      conn
+      |> visit(~p"/admin/players/#{player}/edit")
+      |> assert_has("input[placeholder='A. Caceres']")
+    end
+
     test "uploads a picture to Cloudinary when saving", %{conn: conn} do
       Req.Test.stub(T3System.Cloudinary, fn conn ->
         Req.Test.json(conn, %{
