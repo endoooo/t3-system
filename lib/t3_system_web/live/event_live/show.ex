@@ -279,10 +279,14 @@ defmodule T3SystemWeb.EventLive.Show do
                   players={reg.registration_players}
                   avatar_size="md"
                   show_clubs
+                  lines
                   names_tag="h3"
                   class="flex-1 gap-3"
                   body_class="space-y-2"
-                  names_class="font-display text-lg font-black"
+                  names_class={[
+                    "font-display font-black",
+                    if(length(reg.registration_players) > 1, do: "text-base", else: "text-lg")
+                  ]}
                 >
                   <.final_standing final_standing={reg.final_standing} />
                 </.players>
@@ -432,17 +436,20 @@ defmodule T3SystemWeb.EventLive.Show do
                     <tbody class="tabular-nums">
                       <tr :for={row <- standings} class="text-xs even:bg-fg/[0.03]">
                         <td class="w-1 py-2.5 pl-4 text-fg-muted">{row.rank}</td>
-                        <td class={["px-2 py-2", row.qualified && "font-bold"]}>
-                          <.players
-                            players={row.registration.registration_players}
-                            avatar_size="xs"
-                          >
+                        <td class={["w-full max-w-0 px-2 py-2", row.qualified && "font-bold"]}>
+                          <div class="flex items-center gap-1">
+                            <.players
+                              players={row.registration.registration_players}
+                              avatar_size="xs"
+                              lines
+                              names_class="truncate"
+                            />
                             <.icon
                               :if={row.qualified}
                               name="hero-check-micro"
-                              class="text-primary"
+                              class="shrink-0 text-primary"
                             />
-                          </.players>
+                          </div>
                         </td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.won}</td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.lost}</td>
@@ -500,7 +507,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   <div class="flex">
                     <div
                       :for={round <- 1..@current_stage.rounds}
-                      class="mb-3 flex h-8 w-56 shrink-0 items-end pb-1 pl-3 text-xs font-bold tracking-wider text-fg-muted uppercase"
+                      class="mb-3 flex h-8 w-70 shrink-0 items-end pb-1 pl-3 text-xs font-bold tracking-wider text-fg-muted uppercase"
                     >
                       {round_label(round, @current_stage.rounds)}
                     </div>
@@ -509,7 +516,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   <% grid_rows = trunc(:math.pow(2, @current_stage.rounds - 1)) %>
                   <% all_matches =
                     Enum.flat_map(@stage_bracket_rounds, fn {_round, matches} -> matches end) %>
-                  <div style={"display: grid; grid-template-columns: repeat(#{@current_stage.rounds}, 14rem); grid-template-rows: repeat(#{grid_rows}, auto);"}>
+                  <div style={"display: grid; grid-template-columns: repeat(#{@current_stage.rounds}, 17.5rem); grid-template-rows: repeat(#{grid_rows}, auto);"}>
                     <div
                       :for={match <- all_matches}
                       id={"bracket-match-#{match.id}"}
@@ -545,6 +552,7 @@ defmodule T3SystemWeb.EventLive.Show do
                       <div class="w-full pr-6 pl-3">
                         <.card padded={false} class="overflow-hidden">
                           <.bracket_slot
+                            id={"tooltip-bracket-#{match.id}-1"}
                             registration={match.registration1}
                             label={match.slot1_label}
                             won={p1_won}
@@ -552,6 +560,7 @@ defmodule T3SystemWeb.EventLive.Show do
                             set_wins={sorted_sets != [] && sw1}
                           />
                           <.bracket_slot
+                            id={"tooltip-bracket-#{match.id}-2"}
                             registration={match.registration2}
                             label={match.slot2_label}
                             won={p2_won}
@@ -2561,8 +2570,10 @@ defmodule T3SystemWeb.EventLive.Show do
       p2_won:
         match.winner_registration_id == match.registration2_id and
           not is_nil(match.winner_registration_id),
-      p1_name: card_player_name(match, 1, source),
-      p2_name: card_player_name(match, 2, source),
+      p1_name: card_player_name(match, 1, source, &player_short_names/1),
+      p2_name: card_player_name(match, 2, source, &player_short_names/1),
+      p1_full_name: card_player_name(match, 1, source, &player_names/1),
+      p2_full_name: card_player_name(match, 2, source, &player_names/1),
       p1_player_ids: card_player_ids(match.registration1),
       p2_player_ids: card_player_ids(match.registration2)
     }
@@ -2582,9 +2593,13 @@ defmodule T3SystemWeb.EventLive.Show do
   defp format_set_score(nil), do: "–"
   defp format_set_score(score), do: to_string(score)
 
-  defp card_player_name(match, 1, :group), do: match_player_name(match.registration1)
-  defp card_player_name(match, 2, :group), do: match_player_name(match.registration2)
-  defp card_player_name(match, slot, :bracket), do: slot_label(match, slot)
+  defp card_player_name(match, 1, :group, format),
+    do: match_player_name(match.registration1, format)
+
+  defp card_player_name(match, 2, :group, format),
+    do: match_player_name(match.registration2, format)
+
+  defp card_player_name(match, slot, :bracket, format), do: slot_label(match, slot, format)
 
   defp card_player_ids(%Registration{registration_players: players}),
     do: MapSet.new(players, & &1.player_id)
@@ -2631,6 +2646,7 @@ defmodule T3SystemWeb.EventLive.Show do
         <.match_card_row
           id={"tooltip-match-#{@card.id}-1"}
           name={@card.p1_name}
+          full_name={@card.p1_full_name}
           won={@card.p1_won}
           has_sets={@card.has_sets}
           set_wins={@card.sw1}
@@ -2639,6 +2655,7 @@ defmodule T3SystemWeb.EventLive.Show do
         <.match_card_row
           id={"tooltip-match-#{@card.id}-2"}
           name={@card.p2_name}
+          full_name={@card.p2_full_name}
           won={@card.p2_won}
           has_sets={@card.has_sets}
           set_wins={@card.sw2}
@@ -2794,6 +2811,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
   attr :id, :string, required: true
   attr :name, :string, required: true
+  attr :full_name, :string, required: true, doc: "shown in the tooltip"
   attr :won, :boolean, required: true
   attr :has_sets, :boolean, required: true
   attr :set_wins, :integer, required: true
@@ -2805,7 +2823,7 @@ defmodule T3SystemWeb.EventLive.Show do
       <div class="flex min-w-0 flex-1 items-center gap-2">
         <.tooltip
           id={@id}
-          text={@name}
+          text={@full_name}
           class={["min-w-0 truncate text-sm", @won && "font-bold"]}
         >
           {@name}
@@ -2824,6 +2842,7 @@ defmodule T3SystemWeb.EventLive.Show do
     """
   end
 
+  attr :id, :string, required: true, doc: "id for the full-names tooltip"
   attr :registration, :any, required: true
   attr :label, :any, required: true
   attr :won, :boolean, required: true
@@ -2834,7 +2853,13 @@ defmodule T3SystemWeb.EventLive.Show do
     ~H"""
     <div class={["flex items-center gap-2 px-4 py-2", winner_bg(@registration, @won)]}>
       <div class="flex min-w-0 flex-1 items-center gap-2">
-        <.label_and_player registration={@registration} label={@label} won={@won} is_bye={@is_bye} />
+        <.label_and_player
+          id={@id}
+          registration={@registration}
+          label={@label}
+          won={@won}
+          is_bye={@is_bye}
+        />
         <.icon :if={@won} name="hero-check-mini" class="shrink-0 text-primary" />
       </div>
       <span :if={@set_wins} class={["text-sm tabular-nums", @won && "font-bold"]}>
@@ -2855,16 +2880,20 @@ defmodule T3SystemWeb.EventLive.Show do
     """
   end
 
+  attr :id, :string, required: true
   attr :registration, :any, required: true
   attr :label, :any, required: true
   attr :won, :boolean, required: true
   attr :is_bye, :boolean, default: false
 
   defp label_and_player(assigns) do
-    name =
+    {name, full_name} =
       case assigns.registration do
-        %Registration{} = registration -> player_names(registration.registration_players)
-        _ -> nil
+        %Registration{registration_players: players} ->
+          {player_short_names(players), player_names(players)}
+
+        _ ->
+          {nil, nil}
       end
 
     label =
@@ -2873,14 +2902,18 @@ defmodule T3SystemWeb.EventLive.Show do
     assigns =
       assigns
       |> assign(:name, name)
+      |> assign(:full_name, full_name)
       |> assign(:label, label)
 
     ~H"""
     <span :if={@name && @label} class="shrink-0 text-xs whitespace-nowrap text-fg-muted">
       {@label}
     </span>
-    <span class={["truncate text-sm", @won && "font-bold"]}>
-      {@name || @label || if(@is_bye, do: gettext("Bye"), else: gettext("TBD"))}
+    <.tooltip :if={@name} id={@id} text={@full_name} class={["truncate text-sm", @won && "font-bold"]}>
+      {@name}
+    </.tooltip>
+    <span :if={!@name} class="truncate text-sm">
+      {@label || if(@is_bye, do: gettext("Bye"), else: gettext("TBD"))}
     </span>
     """
   end
@@ -3032,14 +3065,14 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
-  defp slot_label(match, n) do
+  defp slot_label(match, n, format \\ &player_names/1) do
     case n do
       1 -> {match.registration1, match.slot1_label}
       2 -> {match.registration2, match.slot2_label}
     end
     |> case do
       {%Registration{} = registration, _} ->
-        player_names(registration.registration_players)
+        format.(registration.registration_players)
 
       {_, label} when label not in [nil, ""] ->
         label
@@ -3056,10 +3089,10 @@ defmodule T3SystemWeb.EventLive.Show do
     "grid-column: #{match.round}; grid-row: #{start} / span #{span};"
   end
 
-  defp match_player_name(%Registration{registration_players: [_ | _]} = registration),
-    do: player_names(registration.registration_players)
+  defp match_player_name(%Registration{registration_players: [_ | _]} = registration, format),
+    do: format.(registration.registration_players)
 
-  defp match_player_name(_), do: gettext("TBD")
+  defp match_player_name(_, _format), do: gettext("TBD")
 
   defp registration_label(registration),
     do: player_names_with_clubs(registration.registration_players)

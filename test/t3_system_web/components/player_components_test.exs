@@ -48,6 +48,18 @@ defmodule T3SystemWeb.PlayerComponentsTest do
       assert html =~ "Clube A / Clube B"
     end
 
+    test "with lines, puts each player of a pair on its own line" do
+      html =
+        render_component(&PlayerComponents.players/1,
+          players: [entry("Ana", "Clube A"), entry("Bia", "Clube B")],
+          lines: true
+        )
+
+      lines = html |> LazyHTML.from_fragment() |> LazyHTML.query("li")
+      assert Enum.map(lines, &String.trim(LazyHTML.text(&1))) == ["Ana", "Bia"]
+      refute html =~ "Ana / Bia"
+    end
+
     test "renders the inner block after the names" do
       assigns = %{players: [entry("Ana", "Clube A")]}
 
@@ -68,6 +80,13 @@ defmodule T3SystemWeb.PlayerComponentsTest do
                "Ana / Bia"
 
       assert PlayerComponents.player_names([entry("Ana", "A")]) == "Ana"
+    end
+  end
+
+  describe "player_clubs/1" do
+    test "names a shared club once" do
+      assert PlayerComponents.player_clubs([entry("Ana", "A"), entry("Bia", "B")]) == "A / B"
+      assert PlayerComponents.player_clubs([entry("Ana", "A"), entry("Bia", "A")]) == "A"
     end
   end
 

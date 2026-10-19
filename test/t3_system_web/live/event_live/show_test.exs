@@ -8,6 +8,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
   alias T3System.Accounts.Scope
   alias T3System.Events
   alias T3System.Matches
+  alias T3System.Players.Player
 
   # Helper to associate a category with an event via the join table
   defp associate_category(event, category) do
@@ -217,7 +218,9 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}?tab=stage-#{stage.id}&category_id=#{category.id}")
-      |> assert_has("span", text: hd(registration.registration_players).player.name)
+      |> assert_has("span",
+        text: Player.display_short_name(hd(registration.registration_players).player)
+      )
     end
 
     test "does not show add registration button for anonymous users", %{conn: conn} do
@@ -385,7 +388,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> select("Clube 1", option: club_a.name)
       |> select("Clube 2", option: club_b.name)
       |> click_button("Salvar")
-      |> assert_has("h3", text: "Ana / Bia")
+      |> assert_has("#registrations li li:first-child", text: "Ana")
+      |> assert_has("#registrations li li:last-child", text: "Bia")
       |> assert_has("#registrations", text: "#{club_a.name} / #{club_b.name}")
       |> assert_has("#flash-info", text: "Ana / Bia")
       |> assert_has("h2", text: "Nova Inscrição")
@@ -507,8 +511,22 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> select("Clube 1", option: club_c.name)
       |> click_button("Salvar")
       |> refute_has("h2", text: "Editar Inscrição")
-      |> assert_has("h3", text: "Ana / Cris")
+      |> assert_has("#registrations li li:first-child", text: "Ana")
+      |> assert_has("#registrations li li:last-child", text: "Cris")
       |> assert_has("#registrations", text: "Clube C / Clube B")
+    end
+
+    test "names a pair's shared club once", %{conn: conn} do
+      %{event: event, registration: pair} = pair_setup()
+      club = insert(:club, name: "Clube Único")
+
+      for registration_player <- pair.registration_players do
+        registration_player |> Ecto.Changeset.change(club_id: club.id) |> T3System.Repo.update!()
+      end
+
+      conn
+      |> visit(~p"/events/#{event}")
+      |> assert_has("#registrations p", text: "Clube Único", exact: true)
     end
 
     test "swaps the players of a pair between rows", %{conn: conn} do
@@ -520,7 +538,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> select_pair_player(0, bia)
       |> select_pair_player(1, ana)
       |> click_button("Salvar")
-      |> assert_has("h3", text: "Bia / Ana")
+      |> assert_has("#registrations li li:first-child", text: "Bia")
+      |> assert_has("#registrations li li:last-child", text: "Ana")
     end
 
     test "edit pickers hide other pairs' players but keep the pair's own", %{conn: conn} do
@@ -556,9 +575,10 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
       conn
       |> visit(~p"/events/#{event}")
-      |> assert_has("h3", text: "Ana / Bia")
+      |> assert_has("#registrations li li:first-child", text: "Ana")
+      |> assert_has("#registrations li li:last-child", text: "Bia")
       |> click_button("Remove")
-      |> refute_has("h3", text: "Ana / Bia")
+      |> refute_has("#registrations li li", text: "Ana")
     end
 
     test "deletes a registration", %{conn: conn} do
@@ -2056,7 +2076,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> select("Add Player", option: "Ana Lima — Clube A / Bia Costa — Clube B")
       |> assert_has("#players-modal li", text: "Ana Lima / Bia Costa")
       |> click_button("#players-modal button", "Close")
-      |> assert_has("#group-#{group.id} td", text: "Ana Lima / Bia Costa")
+      |> assert_has("#group-#{group.id} td li:first-child", text: "Ana Lima")
+      |> assert_has("#group-#{group.id} td li:last-child", text: "Bia Costa")
       |> assert_has("#group-#{group.id} td button", text: "View picture", count: 2)
     end
 
@@ -2088,12 +2109,37 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       ctx.conn
       |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.doubles.id}")
       |> assert_has("#bracket-match-#{match.id} .bg-gold\\/15 .font-bold",
-        text: "Ana Lima / Bia Costa"
+        text: "A. Lima / B. Costa"
       )
-      |> assert_has("#bracket-match-#{match.id} .bg-silver\\/20", text: "Caio Melo / Duda Reis")
+      |> assert_has("#bracket-match-#{match.id} .bg-silver\\/20", text: "C. Melo / D. Reis")
+      |> assert_has("#bracket-match-#{match.id} [data-tooltip='Ana Lima / Bia Costa']",
+        text: "A. Lima / B. Costa"
+      )
       |> visit(~p"/events/#{ctx.event}?category_id=#{ctx.doubles.id}")
       |> assert_has("#registrations", text: "Campeão")
       |> assert_has("#registrations", text: "Vice-campeão")
+    end
+
+    test "match cards show each player's short name and the full names in the tooltip", ctx do
+      ctx.ana_bia.registration_players
+      |> Enum.find(&(&1.player.name == "Ana Lima"))
+      |> Map.fetch!(:player)
+      |> Ecto.Changeset.change(short_name: "Aninha")
+      |> T3System.Repo.update!()
+
+      match =
+        ctx
+        |> group_match(ctx.doubles, ctx.ana_bia, ctx.caio_duda)
+        |> Ecto.Changeset.change(is_ongoing: true)
+        |> T3System.Repo.update!()
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.doubles.id}")
+      |> assert_has("#match-#{match.id} [data-tooltip='Ana Lima / Bia Costa']",
+        text: "Aninha / B. Costa"
+      )
+      |> visit(~p"/events/#{ctx.event}?category_id=#{ctx.doubles.id}")
+      |> assert_has("#match-#{match.id}", text: "Aninha / B. Costa")
     end
 
     test "set scores and the winner are recorded for a doubles match", ctx do
@@ -2108,7 +2154,8 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> select("Vencedor da partida", option: "Caio Melo / Duda Reis")
       |> click_button("#score-modal button", "Salvar")
       |> refute_has("#score-modal")
-      |> assert_has("#match-#{match.id} span.font-bold", text: "Caio Melo / Duda Reis")
+      |> assert_has("#match-#{match.id} span.font-bold", text: "C. Melo / D. Reis")
+      |> assert_has("#match-#{match.id} [data-tooltip='Caio Melo / Duda Reis']")
       |> assert_has("#match-#{match.id} span", text: "11")
 
       assert Matches.get_match!(match.id).winner_registration_id == ctx.caio_duda.id
@@ -2196,9 +2243,9 @@ defmodule T3SystemWeb.EventLive.ShowTest do
         |> element("#match-filters")
         |> render_change(%{"player_id" => to_string(ctx.bia.id)})
       end)
-      |> assert_has("#match-#{vs_caio.id}", text: "Caio Melo / Duda Reis")
-      |> assert_has("#match-#{vs_eva.id}", text: "Ana Lima / Bia Costa")
-      |> assert_has("#match-#{singles_match.id}", text: "Gil Dias")
+      |> assert_has("#match-#{vs_caio.id}", text: "C. Melo / D. Reis")
+      |> assert_has("#match-#{vs_eva.id}", text: "A. Lima / B. Costa")
+      |> assert_has("#match-#{singles_match.id}", text: "G. Dias")
       |> assert_has("#match-#{singles_match.id}", text: "Simples")
       |> refute_has("#match-#{other.id}")
     end
