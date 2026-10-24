@@ -632,16 +632,49 @@ defmodule T3System.Matches do
   # Team matches
   # ---------------------------------------------------------------------------
 
+  @team_match_preloads [
+    :sets,
+    inner_matches:
+      {from(im in Match, order_by: im.id),
+       [
+         :sets,
+         :table,
+         registration1: @registration_preload,
+         registration2: @registration_preload,
+         match_players: {from(mp in MatchPlayer, order_by: mp.id), :player}
+       ]},
+    group: [stage: :category],
+    stage: :category,
+    registration1: @registration_preload,
+    registration2: @registration_preload
+  ]
+
   @doc """
   Gets a team match of the event: a match in a group or bracket stage of a
   team category, with its teams (players and clubs), its group or stage and
-  their category preloaded.
+  their category, and the matches inside it preloaded.
 
   Raises `Ecto.NoResultsError` if the match doesn't exist, belongs to another
   event or isn't a team match.
   """
   @spec get_team_match!(pos_integer(), pos_integer() | String.t()) :: Match.t()
   def get_team_match!(event_id, id) do
+    event_id |> team_match_query(id) |> Repo.one!() |> Repo.preload(@team_match_preloads)
+  end
+
+  @doc """
+  Like `get_team_match!/2`, but returns `nil` when the match doesn't exist,
+  belongs to another event or isn't a team match.
+  """
+  @spec get_team_match(pos_integer(), pos_integer() | String.t()) :: Match.t() | nil
+  def get_team_match(event_id, id) do
+    case event_id |> team_match_query(id) |> Repo.one() do
+      nil -> nil
+      team_match -> Repo.preload(team_match, @team_match_preloads)
+    end
+  end
+
+  defp team_match_query(event_id, id) do
     from(m in Match,
       left_join: g in assoc(m, :group),
       left_join: gs in assoc(g, :stage),
@@ -650,23 +683,6 @@ defmodule T3System.Matches do
       on: c.id == coalesce(gs.category_id, s.category_id),
       where: m.id == ^id and m.event_id == ^event_id and c.format == "team"
     )
-    |> Repo.one!()
-    |> Repo.preload([
-      :sets,
-      inner_matches:
-        {from(im in Match, order_by: im.id),
-         [
-           :sets,
-           :table,
-           registration1: @registration_preload,
-           registration2: @registration_preload,
-           match_players: {from(mp in MatchPlayer, order_by: mp.id), :player}
-         ]},
-      group: [stage: :category],
-      stage: :category,
-      registration1: @registration_preload,
-      registration2: @registration_preload
-    ])
   end
 
   @doc """

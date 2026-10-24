@@ -12,6 +12,7 @@ defmodule T3SystemWeb.MatchComponents do
 
   import T3SystemWeb.PlayerComponents, only: [player_names: 1, player_short_names: 1]
 
+  alias T3System.Categories.Category
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.Stage
@@ -53,6 +54,41 @@ defmodule T3SystemWeb.MatchComponents do
   @spec side_registration(Match.t(), 1 | 2) :: Registration.t() | nil
   def side_registration(%Match{registration1: registration}, 1), do: loaded(registration)
   def side_registration(%Match{registration2: registration}, 2), do: loaded(registration)
+
+  @doc """
+  A team's name on one side (1 or 2) of a team match; an empty slot shows its
+  bracket label, "Bye" or "TBD" (see `empty_slot_label/2`).
+  """
+  @spec team_name(Match.t(), 1 | 2) :: String.t()
+  def team_name(%Match{} = match, side) do
+    case side_registration(match, side) do
+      %Registration{name: name} when is_binary(name) -> name
+      _ -> empty_slot_label(match, side)
+    end
+  end
+
+  @doc """
+  What an empty side (1 or 2) of a match shows: its bracket slot label
+  ("1º B"), "Bye" for a bye, "TBD" otherwise.
+  """
+  @spec empty_slot_label(Match.t(), 1 | 2) :: String.t()
+  def empty_slot_label(%Match{} = match, side) do
+    label = if side == 1, do: match.slot1_label, else: match.slot2_label
+
+    cond do
+      not blank?(label) -> label
+      match.is_bye -> gettext("Bye")
+      true -> gettext("TBD")
+    end
+  end
+
+  @doc """
+  The category of a group or bracket match, from its preloaded group (with
+  stage and category) or stage (with category).
+  """
+  @spec match_category(Match.t()) :: Category.t()
+  def match_category(%Match{group: %Group{stage: %Stage{category: category}}}), do: category
+  def match_category(%Match{stage: %Stage{category: category}}), do: category
 
   @doc """
   A match inside a team match, in its team match's context: the team names

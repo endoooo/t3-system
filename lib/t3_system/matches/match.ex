@@ -2,6 +2,7 @@ defmodule T3System.Matches.Match do
   use Ecto.Schema
   import Ecto.Changeset
 
+  alias T3System.Categories.Category
   alias T3System.Events.Event
   alias T3System.Matches.Group
   alias T3System.Matches.MatchPlayer
@@ -211,6 +212,15 @@ defmodule T3System.Matches.Match do
   @kinds ~w(singles doubles)
 
   @doc """
+  How many players each side of a match inside a team match has, by its kind:
+  like a category of that format (1 for singles, 2 for doubles); 1 for an
+  unknown kind.
+  """
+  @spec side_player_count(String.t() | nil) :: pos_integer()
+  def side_player_count(kind) when kind in @kinds, do: Category.player_count(kind)
+  def side_player_count(_kind), do: 1
+
+  @doc """
   The lineup of a match inside `team_match` (whose teams' players are
   preloaded): its kind ("singles": 1 player per side, "doubles": 2 different
   players per side), position labels and each side's players, picked from that
@@ -253,11 +263,7 @@ defmodule T3System.Matches.Match do
   defp validate_side(changeset, field, team) do
     ids = get_field(changeset, field) || []
 
-    expected =
-      case get_field(changeset, :kind) do
-        "doubles" -> 2
-        _ -> 1
-      end
+    expected = side_player_count(get_field(changeset, :kind))
 
     cond do
       length(ids) != expected ->

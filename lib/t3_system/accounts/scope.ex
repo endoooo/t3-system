@@ -30,4 +30,9 @@ defmodule T3System.Accounts.Scope do
   end
 
   def for_user(nil), do: nil
+
+  @doc "Whether the scope is a superuser's (false for no scope)."
+  @spec superuser?(%__MODULE__{} | nil) :: boolean()
+  def superuser?(%__MODULE__{user: %{role: "superuser"}}), do: true
+  def superuser?(_scope), do: false
 end

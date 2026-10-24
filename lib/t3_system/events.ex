@@ -219,6 +219,20 @@ defmodule T3System.Events do
   end
 
   @doc """
+  Drops the `{:event_updated, event_id}` messages waiting in the caller's
+  mailbox: a single action may broadcast several times, and a subscriber
+  refreshes once for all of them.
+  """
+  @spec flush_event_updates(pos_integer()) :: :ok
+  def flush_event_updates(event_id) do
+    receive do
+      {:event_updated, ^event_id} -> flush_event_updates(event_id)
+    after
+      0 -> :ok
+    end
+  end
+
+  @doc """
   Notifies the subscribers of the given event that its data changed.
 
   The calling process is not notified, since it already knows about the change.

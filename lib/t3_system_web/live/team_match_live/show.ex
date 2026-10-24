@@ -7,11 +7,10 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
   """
   use T3SystemWeb, :live_view
 
+  alias T3System.Accounts.Scope
   alias T3System.Events
   alias T3System.Matches
-  alias T3System.Matches.Group
   alias T3System.Matches.Match
-  alias T3System.Matches.Stage
   alias T3System.Registrations.Registration
   alias T3System.Tables
 
@@ -31,7 +30,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
         <header id="team-match-header" class="space-y-4">
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="min-w-0">
-              <p class="text-sm text-fg-muted">{category(@team_match).name}</p>
+              <p class="text-sm text-fg-muted">{match_category(@team_match).name}</p>
               <p class="font-display text-sm font-bold text-fg-muted">
                 {stage_label(@team_match)}
               </p>
@@ -240,7 +239,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
     {:ok,
      socket
      |> assign(:event, event)
-     |> assign(:is_superuser, superuser?(socket.assigns))
+     |> assign(:is_superuser, Scope.superuser?(socket.assigns.current_scope))
      |> assign(:winner_form, nil)
      |> assign(:inner_form, nil)
      |> assign(:inner_editing, nil)
@@ -256,7 +255,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
 
     back_params = %{
       tab: params["tab"] || "matches",
-      category_id: params["category_id"] || category(team_match).id
+      category_id: params["category_id"] || match_category(team_match).id
     }
 
     {:noreply, assign(socket, :back_path, ~p"/events/#{event}?#{back_params}")}
@@ -266,14 +265,9 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
   # the event if it was deleted
   @impl true
   def handle_info({:event_updated, event_id}, socket) do
-    flush_event_updates(event_id)
+    Events.flush_event_updates(event_id)
 
-    try do
-      Matches.get_team_match!(event_id, socket.assigns.team_match.id)
-    rescue
-      Ecto.NoResultsError -> nil
-    end
-    |> case do
+    case Matches.get_team_match(event_id, socket.assigns.team_match.id) do
       nil -> {:noreply, push_navigate(socket, to: socket.assigns.back_path)}
       team_match -> {:noreply, assign_team_match(socket, team_match)}
     end
@@ -362,15 +356,17 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
 
   def handle_event("delete_inner", _params, socket) do
     %{current_scope: scope, inner_editing: match} = socket.assigns
-    {:ok, _} = Matches.delete_match(scope, match)
 
-    if match.table_id,
-      do: Matches.recalculate_table_schedule(scope, socket.assigns.event, match.table_id)
+    case Matches.delete_match(scope, match) do
+      {:ok, _} ->
+        {:noreply,
+         socket
+         |> assign(inner_form: nil, inner_editing: nil)
+         |> reload_team_match()}
 
-    {:noreply,
-     socket
-     |> assign(inner_form: nil, inner_editing: nil)
-     |> reload_team_match()}
+      {:error, _changeset} ->
+        {:noreply, put_flash(socket, :error, gettext("Não foi possível excluir a partida."))}
+    end
   end
 
   # Scores (superuser only)
@@ -421,12 +417,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
     Enum.find(socket.assigns.team_match.inner_matches, &(&1.id == id))
   end
 
-  defp player_count(form) do
-    case form[:kind].value do
-      "doubles" -> 2
-      _ -> 1
-    end
-  end
+  defp player_count(form), do: Match.side_player_count(form[:kind].value)
 
   defp side_player_ids(form, side), do: form[:"player_ids#{side}"].value || []
 
@@ -460,30 +451,12 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
     end)
   end
 
-  defp flush_event_updates(event_id) do
-    receive do
-      {:event_updated, ^event_id} -> flush_event_updates(event_id)
-    after
-      0 -> :ok
-    end
-  end
-
-  defp category(%Match{group: %Group{stage: %Stage{category: category}}}), do: category
-  defp category(%Match{stage: %Stage{category: category}}), do: category
-
   defp teams(%Match{} = team_match),
     do:
       Enum.filter(
         [team_match.registration1, team_match.registration2],
         &is_struct(&1, Registration)
       )
-
-  defp team_name(%Match{} = team_match, n) do
-    case if(n == 1, do: team_match.registration1, else: team_match.registration2) do
-      %Registration{name: name} -> name
-      _ -> gettext("TBD")
-    end
-  end
 
   defp winner?(%Match{winner_registration_id: nil}, _registration_id), do: false
 
@@ -500,7 +473,4 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
   defp status_tone(:finished), do: "primary"
   defp status_tone(:ongoing), do: "success"
   defp status_tone(:pending), do: "neutral"
-
-  defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
-  defp superuser?(_assigns), do: false
 end

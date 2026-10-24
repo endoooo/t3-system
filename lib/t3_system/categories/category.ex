@@ -23,6 +23,10 @@ defmodule T3System.Categories.Category do
   @spec formats() :: [String.t()]
   def formats, do: @formats
 
+  @doc "Whether the category is played by teams (the `team` format)."
+  @spec team?(t()) :: boolean()
+  def team?(%__MODULE__{format: format}), do: format == "team"
+
   @doc """
   How many players a registration has in a fixed-size category (or format):
   1 for singles, 2 for doubles. Teams have any number of players, so the

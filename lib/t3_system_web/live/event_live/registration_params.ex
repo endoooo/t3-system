@@ -26,8 +26,11 @@ defmodule T3SystemWeb.EventLive.RegistrationParams do
     %{"registration_players" => Map.new(rows)}
   end
 
-  defp row_count(%Category{format: "team"}, club_ids), do: max(@team_rows, length(club_ids))
-  defp row_count(category, _club_ids), do: Category.player_count(category)
+  defp row_count(category, club_ids) do
+    if Category.team?(category),
+      do: max(@team_rows, length(club_ids)),
+      else: Category.player_count(category)
+  end
 
   defp empty_row(index, club_id),
     do: %{"position" => to_string(index + 1), "club_id" => club_id}

@@ -652,6 +652,16 @@ defmodule T3System.MatchesTest do
       assert Matches.get_team_match!(event.id, match.id).id == match.id
     end
 
+    test "get_team_match/2 returns the team match, or nil when it isn't one of the event" do
+      team_match = insert(:team_match)
+
+      assert %Match{inner_matches: []} =
+               Matches.get_team_match(team_match.event_id, team_match.id)
+
+      assert is_nil(Matches.get_team_match(insert(:event).id, team_match.id))
+      assert is_nil(Matches.get_team_match(team_match.event_id, insert(:match).id))
+    end
+
     test "get_team_match!/2 raises for a match of another event" do
       team_match = insert(:team_match)
       other_event = insert(:event)

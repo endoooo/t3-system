@@ -1,6 +1,8 @@
 defmodule T3SystemWeb.EventLive.Show do
   use T3SystemWeb, :live_view
 
+  alias T3System.Accounts.Scope
+  alias T3System.Categories.Category
   alias T3System.Clubs
   alias T3System.Events
   alias T3System.Matches
@@ -446,7 +448,7 @@ defmodule T3SystemWeb.EventLive.Show do
                         <th class="w-1 px-2 pb-2 text-center font-normal">{gettext("V")}</th>
                         <th class="w-1 px-2 pb-2 text-center font-normal">{gettext("D")}</th>
                         <th
-                          :if={@active_category.format == "team"}
+                          :if={Category.team?(@active_category)}
                           class="w-1 px-2 pb-2 text-center font-normal"
                           title={gettext("Saldo de partidas")}
                         >
@@ -481,7 +483,7 @@ defmodule T3SystemWeb.EventLive.Show do
                         <td class="w-1 px-2 py-2.5 text-center">{row.won}</td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.lost}</td>
                         <td
-                          :if={@active_category.format == "team"}
+                          :if={Category.team?(@active_category)}
                           class={[
                             "w-1 px-2 py-2.5 text-center",
                             row.match_diff < 0 && "text-fg-muted"
@@ -552,7 +554,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   <% grid_rows = trunc(:math.pow(2, @current_stage.rounds - 1)) %>
                   <% all_matches =
                     Enum.flat_map(@stage_bracket_rounds, fn {_round, matches} -> matches end) %>
-                  <% team_bracket = @active_category.format == "team" %>
+                  <% team_bracket = Category.team?(@active_category) %>
                   <div style={"display: grid; grid-template-columns: repeat(#{@current_stage.rounds}, 17.5rem); grid-template-rows: repeat(#{grid_rows}, auto);"}>
                     <div
                       :for={match <- all_matches}
@@ -715,7 +717,7 @@ defmodule T3SystemWeb.EventLive.Show do
             phx-submit="save_registration"
             class="space-y-6"
           >
-            <% team? = @active_category.format == "team"
+            <% team? = Category.team?(@active_category)
             numbered? = @active_category.format != "singles"
             row_count = length(@form[:registration_players].value || []) %>
             <div class="space-y-5">
@@ -1404,7 +1406,7 @@ defmodule T3SystemWeb.EventLive.Show do
   @impl true
   def mount(%{"id" => id}, _session, socket) do
     event = Events.get_event!(id)
-    is_superuser = superuser?(socket.assigns)
+    is_superuser = Scope.superuser?(socket.assigns.current_scope)
 
     if connected?(socket), do: Events.subscribe_event(event.id)
 
@@ -1487,7 +1489,7 @@ defmodule T3SystemWeb.EventLive.Show do
   @impl true
   def handle_info({:event_updated, event_id}, socket) do
     # A single action may broadcast several times; refresh once for all of them
-    flush_event_updates(event_id)
+    Events.flush_event_updates(event_id)
     event = Events.get_event!(event_id)
 
     {:noreply,
@@ -2210,14 +2212,6 @@ defmodule T3SystemWeb.EventLive.Show do
 
   # Private helpers
 
-  defp flush_event_updates(event_id) do
-    receive do
-      {:event_updated, ^event_id} -> flush_event_updates(event_id)
-    after
-      0 -> :ok
-    end
-  end
-
   defp load_event_data(socket) do
     %{event: event, url_params: params} = socket.assigns
     active_category = resolve_category(event, params["category_id"])
@@ -2335,7 +2329,8 @@ defmodule T3SystemWeb.EventLive.Show do
     # Groups with standings
     groups_with_standings =
       Enum.map(stage.groups, fn g ->
-        {g, Matches.compute_group_standings(g, team: team_category?(socket))}
+        {g,
+         Matches.compute_group_standings(g, team: Category.team?(socket.assigns.active_category))}
       end)
 
     # Bracket rounds (for bracket-type stages)
@@ -2451,7 +2446,7 @@ defmodule T3SystemWeb.EventLive.Show do
         inner_match_card_data(match,
           label: team_match_context(match),
           label_navigate: ~p"/events/#{event}/team-matches/#{match.team_match_id}?#{back_params}",
-          category_name: team_match_category(match.team_match).name
+          category_name: match_category(match.team_match).name
         )
       end)
 
@@ -2494,7 +2489,7 @@ defmodule T3SystemWeb.EventLive.Show do
         ctx = %{
           label: "#{group.name}",
           source: :group,
-          team: team_stage?(stage),
+          team: Category.team?(stage.category),
           stage_order: stage.order,
           group_position: group.position
         }
@@ -2508,7 +2503,7 @@ defmodule T3SystemWeb.EventLive.Show do
           ctx = %{
             label: "#{stage.name} - #{round_label(round, stage.rounds)}",
             source: :bracket,
-            team: team_stage?(stage),
+            team: Category.team?(stage.category),
             stage_order: stage.order
           }
 
@@ -2561,12 +2556,6 @@ defmodule T3SystemWeb.EventLive.Show do
       nil
     end
   end
-
-  defp team_stage?(%Stage{category: %{format: "team"}}), do: true
-  defp team_stage?(_stage), do: false
-
-  defp team_category?(%{assigns: %{active_category: %{format: "team"}}}), do: true
-  defp team_category?(_socket), do: false
 
   # A team match card: team names, the derived score and status
   defp prepare_match_card(match, %{team: true, label: label, source: source} = ctx) do
@@ -2804,7 +2793,7 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   defp schedule_match_label(%{team_match: %Match{} = team_match} = match),
-    do: "#{team_match_category(team_match).name} · #{team_match_context(match)}"
+    do: "#{match_category(team_match).name} · #{team_match_context(match)}"
 
   defp schedule_match_label(%{group: %Group{} = group}),
     do: "#{group.stage.category.name} · #{group.name}"
@@ -2823,13 +2812,10 @@ defmodule T3SystemWeb.EventLive.Show do
     do: Enum.filter(matches, &(schedule_match_category(&1).id == category_id))
 
   defp schedule_match_category(%{team_match: %Match{} = team_match}),
-    do: team_match_category(team_match)
+    do: match_category(team_match)
 
   defp schedule_match_category(%{group: %Group{stage: stage}}), do: stage.category
   defp schedule_match_category(%{stage: %Stage{} = stage}), do: stage.category
-
-  defp team_match_category(%Match{group: %Group{stage: stage}}), do: stage.category
-  defp team_match_category(%Match{stage: %Stage{} = stage}), do: stage.category
 
   # A schedule side: the position label and players of a match inside a team
   # match, the registration (or bracket slot) otherwise
@@ -3032,9 +3018,6 @@ defmodule T3SystemWeb.EventLive.Show do
     """
   end
 
-  defp superuser?(%{current_scope: %{user: %{role: "superuser"}}}), do: true
-  defp superuser?(_), do: false
-
   defp tab_label("management", _stages), do: gettext("Gestão")
   defp tab_label("overview", _stages), do: gettext("Visão geral")
   defp tab_label("matches", _stages), do: gettext("Jogos")
@@ -3064,28 +3047,21 @@ defmodule T3SystemWeb.EventLive.Show do
   defp format_diff(n), do: to_string(n)
 
   defp slot_label(match, n, format \\ &player_names/1) do
-    case n do
-      1 -> {match.registration1, match.slot1_label}
-      2 -> {match.registration2, match.slot2_label}
-    end
-    |> case do
-      {%Registration{} = registration, _} ->
-        format.(registration.registration_players)
-
-      {_, label} when label not in [nil, ""] ->
-        label
-
-      _ ->
-        if match.is_bye, do: gettext("Bye"), else: gettext("TBD")
+    case side_registration(match, n) do
+      %Registration{} = registration -> format.(registration.registration_players)
+      nil -> empty_slot_label(match, n)
     end
   end
 
   # Bracket slot assignment names teams in team categories, players otherwise
-  defp slot_legend(%{format: "team"}, n), do: gettext("Equipe %{n}", n: n)
-  defp slot_legend(_category, n), do: gettext("Jogador %{n}", n: n)
+  defp slot_legend(category, n) do
+    if Category.team?(category),
+      do: gettext("Equipe %{n}", n: n),
+      else: gettext("Jogador %{n}", n: n)
+  end
 
-  defp slot_registration_label(%{format: "team"}), do: gettext("Equipe")
-  defp slot_registration_label(_category), do: gettext("Jogador")
+  defp slot_registration_label(category),
+    do: if(Category.team?(category), do: gettext("Equipe"), else: gettext("Jogador"))
 
   # A bracket team match's score, counted from the matches inside it
   defp bracket_team_score(match), do: Matches.team_match_score(match, match.inner_matches)
@@ -3099,13 +3075,6 @@ defmodule T3SystemWeb.EventLive.Show do
     span = trunc(:math.pow(2, match.round - 1))
     start = (match.position - 1) * span + 1
     "grid-column: #{match.round}; grid-row: #{start} / span #{span};"
-  end
-
-  defp team_name(match, n) do
-    case if(n == 1, do: match.registration1, else: match.registration2) do
-      %Registration{name: name} when is_binary(name) -> name
-      _ -> slot_label(match, n)
-    end
   end
 
   defp match_player_name(%Registration{registration_players: [_ | _]} = registration, format),
