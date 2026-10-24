@@ -863,6 +863,18 @@ defmodule T3System.Matches do
   end
 
   @doc """
+  Gets a match inside a team match of the event, with the same preloads as
+  `list_pending_inner_matches/1`, or `nil`.
+  """
+  @spec get_inner_match(pos_integer(), pos_integer()) :: Match.t() | nil
+  def get_inner_match(event_id, id) do
+    Match
+    |> where([m], m.id == ^id and m.event_id == ^event_id and not is_nil(m.team_match_id))
+    |> Repo.one()
+    |> Repo.preload([:sets, :table | @schedule_preloads])
+  end
+
+  @doc """
   Returns the matches inside team matches of the event that have no winner
   yet, with their sets, table, players and team match (teams, group or stage
   and category) preloaded.

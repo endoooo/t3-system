@@ -1446,7 +1446,6 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:all_match_cards, [])
       |> assign(:ongoing_match_cards, [])
       |> assign(:next_match_cards, [])
-      |> assign(:overview_inner_matches, [])
       |> assign(:filter_player_id, nil)
       |> assign(:match_view, "all")
       |> assign(:match_filter_players, [])
@@ -1948,7 +1947,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
     score_modal =
       find_match_across_stages(match_id, socket.assigns.stages ++ socket.assigns.event_stages) ||
-        find_inner_match(match_id, socket.assigns.overview_inner_matches)
+        find_inner_match(socket.assigns.event.id, match_id)
 
     {:noreply, assign(socket, :score_modal, score_modal)}
   end
@@ -2462,7 +2461,6 @@ defmodule T3SystemWeb.EventLive.Show do
 
     socket
     |> assign(:event_stages, stages)
-    |> assign(:overview_inner_matches, inner_matches)
     |> assign(:ongoing_match_cards, sort_by_schedule(ongoing))
     |> assign(:next_match_cards, sort_by_schedule(next))
   end
@@ -2530,8 +2528,9 @@ defmodule T3SystemWeb.EventLive.Show do
     end)
   end
 
-  defp find_inner_match(match_id, inner_matches) do
-    case Enum.find(inner_matches, &(&1.id == match_id)) do
+  # Matches inside team matches (from the overview) are fetched on demand
+  defp find_inner_match(event_id, match_id) do
+    case Matches.get_inner_match(event_id, match_id) do
       nil -> nil
       match -> {match, :team_match}
     end

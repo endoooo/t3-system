@@ -71,12 +71,16 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
               </.button>
             </:actions>
           </.section_title>
-          <.empty_state :if={@inner_cards == []} icon="hero-trophy">
+          <.empty_state :if={@team_match.inner_matches == []} icon="hero-trophy">
             {gettext("Nenhuma partida ainda.")}
           </.empty_state>
-          <div :if={@inner_cards != []} class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div
+            id="inner-match-cards"
+            phx-update="stream"
+            class="grid grid-cols-1 gap-3 sm:grid-cols-2"
+          >
             <.match_card
-              :for={card <- @inner_cards}
+              :for={{_dom_id, card} <- @streams.inner_cards}
               card={card}
               is_superuser={@is_superuser}
               edit_event="open_edit_inner"
@@ -246,6 +250,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
      |> assign(:inner_table_id, nil)
      |> assign(:score_match, nil)
      |> assign(:tables, [])
+     |> stream_configure(:inner_cards, dom_id: &"match-#{&1.id}")
      |> assign_team_match(team_match)}
   end
 
@@ -437,7 +442,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
 
     socket
     |> assign(:team_match, team_match)
-    |> assign(:inner_cards, inner_cards(inner_matches))
+    |> stream(:inner_cards, inner_cards(inner_matches), reset: true)
     |> assign(:score, Matches.team_match_score(team_match, inner_matches))
     |> assign(:status, Matches.team_match_status(team_match, inner_matches))
     |> assign(:page_title, "#{team_name(team_match, 1)} x #{team_name(team_match, 2)}")

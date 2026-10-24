@@ -1796,6 +1796,18 @@ defmodule T3System.MatchesTest do
       assert match.team_match.registration2.name == "Clube Y"
       assert [%{side: 1, player: %{}}, %{side: 2}] = match.match_players
     end
+
+    test "get_inner_match/2 gets a match inside a team match of the event", ctx do
+      inner = insert(:inner_match, team_match: ctx.team_match)
+      regular = insert(:match, event: ctx.event)
+
+      assert %Match{sets: [], match_players: [_, _]} =
+               match = Matches.get_inner_match(ctx.event.id, inner.id)
+
+      assert match.team_match.registration2.name == "Clube Y"
+      assert is_nil(Matches.get_inner_match(ctx.event.id, regular.id))
+      assert is_nil(Matches.get_inner_match(insert(:event).id, inner.id))
+    end
   end
 
   describe "event broadcasts" do
