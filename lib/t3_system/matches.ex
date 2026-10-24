@@ -724,9 +724,11 @@ defmodule T3System.Matches do
   @spec create_inner_match(Scope.t(), Match.t(), map()) ::
           {:ok, Match.t()} | {:error, Ecto.Changeset.t()}
   def create_inner_match(%Scope{user: %{role: "superuser"}}, %Match{} = team_match, attrs) do
+    changeset = Match.inner_match_changeset(%Match{}, team_match, attrs)
+
     Repo.transaction(fn ->
-      case %Match{} |> Match.inner_match_changeset(team_match, attrs) |> Repo.insert() do
-        {:ok, match} -> move_to_table(match, parse_table_id(attrs))
+      case changeset |> Ecto.Changeset.delete_change(:table_id) |> Repo.insert() do
+        {:ok, match} -> move_to_table(match, Ecto.Changeset.get_field(changeset, :table_id))
         {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
@@ -746,11 +748,12 @@ defmodule T3System.Matches do
         %Match{} = match,
         attrs
       ) do
-    match = Repo.preload(match, :match_players)
+    changeset =
+      match |> Repo.preload(:match_players) |> Match.inner_match_changeset(team_match, attrs)
 
     Repo.transaction(fn ->
-      case match |> Match.inner_match_changeset(team_match, attrs) |> Repo.update() do
-        {:ok, updated} -> move_to_table(updated, parse_table_id(attrs))
+      case changeset |> Ecto.Changeset.delete_change(:table_id) |> Repo.update() do
+        {:ok, updated} -> move_to_table(updated, Ecto.Changeset.get_field(changeset, :table_id))
         {:error, changeset} -> Repo.rollback(changeset)
       end
     end)
@@ -763,14 +766,6 @@ defmodule T3System.Matches do
   @spec change_inner_match(Match.t(), Match.t(), map()) :: Ecto.Changeset.t()
   def change_inner_match(%Match{} = team_match, %Match{} = match, attrs \\ %{}) do
     Match.inner_match_changeset(match, team_match, attrs)
-  end
-
-  defp parse_table_id(attrs) do
-    case attrs["table_id"] || attrs[:table_id] do
-      id when id in [nil, ""] -> nil
-      id when is_integer(id) -> id
-      id -> String.to_integer(id)
-    end
   end
 
   # Same table: nothing to do. No table: leaves its queue (unscheduled). A new

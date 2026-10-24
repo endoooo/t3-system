@@ -166,9 +166,9 @@ defmodule T3System.CategoriesTest do
 
   describe "Category.team?/1" do
     test "is true only for team categories" do
-      assert T3System.Categories.Category.team?(build(:team_category))
-      refute T3System.Categories.Category.team?(build(:category, format: "singles"))
-      refute T3System.Categories.Category.team?(build(:category, format: "doubles"))
+      assert Category.team?(build(:team_category))
+      refute Category.team?(build(:category, format: "singles"))
+      refute Category.team?(build(:category, format: "doubles"))
     end
   end
 end

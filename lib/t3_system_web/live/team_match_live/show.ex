@@ -165,25 +165,23 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
               <.input
                 :for={n <- 1..player_count(@inner_form)}
                 id={"inner-match-player-#{side}-#{n}"}
-                name={"inner_match[player_ids#{side}][#{n - 1}]"}
+                name={@inner_form[:"player_ids#{side}"].name <> "[#{n - 1}]"}
                 type="select"
                 label={gettext("Jogador %{n} — %{team}", n: n, team: team.name)}
                 prompt={gettext("Selecione um jogador")}
                 options={Enum.map(team.registration_players, &{&1.player.name, &1.player_id})}
-                value={Enum.at(side_player_ids(@inner_form, side), n - 1)}
+                value={Enum.at(@inner_form[:"player_ids#{side}"].value || [], n - 1)}
                 errors={
                   if n == player_count(@inner_form), do: side_errors(@inner_form, side), else: []
                 }
               />
             </fieldset>
             <.input
-              id="inner-match-table"
-              name="inner_match[table_id]"
+              field={@inner_form[:table_id]}
               type="select"
               label={gettext("Mesa")}
               prompt={gettext("Sem mesa")}
               options={Enum.map(@tables, &{&1.name, &1.id})}
-              value={@inner_table_id}
             />
           </div>
           <.form_actions align="end">
@@ -247,7 +245,6 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
      |> assign(:winner_form, nil)
      |> assign(:inner_form, nil)
      |> assign(:inner_editing, nil)
-     |> assign(:inner_table_id, nil)
      |> assign(:score_match, nil)
      |> assign(:tables, [])
      |> stream_configure(:inner_cards, dom_id: &"match-#{&1.id}")
@@ -327,22 +324,16 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
   end
 
   def handle_event("validate_inner", %{"inner_match" => params}, socket) do
-    attrs = normalize_inner_params(params)
-
-    {:noreply,
-     socket
-     |> assign(:inner_table_id, attrs["table_id"])
-     |> assign(:inner_form, inner_form(socket, attrs, :validate))}
+    {:noreply, assign(socket, :inner_form, inner_form(socket, params, :validate))}
   end
 
   def handle_event("save_inner", %{"inner_match" => params}, socket) do
     %{current_scope: scope, team_match: team_match, inner_editing: editing} = socket.assigns
-    attrs = normalize_inner_params(params)
 
     result =
       if editing,
-        do: Matches.update_inner_match(scope, team_match, editing, attrs),
-        else: Matches.create_inner_match(scope, team_match, attrs)
+        do: Matches.update_inner_match(scope, team_match, editing, params),
+        else: Matches.create_inner_match(scope, team_match, params)
 
     case result do
       {:ok, _match} ->
@@ -352,10 +343,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
          |> reload_team_match()}
 
       {:error, %Ecto.Changeset{} = changeset} ->
-        {:noreply,
-         socket
-         |> assign(:inner_table_id, attrs["table_id"])
-         |> assign(:inner_form, to_form(changeset, as: :inner_match))}
+        {:noreply, assign(socket, :inner_form, to_form(changeset, as: :inner_match))}
     end
   end
 
@@ -387,7 +375,6 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
   defp open_inner_modal(socket, %Match{} = match) do
     socket
     |> assign(:inner_editing, if(match.id, do: match))
-    |> assign(:inner_table_id, match.table_id)
     |> assign(:tables, Tables.list_tables_for_event(socket.assigns.event.id))
     |> then(&assign(&1, :inner_form, inner_form(&1, %{})))
   end
@@ -401,30 +388,12 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
     |> to_form(as: :inner_match)
   end
 
-  # The player selects post `%{"0" => id, "1" => id}`; the context takes lists
-  defp normalize_inner_params(params) do
-    Enum.reduce(["player_ids1", "player_ids2"], params, fn key, acc ->
-      Map.put(acc, key, picked_ids(acc[key]))
-    end)
-  end
-
-  defp picked_ids(%{} = by_index) do
-    by_index
-    |> Enum.sort_by(fn {index, _} -> String.to_integer(index) end)
-    |> Enum.map(fn {_, id} -> id end)
-    |> Enum.reject(&(&1 in [nil, ""]))
-  end
-
-  defp picked_ids(_), do: []
-
   defp find_inner(socket, id) do
     id = String.to_integer(id)
     Enum.find(socket.assigns.team_match.inner_matches, &(&1.id == id))
   end
 
   defp player_count(form), do: Match.side_player_count(form[:kind].value)
-
-  defp side_player_ids(form, side), do: form[:"player_ids#{side}"].value || []
 
   defp side_errors(form, side) do
     if form.source.action,

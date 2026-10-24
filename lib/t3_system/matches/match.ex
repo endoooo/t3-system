@@ -223,16 +223,27 @@ defmodule T3System.Matches.Match do
   @doc """
   The lineup of a match inside `team_match` (whose teams' players are
   preloaded): its kind ("singles": 1 player per side, "doubles": 2 different
-  players per side), position labels and each side's players, picked from that
-  side's team. The match copies the event and both teams from its team match.
-  `player_ids1`/`player_ids2` default to the match's current players
-  (`match_players` preloaded when editing).
+  players per side), position labels, each side's players, picked from that
+  side's team (blank picks are ignored), and its table. The match copies the
+  event and both teams from its team match. `player_ids1`/`player_ids2`
+  default to the match's current players (`match_players` preloaded when
+  editing).
+
+  The `table_id` change is for the form only: `T3System.Matches` takes it out
+  and moves the match to that table's queue.
   """
   @spec inner_match_changeset(t(), t(), map()) :: Ecto.Changeset.t()
   def inner_match_changeset(%__MODULE__{} = match, %__MODULE__{} = team_match, attrs) do
     match
     |> with_lineup_fields()
-    |> cast(attrs, [:kind, :position1, :position2, :player_ids1, :player_ids2])
+    |> cast(lineup_picks(attrs), [
+      :kind,
+      :position1,
+      :position2,
+      :player_ids1,
+      :player_ids2,
+      :table_id
+    ])
     |> put_change(:event_id, team_match.event_id)
     |> put_change(:team_match_id, team_match.id)
     |> put_change(:registration1_id, team_match.registration1_id)
@@ -244,6 +255,27 @@ defmodule T3System.Matches.Match do
     |> put_match_players(match)
     |> check_constraint(:group_id, name: :exactly_one_context)
   end
+
+  # The form posts each side's player selects by index (`%{"0" => id, "1" =>
+  # id}`), "" for an empty one; the lineup is the picked ids in select order
+  defp lineup_picks(attrs) do
+    Map.new(attrs, fn
+      {key, ids} when key in ["player_ids1", "player_ids2", :player_ids1, :player_ids2] ->
+        {key, ids |> picks_in_order() |> Enum.reject(&(&1 in [nil, ""]))}
+
+      pair ->
+        pair
+    end)
+  end
+
+  defp picks_in_order(%{} = by_index) do
+    by_index
+    |> Enum.sort_by(fn {index, _id} -> String.to_integer(index) end)
+    |> Enum.map(fn {_index, id} -> id end)
+  end
+
+  defp picks_in_order(ids) when is_list(ids), do: ids
+  defp picks_in_order(_ids), do: []
 
   # Fills the lineup form fields from the match's current players
   defp with_lineup_fields(%__MODULE__{match_players: players} = match) when is_list(players) do
