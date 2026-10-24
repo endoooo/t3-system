@@ -2177,22 +2177,30 @@ defmodule T3SystemWeb.EventLive.Show do
     reg1_id = parse_registration_id(params["slot1_registration_id"])
     reg2_id = parse_registration_id(params["slot2_registration_id"])
 
+    # Slots first: a team match with matches inside it refuses new teams, and
+    # then nothing is saved
     result =
-      with {:ok, _} <- Matches.update_match(scope, match, label_attrs),
+      with {:ok, _} <- Matches.assign_bracket_slot_direct(scope, match, 1, reg1_id),
            fresh_match = Matches.get_match!(match.id),
-           {:ok, _} <- Matches.assign_bracket_slot_direct(scope, fresh_match, 1, reg1_id),
+           {:ok, _} <- Matches.assign_bracket_slot_direct(scope, fresh_match, 2, reg2_id),
            fresh_match2 = Matches.get_match!(match.id),
-           {:ok, _} <- Matches.assign_bracket_slot_direct(scope, fresh_match2, 2, reg2_id) do
+           {:ok, _} <- Matches.update_match(scope, fresh_match2, label_attrs) do
         :done
-      else
-        {:error, _} -> :error
       end
 
     case result do
-      :error ->
+      {:error, :has_inner_matches} ->
+        {:noreply,
+         put_flash(
+           socket,
+           :error,
+           gettext("Exclua as partidas da disputa antes de trocar a equipe")
+         )}
+
+      {:error, _} ->
         {:noreply, put_flash(socket, :error, gettext("Could not assign slot."))}
 
-      _ ->
+      :done ->
         {:noreply,
          socket
          |> reload_stage_data()
@@ -2584,8 +2592,8 @@ defmodule T3SystemWeb.EventLive.Show do
       p2_won: not is_nil(winner_id) and winner_id == match.registration2_id,
       p1_name: team_name(match, 1),
       p2_name: team_name(match, 2),
-      p1_player_ids: card_player_ids(match.registration1),
-      p2_player_ids: card_player_ids(match.registration2)
+      p1_player_ids: team_card_player_ids(match, 1),
+      p2_player_ids: team_card_player_ids(match, 2)
     }
   end
 
@@ -2626,6 +2634,18 @@ defmodule T3SystemWeb.EventLive.Show do
     do: MapSet.new(players, & &1.player_id)
 
   defp card_player_ids(_), do: MapSet.new()
+
+  # A team's players and the players of its side in the matches inside the
+  # team match
+  defp team_card_player_ids(match, side) do
+    lineup_ids =
+      for inner <- match.inner_matches,
+          mp <- inner.match_players,
+          mp.side == side,
+          do: mp.player_id
+
+    match |> side_registration(side) |> card_player_ids() |> MapSet.union(MapSet.new(lineup_ids))
+  end
 
   # Every player registered in the event (any category), so a partner can be
   # found from any category even before they have matches.

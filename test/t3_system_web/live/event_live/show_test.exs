@@ -2631,6 +2631,37 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> refute_has("#bracket-match-#{team_match.id}", text: "Clube Y")
     end
 
+    test "a bracket team match with matches inside it keeps its teams", ctx do
+      %{stage: stage, team_match: team_match} = bracket_team_match_setup(ctx)
+      insert_team(ctx, "Equipe Z", [{insert(:player, name: "Eva"), hd(ctx.clubs)}])
+      insert_inner_match(team_match, ctx)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.category.id}")
+      |> within("#bracket-match-#{team_match.id}", &click_button(&1, "Jogadores"))
+      |> select("#slot2-registration-id", "Equipe", option: "Equipe Z")
+      |> click_button("#assign-slot-form button", "Salvar")
+      |> assert_has("#flash-error",
+        text: "Exclua as partidas da disputa antes de trocar a equipe"
+      )
+      |> assert_has("#bracket-match-#{team_match.id}", text: "Clube Y")
+      |> refute_has("#bracket-match-#{team_match.id}", text: "Equipe Z")
+    end
+
+    test "the player filter keeps the team matches where the player plays a match inside",
+         ctx do
+      %{team_match: team_match} = bracket_team_match_setup(ctx)
+      # Not (or no longer) in either team, but in the lineup of a match inside
+      gabi = insert(:player, name: "Gabi")
+      insert_inner_match(team_match, ctx, players1: [gabi.id])
+
+      build_conn()
+      |> visit(
+        ~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}&player_id=#{gabi.id}"
+      )
+      |> assert_has("#team-match-#{team_match.id}")
+    end
+
     test "bracket team matches appear in the matches tab", ctx do
       %{team_match: team_match} = bracket_team_match_setup(ctx)
 

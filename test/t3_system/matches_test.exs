@@ -948,6 +948,106 @@ defmodule T3System.MatchesTest do
     end
   end
 
+  describe "bracket team match slots" do
+    setup do
+      event = insert(:event)
+      category = insert(:team_category)
+      stage = insert(:stage, event: event, category: category, type: "bracket", rounds: 1)
+      [t1, t2, t3] = for _ <- 1..3, do: insert(:team, event: event, category: category)
+
+      match =
+        insert(:match,
+          event: event,
+          group: nil,
+          stage: stage,
+          round: 1,
+          position: 1,
+          registration1: t1,
+          registration2: t2
+        )
+
+      %{
+        scope: Scope.for_user(insert(:superuser)),
+        team_match: Matches.get_team_match!(event.id, match.id),
+        t3: t3
+      }
+    end
+
+    test "a team can't be swapped while the team match has matches inside it", ctx do
+      %{scope: scope, team_match: tm, t3: t3} = ctx
+      insert(:inner_match, team_match: tm)
+
+      assert {:error, :has_inner_matches} =
+               Matches.assign_bracket_slot_direct(scope, tm, 1, t3.id)
+
+      assert Matches.get_match!(tm.id).registration1_id == tm.registration1_id
+    end
+
+    test "keeping the same team is allowed while it has matches inside it", ctx do
+      %{scope: scope, team_match: tm} = ctx
+      insert(:inner_match, team_match: tm)
+
+      assert {:ok, _} = Matches.assign_bracket_slot_direct(scope, tm, 1, tm.registration1_id)
+    end
+
+    test "a team match without matches inside it can change teams", ctx do
+      %{scope: scope, team_match: tm, t3: t3} = ctx
+
+      assert {:ok, match} = Matches.assign_bracket_slot_direct(scope, tm, 2, t3.id)
+      assert match.registration2_id == t3.id
+    end
+  end
+
+  describe "deleting matches inside team matches reschedules their tables" do
+    setup do
+      event = insert(:event)
+      category = insert(:team_category)
+      group = insert(:group, stage: insert(:stage, event: event, category: category))
+
+      tm =
+        insert(:team_match,
+          event: event,
+          group: group,
+          registration1: insert(:team, event: event, category: category),
+          registration2: insert(:team, event: event, category: category)
+        )
+
+      tm = Matches.get_team_match!(event.id, tm.id)
+      scope = Scope.for_user(insert(:superuser))
+      table = insert(:table, event: event)
+
+      inner = insert(:inner_match, team_match: tm)
+      :ok = Matches.add_match_to_table(scope, event, inner.id, table.id)
+
+      # A match of another stage, queued after the inner match
+      other_group = insert(:group, stage: insert(:stage, event: event))
+      later = insert(:match, event: event, group: other_group)
+      :ok = Matches.add_match_to_table(scope, event, later.id, table.id)
+
+      assert Repo.get!(Match, later.id).scheduled_at != event.datetime
+
+      %{scope: scope, team_match: tm, event: event, later: later}
+    end
+
+    test "deleting the team match", ctx do
+      assert {:ok, _} = Matches.delete_match(ctx.scope, ctx.team_match)
+      assert Repo.get!(Match, ctx.later.id).scheduled_at == ctx.event.datetime
+    end
+
+    test "regenerating the group's matches", ctx do
+      %{scope: scope, team_match: tm} = ctx
+      group = Matches.get_group!(tm.group_id)
+
+      assert {:ok, 0} = Matches.generate_group_matches(scope, group)
+      assert Repo.get!(Match, ctx.later.id).scheduled_at == ctx.event.datetime
+    end
+
+    test "deleting the stage", ctx do
+      assert {:ok, _} = Matches.delete_stage(ctx.scope, ctx.team_match.group.stage)
+      assert Repo.get!(Match, ctx.later.id).scheduled_at == ctx.event.datetime
+    end
+  end
+
   describe "team group standings" do
     # Teams T1..T3 in a team category group
     setup do

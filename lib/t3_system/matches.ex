@@ -76,7 +76,7 @@ defmodule T3System.Matches do
            matches: [
              :sets,
              :table,
-             inner_matches: :sets,
+             inner_matches: [:sets, :match_players],
              registration1: @registration_preload,
              registration2: @registration_preload,
              winner: @registration_preload
@@ -87,7 +87,7 @@ defmodule T3System.Matches do
          [
            :sets,
            :table,
-           inner_matches: :sets,
+           inner_matches: [:sets, :match_players],
            registration1: @registration_preload,
            registration2: @registration_preload,
            winner: @registration_preload
@@ -149,8 +149,14 @@ defmodule T3System.Matches do
   Deletes a stage. Requires a superuser scope.
   """
   def delete_stage(%Scope{user: %{role: "superuser"}}, %Stage{} = stage) do
-    stage
-    |> Repo.delete()
+    stage_matches =
+      from(m in Match,
+        left_join: g in Group,
+        on: g.id == m.group_id,
+        where: m.stage_id == ^stage.id or g.stage_id == ^stage.id
+      )
+
+    with_tables_rescheduled(stage.event_id, stage_matches, fn -> Repo.delete(stage) end)
     |> broadcast_change()
   end
 
@@ -170,8 +176,12 @@ defmodule T3System.Matches do
         %Stage{type: "bracket"} = stage,
         rounds
       ) do
+    stage_matches = from(m in Match, where: m.stage_id == ^stage.id)
+
     Repo.transaction(fn ->
-      from(m in Match, where: m.stage_id == ^stage.id) |> Repo.delete_all()
+      with_tables_rescheduled(stage.event_id, stage_matches, fn ->
+        Repo.delete_all(stage_matches)
+      end)
 
       case stage |> Stage.changeset(%{rounds: rounds}) |> Repo.update() do
         {:ok, stage} ->
@@ -214,7 +224,7 @@ defmodule T3System.Matches do
       registrations: @registration_preload,
       matches: [
         :sets,
-        inner_matches: :sets,
+        inner_matches: [:sets, :match_players],
         registration1: @registration_preload,
         registration2: @registration_preload,
         winner: @registration_preload
@@ -296,7 +306,12 @@ defmodule T3System.Matches do
 
     result =
       Repo.transaction(fn ->
-        from(m in Match, where: m.group_id == ^group.id) |> Repo.delete_all()
+        group_matches = from(m in Match, where: m.group_id == ^group.id)
+
+        with_tables_rescheduled(group.stage.event_id, group_matches, fn ->
+          Repo.delete_all(group_matches)
+        end)
+
         {count, _} = Repo.insert_all(Match, build_match_rows(pairs, group))
         count
       end)
@@ -478,6 +493,8 @@ defmodule T3System.Matches do
 
   @doc """
   Directly assigns a registration (or nil for bye/WO) to a slot on a bracket match.
+  A team match with matches inside it keeps its teams (those matches' lineups
+  belong to them): changing one returns `{:error, :has_inner_matches}`.
   Requires a superuser scope.
   """
   def assign_bracket_slot_direct(
@@ -487,17 +504,20 @@ defmodule T3System.Matches do
         registration_id
       )
       when slot in [1, 2] do
-    slot_attrs =
-      case slot do
-        1 -> %{registration1_id: registration_id}
-        2 -> %{registration2_id: registration_id}
-      end
+    field = if slot == 1, do: :registration1_id, else: :registration2_id
 
-    match
-    |> Match.changeset(slot_attrs)
-    |> Repo.update()
-    |> broadcast_change()
+    if Map.fetch!(match, field) != registration_id and has_inner_matches?(match) do
+      {:error, :has_inner_matches}
+    else
+      match
+      |> Match.changeset(%{field => registration_id})
+      |> Repo.update()
+      |> broadcast_change()
+    end
   end
+
+  defp has_inner_matches?(%Match{id: id}),
+    do: Repo.exists?(from(m in Match, where: m.team_match_id == ^id))
 
   # Generates 2^rounds - 1 placeholder matches for a bracket stage.
   defp generate_bracket_matches(%Stage{type: "bracket"} = stage) do
@@ -591,11 +611,13 @@ defmodule T3System.Matches do
   end
 
   @doc """
-  Deletes a match. Requires a superuser scope.
+  Deletes a match (and the matches inside it, for a team match) and
+  recalculates the times of the tables they were on. Requires a superuser scope.
   """
   def delete_match(%Scope{user: %{role: "superuser"}}, %Match{} = match) do
-    match
-    |> Repo.delete()
+    match_query = from(m in Match, where: m.id == ^match.id)
+
+    with_tables_rescheduled(match.event_id, match_query, fn -> Repo.delete(match) end)
     |> broadcast_change()
   end
 
@@ -1129,6 +1151,31 @@ defmodule T3System.Matches do
   end
 
   defp finished?(%Match{winner_registration_id: winner_id}), do: not is_nil(winner_id)
+
+  # Runs `delete_fun`, which deletes the matches of `matches_query` (and, by
+  # cascade, the matches inside them), then recalculates the times of the
+  # tables those matches were on
+  defp with_tables_rescheduled(event_id, matches_query, delete_fun) do
+    match_ids = select(matches_query, [m], m.id)
+
+    table_ids =
+      from(m in Match,
+        where: m.id in subquery(match_ids) or m.team_match_id in subquery(match_ids),
+        where: not is_nil(m.table_id),
+        distinct: true,
+        select: m.table_id
+      )
+      |> Repo.all()
+
+    result = delete_fun.()
+
+    if table_ids != [] do
+      event = Repo.get!(Event, event_id)
+      Enum.each(table_ids, &reschedule_table(event, &1))
+    end
+
+    result
+  end
 
   # ---------------------------------------------------------------------------
   # Match Sets

@@ -49,6 +49,11 @@ defmodule T3SystemWeb.MatchComponents do
 
   def stage_label(%Match{stage: %Stage{} = stage}), do: stage.name
 
+  @doc "The registration (player, pair or team) on one side (1 or 2) of a match."
+  @spec side_registration(Match.t(), 1 | 2) :: Registration.t() | nil
+  def side_registration(%Match{registration1: registration}, 1), do: loaded(registration)
+  def side_registration(%Match{registration2: registration}, 2), do: loaded(registration)
+
   @doc """
   A match inside a team match, in its team match's context: the team names
   and its position labels, "AABB A x Clube Y · AB x XY". Needs the team match
