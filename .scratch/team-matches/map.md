@@ -20,14 +20,14 @@ A spec plus `ready-for-agent` tickets for team categories, built in two lanes: a
   - Team match winner is set manually (like matches today). Its score shown (e.g. "2–1") is derived from the match wins inside it. Bracket advancement stays manual, as today.
   - Group standings for teams: team match wins → match difference → set difference → point difference.
   - Matches inside a team match can run in parallel on different tables.
-  - Display: group standings, brackets and the matches tab show team matches; clicking a team match expands it in place to show its matches. Ongoing/next sections and the admin table schedule show the individual matches (with their team match context).
+  - Display: group standings, brackets and the matches tab show team matches; clicking a team match opens its detail page, which shows its matches. Ongoing/next sections and the admin table schedule show the individual matches (with their team match context).
 
 ## Decisions so far
 
 <!-- one line per closed ticket -->
 
 - [How a team match wraps matches](issues/01-how-a-team-match-wraps-matches.md): a team match is a `Match` in a group/bracket; its matches are `Match` rows with `team_match_id`, team registrations as sides, a match-players list and `position1/2` labels; teams get a name; winner manual, score derived (ADR-0002)
-- [Team match overlay and admin flow](issues/02-team-match-overlay-and-admin-flow.md): no overlay; the team match card expands in place showing the existing match cards; its footer (like a match card's) has "Adicionar partida" and "Resultado" (team match winner)
+- [Team match overlay and admin flow](issues/02-team-match-overlay-and-admin-flow.md): a team match detail page (`/events/:id/team-matches/:id`) reached from the matches tab and bracket; it lists the inner matches as existing match cards and holds "Adicionar partida" and "Resultado" (amended from expand-in-place)
 
 ## Not yet specified
 

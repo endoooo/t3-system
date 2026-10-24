@@ -8,7 +8,7 @@ Organizers run team competitions: teams of players face each other in **team mat
 
 ## Solution
 
-A **Category** can have the `team` **Format**. Its registrations are **Teams**: a name and any number of players, each representing their own club. Teams go into groups and brackets like any registration, and the matches generated between them are **team matches**. A team match is a thin wrapper: a superuser adds singles or doubles matches to it by hand, picking each side's players from that side's team and writing a free **Position** label per side ("AB" vs "XY", "C" vs "Z"). Those matches are ordinary matches: scored in the usual score modal, scheduled on tables (several at once if wanted), flagged as ongoing. The superuser sets the team match winner by hand; its score ("2 — 1") is counted from the matches inside it. Visitors see team matches in group standings, brackets and the matches tab, and clicking a team match card expands it in place to show its matches as regular match cards. The overview's ongoing/next sections and the table schedule show the matches inside team matches.
+A **Category** can have the `team` **Format**. Its registrations are **Teams**: a name and any number of players, each representing their own club. Teams go into groups and brackets like any registration, and the matches generated between them are **team matches**. A team match is a thin wrapper: a superuser adds singles or doubles matches to it by hand, picking each side's players from that side's team and writing a free **Position** label per side ("AB" vs "XY", "C" vs "Z"). Those matches are ordinary matches: scored in the usual score modal, scheduled on tables (several at once if wanted), flagged as ongoing. The superuser sets the team match winner by hand; its score ("2 — 1") is counted from the matches inside it. Visitors see team matches in group standings, brackets and the matches tab; clicking a team match (card or bracket slot) opens its **detail page**, which shows its matches as regular match cards and is where superusers manage it. The overview's ongoing/next sections and the table schedule show the matches inside team matches.
 
 Decisions behind this: `GLOSSARY.md` (Team play), `docs/adr/0002-team-match-is-a-match-wrapping-matches.md`, and the wayfinder map `.scratch/team-matches/map.md` (tickets 01 and 02 hold the detail).
 
@@ -25,23 +25,26 @@ Decisions behind this: `GLOSSARY.md` (Team play), `docs/adr/0002-team-match-is-a
 9. As a superuser, I want to add teams to groups and generate the group's matches, so that every pair of teams gets a team match.
 10. As a visitor, I want group standings to list teams by name, ranked by team match wins, then match difference, then set difference, then point difference, so that I can follow the group.
 11. As a visitor, I want the matches tab of a team category to list team matches as cards with both team names and the score counted from their matches, so that I can see every team match at a glance.
-12. As a visitor, I want to click a team match card to expand it and see its matches as regular match cards (position labels, players, sets, table, time, ongoing), so that I can follow it match by match.
-13. As a superuser, I want an "Adicionar partida" action in the team match card's footer, so that I can add the next match as the teams hand in their choices.
+12. As a visitor, I want to click a team match card (matches tab) or bracket slot to open the team match's page, with its header (category, stage/group/round, teams, score, status) and its matches as regular match cards (position labels, players, sets, table, time, ongoing), so that I can follow it match by match.
+13. As a superuser, I want an "Adicionar partida" action on the team match page, so that I can add the next match as the teams hand in their choices.
 14. As a superuser, I want the add-match modal to ask for singles or doubles, a position label per side, each side's player(s) picked only from that side's team, and an optional table, so that I can record exactly who plays.
 15. As a superuser, I want a player to be able to play several matches in one team match, so that formats like "A x Y … A x X" work.
 16. As a superuser, I want to edit or delete a match inside a team match from its own card, so that I can fix a wrong lineup.
 17. As a superuser, I want to score a match inside a team match with the existing "Resultados" modal, so that scoring works like any other match.
-18. As a superuser, I want a "Resultado" action in the team match card's footer that sets the team match winner, so that I can close the team match when a team reaches its win target.
+18. As a superuser, I want a "Resultado" action on the team match page that sets the team match winner, so that I can close the team match when a team reaches its win target.
 19. As a visitor, I want the team match winner highlighted on its card, so that I know who won.
 20. As a superuser, I want matches inside team matches on the table schedule, unscheduled pool and drag and drop, so that I can run several of them on different tables at once.
 21. As a superuser, I want team matches themselves never to appear on the schedule or count as unscheduled, so that the board only holds playable matches.
 22. As a superuser, I want to toggle a match inside a team match as ongoing from the schedule, so that the overview shows what's being played.
-23. As a visitor, I want the overview's ongoing and next sections to show matches inside team matches with their team match context ("AABB A x Clube Y"), so that I know which team match a table is playing.
+23. As a visitor, I want the overview's ongoing and next sections to show matches inside team matches with their team match context ("AABB A x Clube Y") linking to the team match page, so that I know which team match a table is playing.
 24. As a visitor, I want a team match shown as ongoing once any of its matches is ongoing or has a result, and finished once it has a winner, so that the matches tab filters (all/ongoing/next) make sense for team matches.
-25. As a superuser, I want to place teams in bracket slots and set a bracket team match's winner, advancing teams by hand as today, so that c1's knockout stage runs like a singles bracket.
+25. As a superuser, I want to place teams in bracket slots and manage a bracket team match from its page like any other team match, advancing teams by hand as today, so that c1's knockout stage runs like a singles bracket.
 26. As a visitor, I want bracket slots to show team names and the team match score, so that I can follow the knockout stage.
 27. As a superuser, I want deleting a team match (or regenerating a group's matches, or deleting a stage) to delete the matches inside it, so that no orphan matches stay behind.
 28. As a visitor, I want the matches tab player filter to find the team matches a player's team plays, so that I can follow a player in a team category.
+29. As a visitor, I want the team match page to list each team's players, so that I know who could play.
+30. As a visitor, I want a back link from the team match page to the event tab I came from, so that I can keep browsing.
+31. As a visitor, I want the team match page to update live, so that I can follow results without reloading.
 
 ## Implementation Decisions
 
@@ -61,10 +64,12 @@ Decisions behind this: `GLOSSARY.md` (Team play), `docs/adr/0002-team-match-is-a
   - Group standings, brackets, matches tab → team matches (inner matches have no group/stage, so stage/group queries already exclude them).
   - Table schedule (finished/pending per table, unscheduled pool, drag and drop, add to table, ongoing toggle, recalculation), unassigned-matches warning, matches-per-table count, overview ongoing/next → inner matches; team matches excluded. Queries that reach category/stage through `group_id`/`stage_id` reach it through the team match for inner matches.
   - Dashboard counts per category and by status: count inner matches for team categories (team matches excluded), so "games" means playable matches.
-- **Team match card**: same card shape as `match_card` (header with label, derived score; rows with team names; winner bold). Clicking the card body toggles expansion in place (no modal); expanded content lists inner matches with the existing `match_card`, each row showing the position label before the players. Superuser footer: "Adicionar partida" and "Resultado". Inner match card footer gains "Editar" next to "Resultados". Visitors get no footer actions.
+- **Team match card** (matches tab): same card shape as `match_card` (header with label, derived score; rows with team names; winner bold), rendered as a link to the team match page; no footer actions.
+- **Team match page**: `T3SystemWeb.TeamMatchLive.Show` (or similar) at `/events/:id/team-matches/:team_match_id`, in the existing `:current_user` live_session. 404 when the match isn't a team match of that event. Back link to the event tab it came from (`?tab=` param). Header: category, stage/group/round label, team names, derived score, status, winner highlight; superuser actions "Adicionar partida" and "Resultado". Body: inner matches as the shared match card in creation order, each showing position labels before the players, with "Resultados" (shared score modal) and, for superusers, "Editar". Footer section: each team's players. Subscribes to the event broadcast for live updates.
+- **Shared components**: `match_card` and the score modal (with its add/remove set row and save handling) move out of `event_live/show.ex` into shared components used by the event page and the team match page. Behaviour on the event page is unchanged.
 - **Add/edit match modal**: fields: singles/doubles, `position1`, `position2`, player select(s) per side (options = that team's players), optional table. Edit reuses it with a delete action. Matches inside a team match are ordered by creation (id).
-- **Brackets**: bracket slots show team names and the derived score; slot assignment lists teams by name; the bracket's "Resultados" action on a team match opens the team match winner modal. The bracket grid does not expand; matches inside bracket team matches are managed from the matches tab (expand in place there). Advancing winners stays manual.
-- **Card labels**: inner match cards and schedule cards are labelled with the team match context ("AABB A x Clube Y · AB x XY") and category where cards already show it.
+- **Brackets**: bracket slots show team names and the derived score; slot assignment lists teams by name; a team match's bracket card links to the team match page instead of opening the score modal. Advancing winners stays manual.
+- **Card labels**: inner match cards and schedule cards are labelled with the team match context ("AABB A x Clube Y · AB x XY") and category where cards already show it. On match cards (overview, matches tab) the context links to the team match page; schedule board cards don't link.
 - **Matches tab player filter**: in a team category, filtering by a player keeps the team matches where the player's team plays (or the player plays an inner match). Options list team players.
 - **Live updates**: inner match changes broadcast the event like any match change.
 - All new user-facing text uses `gettext`.
@@ -72,7 +77,8 @@ Decisions behind this: `GLOSSARY.md` (Team play), `docs/adr/0002-team-match-is-a
 ## Testing Decisions
 
 - Tests check what organizers and visitors observe (page content, context accepts/rejects), not row or assign shapes.
-- **Event page** (PhoenixTest, `test/t3_system_web/live/event_live/show_test.exs`, new "team category" describe): registering/editing a team; standings with team names and the tiebreak order; matches tab team match card, expanding it, adding a match with players from each team, editing/deleting it, scoring it via "Resultados", setting the team match winner via "Resultado"; derived score and winner highlight; visitors see no actions; overview ongoing/next showing inner matches with context; schedule listing inner matches only; bracket slots with team names and winner modal.
+- **Event page** (PhoenixTest, `test/t3_system_web/live/event_live/show_test.exs`, new "team category" describe): registering/editing a team; standings with team names and the tiebreak order; matches tab team match card linking to its page; overview ongoing/next showing inner matches with context; schedule listing inner matches only; bracket slots with team names linking to the page.
+- **Team match page** (PhoenixTest, new `test/t3_system_web/live/team_match_live/show_test.exs`): header, score and winner highlight; adding a match with players from each team, editing/deleting it, scoring it via "Resultados", setting the winner via "Resultado"; visitors see no actions; team players listed; 404 for a non-team match.
 - **Registrations context**: team requires a name and ≥ 1 distinct players; name rejected outside team categories; one team per player per event + category; more than 2 players accepted only for team.
 - **Matches context**: inner match requires its players to belong to the side's team (rejects otherwise); singles 1 / doubles 2 per side; exactly-one-context check; deleting a team match deletes inner matches; derived score/status; team standings ordering (including match-difference tiebreak); schedule queries exclude team matches and include inner matches.
 - **Category admin**: creating a team category.
@@ -81,6 +87,6 @@ Decisions behind this: `GLOSSARY.md` (Team play), `docs/adr/0002-team-match-is-a
 
 ## Out of Scope
 
-Everything in the map's "Not yet specified" and "Out of scope" sections: team match format templates, automatic winner/skip/advance, head-to-head tiebreaks, per-player stats, walkovers/byes specifics for teams, team size limits, lineup rules, hidden lineups, expanding team matches inside the bracket grid.
+Everything in the map's "Not yet specified" and "Out of scope" sections: team match format templates, automatic winner/skip/advance, head-to-head tiebreaks, per-player stats, walkovers/byes specifics for teams, team size limits, lineup rules, hidden lineups, expanding team matches in place (replaced by the team match page).
 
 ## Comments
