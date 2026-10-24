@@ -535,6 +535,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   <% grid_rows = trunc(:math.pow(2, @current_stage.rounds - 1)) %>
                   <% all_matches =
                     Enum.flat_map(@stage_bracket_rounds, fn {_round, matches} -> matches end) %>
+                  <% team_bracket = @active_category.format == "team" %>
                   <div style={"display: grid; grid-template-columns: repeat(#{@current_stage.rounds}, 17.5rem); grid-template-rows: repeat(#{grid_rows}, auto);"}>
                     <div
                       :for={match <- all_matches}
@@ -570,7 +571,35 @@ defmodule T3SystemWeb.EventLive.Show do
                       <%!-- Match card --%>
                       <div class="w-full pr-6 pl-3">
                         <.card padded={false} class="overflow-hidden">
+                          <%!-- A team match: team names and its score, linking to its page --%>
+                          <.link
+                            :if={team_bracket}
+                            id={"bracket-team-match-#{match.id}"}
+                            navigate={
+                              ~p"/events/#{@event}/team-matches/#{match.id}?#{%{tab: "stage-#{@current_stage.id}", category_id: @active_category.id}}"
+                            }
+                            class="block transition-colors hover:bg-fg/5"
+                          >
+                            <% {ts1, ts2} = bracket_team_score(match) %>
+                            <.bracket_slot
+                              id={"tooltip-bracket-#{match.id}-1"}
+                              registration={match.registration1}
+                              label={match.slot1_label}
+                              won={p1_won}
+                              is_bye={match.is_bye}
+                              set_wins={bracket_teams_set?(match) && ts1}
+                            />
+                            <.bracket_slot
+                              id={"tooltip-bracket-#{match.id}-2"}
+                              registration={match.registration2}
+                              label={match.slot2_label}
+                              won={p2_won}
+                              is_bye={match.is_bye}
+                              set_wins={bracket_teams_set?(match) && ts2}
+                            />
+                          </.link>
                           <.bracket_slot
+                            :if={!team_bracket}
                             id={"tooltip-bracket-#{match.id}-1"}
                             registration={match.registration1}
                             label={match.slot1_label}
@@ -579,6 +608,7 @@ defmodule T3SystemWeb.EventLive.Show do
                             set_wins={sorted_sets != [] && sw1}
                           />
                           <.bracket_slot
+                            :if={!team_bracket}
                             id={"tooltip-bracket-#{match.id}-2"}
                             registration={match.registration2}
                             label={match.slot2_label}
@@ -609,6 +639,7 @@ defmodule T3SystemWeb.EventLive.Show do
                                 phx-value-id={match.id}
                               />
                               <.icon_button
+                                :if={!team_bracket}
                                 name="hero-numbered-list-mini"
                                 sr_label={gettext("Resultados")}
                                 tone="primary"
@@ -960,9 +991,9 @@ defmodule T3SystemWeb.EventLive.Show do
             <fieldset
               :for={
                 {slot, legend, placeholder, registration_id, slot_label} <- [
-                  {1, gettext("Jogador 1"), gettext("ex: 1º B, WO"),
+                  {1, slot_legend(@active_category, 1), gettext("ex: 1º B, WO"),
                    @assign_slot_modal.registration1_id, @assign_slot_modal.slot1_label},
-                  {2, gettext("Jogador 2"), gettext("ex: 2º A, WO"),
+                  {2, slot_legend(@active_category, 2), gettext("ex: 2º A, WO"),
                    @assign_slot_modal.registration2_id, @assign_slot_modal.slot2_label}
                 ]
               }
@@ -975,7 +1006,7 @@ defmodule T3SystemWeb.EventLive.Show do
                 id={"slot#{slot}-registration-id"}
                 type="select"
                 name={"slot#{slot}_registration_id"}
-                label={gettext("Jogador")}
+                label={slot_registration_label(@active_category)}
                 prompt={gettext("Nenhum")}
                 options={
                   Enum.map(
@@ -2771,6 +2802,9 @@ defmodule T3SystemWeb.EventLive.Show do
   defp label_and_player(assigns) do
     {name, full_name} =
       case assigns.registration do
+        %Registration{name: team_name} when is_binary(team_name) ->
+          {team_name, team_name}
+
         %Registration{registration_players: players} ->
           {player_short_names(players), player_names(players)}
 
@@ -2949,6 +2983,24 @@ defmodule T3SystemWeb.EventLive.Show do
         if match.is_bye, do: gettext("Bye"), else: gettext("TBD")
     end
   end
+
+  # Bracket slot assignment names teams in team categories, players otherwise
+  defp slot_legend(%{format: "team"}, n), do: gettext("Equipe %{n}", n: n)
+  defp slot_legend(_category, n), do: gettext("Jogador %{n}", n: n)
+
+  defp slot_registration_label(%{format: "team"}), do: gettext("Equipe")
+  defp slot_registration_label(_category), do: gettext("Jogador")
+
+  # A bracket team match's score, counted from the matches inside it
+  defp bracket_team_score(match) do
+    # Matches inside team matches come with ticket 06
+    inner_matches = []
+    Matches.team_match_score(match, inner_matches)
+  end
+
+  # The score shows once both teams are in the slots
+  defp bracket_teams_set?(match),
+    do: not is_nil(match.registration1_id) and not is_nil(match.registration2_id)
 
   # Height in px for one bracket slot at the given round (doubles each round).
   defp bracket_grid_style(match) do
