@@ -151,6 +151,168 @@ defmodule T3SystemWeb.TeamMatchLive.ShowTest do
     |> assert_has("#team-match-header", text: "Finalizado")
   end
 
+  describe "matches inside the team match" do
+    defp player_id(team, name),
+      do: Enum.find(team.registration_players, &(&1.player.name == name)).player_id
+
+    defp add_inner(ctx, attrs) do
+      insert(:inner_match, Map.put(attrs, :team_match, ctx.team_match))
+    end
+
+    test "a superuser adds a singles match with a player of each team", ctx do
+      table = insert(:table, event_id: ctx.event.id, event: nil, name: "Mesa 1")
+
+      build_conn()
+      |> log_in_user(insert(:superuser))
+      |> visit(page_path(ctx))
+      |> click_button("Adicionar partida")
+      |> fill_in("Posição — AABB", with: "A")
+      |> fill_in("Posição — Clube Y", with: "X")
+      |> select("Jogador 1 — AABB", option: "Bia")
+      |> select("Jogador 1 — Clube Y", option: "Duda")
+      |> select("Mesa", option: "Mesa 1")
+      |> click_button("#inner-match-form button", "Salvar")
+      |> refute_has("#inner-match-modal")
+      |> refute_has("#team-match-matches", text: "Nenhuma partida ainda.")
+      |> assert_has("#team-match-matches", text: "Partida 1")
+      |> assert_has("#team-match-matches", text: "A")
+      |> assert_has("#team-match-matches", text: "Bia")
+      |> assert_has("#team-match-matches", text: "Duda")
+      |> assert_has("#team-match-matches", text: table.name)
+      |> refute_has("#team-match-matches", text: "Ana")
+    end
+
+    test "a superuser adds a doubles match", ctx do
+      build_conn()
+      |> log_in_user(insert(:superuser))
+      |> visit(page_path(ctx))
+      |> click_button("Adicionar partida")
+      |> select("Tipo", option: "Duplas")
+      |> fill_in("Posição — AABB", with: "AB")
+      |> fill_in("Posição — Clube Y", with: "XY")
+      |> select("Jogador 1 — AABB", option: "Ana")
+      |> select("Jogador 2 — AABB", option: "Bia")
+      |> select("Jogador 1 — Clube Y", option: "Caio")
+      |> select("Jogador 2 — Clube Y", option: "Duda")
+      |> click_button("#inner-match-form button", "Salvar")
+      |> assert_has("#team-match-matches", text: "Ana / Bia")
+      |> assert_has("#team-match-matches", text: "Caio / Duda")
+      |> assert_has("#team-match-matches", text: "XY")
+    end
+
+    test "a doubles side needs two different players", ctx do
+      build_conn()
+      |> log_in_user(insert(:superuser))
+      |> visit(page_path(ctx))
+      |> click_button("Adicionar partida")
+      |> select("Tipo", option: "Duplas")
+      |> select("Jogador 1 — AABB", option: "Ana")
+      |> select("Jogador 2 — AABB", option: "Ana")
+      |> select("Jogador 1 — Clube Y", option: "Caio")
+      |> select("Jogador 2 — Clube Y", option: "Duda")
+      |> click_button("#inner-match-form button", "Salvar")
+      |> assert_has("#inner-match-modal", text: "pick different players")
+      |> assert_has("#team-match-matches", text: "Nenhuma partida ainda.")
+    end
+
+    test "inner matches show in creation order with position labels", ctx do
+      add_inner(ctx, %{
+        position1: "C",
+        position2: "Z",
+        players1: [player_id(ctx.team1, "Bia")],
+        players2: [player_id(ctx.team2, "Duda")]
+      })
+
+      add_inner(ctx, %{
+        position1: "A",
+        position2: "X",
+        players1: [player_id(ctx.team1, "Ana")],
+        players2: [player_id(ctx.team2, "Caio")]
+      })
+
+      build_conn()
+      |> visit(page_path(ctx))
+      |> assert_has("#team-match-matches > div > :nth-child(1)", text: "Partida 1")
+      |> assert_has("#team-match-matches > div > :nth-child(1)", text: "Bia")
+      |> assert_has("#team-match-matches > div > :nth-child(1)", text: "C")
+      |> assert_has("#team-match-matches > div > :nth-child(2)", text: "Caio")
+    end
+
+    test "a superuser edits and deletes an inner match", ctx do
+      inner =
+        add_inner(ctx, %{
+          position1: "A",
+          position2: "X",
+          players1: [player_id(ctx.team1, "Ana")],
+          players2: [player_id(ctx.team2, "Caio")]
+        })
+
+      build_conn()
+      |> log_in_user(insert(:superuser))
+      |> visit(page_path(ctx))
+      |> within("#match-#{inner.id}", &click_button(&1, "Editar"))
+      |> fill_in("Posição — AABB", with: "B")
+      |> select("Jogador 1 — AABB", option: "Bia")
+      |> click_button("#inner-match-form button", "Salvar")
+      |> assert_has("#match-#{inner.id}", text: "Bia")
+      |> refute_has("#match-#{inner.id}", text: "Ana")
+      |> within("#match-#{inner.id}", &click_button(&1, "Editar"))
+      |> click_button("Excluir")
+      |> refute_has("#match-#{inner.id}")
+      |> assert_has("#team-match-matches", text: "Nenhuma partida ainda.")
+    end
+
+    test "a superuser scores an inner match with Resultados; the header counts it", ctx do
+      inner =
+        add_inner(ctx, %{
+          players1: [player_id(ctx.team1, "Ana")],
+          players2: [player_id(ctx.team2, "Caio")]
+        })
+
+      build_conn()
+      |> log_in_user(insert(:superuser))
+      |> visit(page_path(ctx))
+      |> within("#match-#{inner.id}", &click_button(&1, "Resultados"))
+      |> fill_in("Set 1, P1", with: "11")
+      |> fill_in("Set 1, P2", with: "6")
+      |> select("Vencedor da partida", option: "Ana")
+      |> click_button("#score-form button", "Salvar")
+      |> refute_has("#score-modal")
+      |> assert_has("#match-#{inner.id}", text: "11")
+      |> assert_has("#match-#{inner.id} .font-bold", text: "Ana")
+      |> assert_has("#team-match-header", text: "1 — 0")
+      |> assert_has("#team-match-header", text: "Em andamento")
+    end
+
+    test "visitors see inner matches without actions", ctx do
+      inner =
+        add_inner(ctx, %{
+          players1: [player_id(ctx.team1, "Ana")],
+          players2: [player_id(ctx.team2, "Caio")]
+        })
+
+      build_conn()
+      |> visit(page_path(ctx))
+      |> assert_has("#match-#{inner.id}", text: "Ana")
+      |> refute_has("button", text: "Adicionar partida")
+      |> refute_has("#match-#{inner.id} button")
+    end
+
+    test "updates live when an inner match is added", ctx do
+      session = visit(build_conn(), page_path(ctx))
+      tm = Matches.get_team_match!(ctx.event.id, ctx.team_match.id)
+
+      {:ok, _} =
+        Matches.create_inner_match(Scope.for_user(insert(:superuser)), tm, %{
+          "kind" => "singles",
+          "player_ids1" => [player_id(ctx.team1, "Bia")],
+          "player_ids2" => [player_id(ctx.team2, "Duda")]
+        })
+
+      assert_has(session, "#team-match-matches", text: "Bia")
+    end
+  end
+
   test "404 for a match that isn't a team match of the event", ctx do
     singles_match = insert(:match, event: ctx.event)
     other_event = insert(:event)

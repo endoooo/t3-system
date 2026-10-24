@@ -2436,6 +2436,51 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> refute_has("#group-#{group.id} td", text: "Ana")
     end
 
+    test "group standings rank teams by wins, then match difference, with its column", ctx do
+      %{stage: stage, group: group, team_match: team_match, team1: team1, team2: team2} =
+        team_match_setup(ctx)
+
+      eva = insert(:player, name: "Eva")
+      team3 = insert_team(ctx, "Equipe Z", [{eva, hd(ctx.clubs)}])
+      add_to_group(group, team3)
+
+      # AABB and Clube Y both beat Equipe Z; Clube Y by more matches
+      for {team, inner_wins} <- [{team1, [team1, team3]}, {team2, [team2, team2]}] do
+        tm =
+          insert(:team_match,
+            event: ctx.event,
+            group: group,
+            registration1: team,
+            registration2: team3,
+            winner_registration_id: team.id
+          )
+
+        for w <- inner_wins,
+            do: insert(:inner_match, team_match: tm, winner_registration_id: w.id)
+      end
+
+      _ = team_match
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.category.id}")
+      |> assert_has("#group-#{group.id} th", text: "J")
+      |> assert_has("#group-#{group.id} tbody tr:nth-child(1)", text: "Clube Y")
+      |> assert_has("#group-#{group.id} tbody tr:nth-child(1) td", text: "+2")
+      |> assert_has("#group-#{group.id} tbody tr:nth-child(2)", text: "AABB")
+      |> assert_has("#group-#{group.id} tbody tr:nth-child(3) td", text: "-2")
+    end
+
+    test "team match cards count the matches inside them", ctx do
+      %{team_match: team_match, team1: team1, team2: team2} = team_match_setup(ctx)
+
+      for w <- [team1, team2, team1],
+          do: insert(:inner_match, team_match: team_match, winner_registration_id: w.id)
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}")
+      |> assert_has("#team-match-#{team_match.id}", text: "2 — 1")
+    end
+
     test "the group players modal lists and adds teams by name", ctx do
       %{stage: stage, group: group} = team_match_setup(ctx)
       [ana | _] = ctx.players

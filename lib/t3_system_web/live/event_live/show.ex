@@ -444,6 +444,13 @@ defmodule T3SystemWeb.EventLive.Show do
                         <th class="px-2 pb-2 font-normal">{gettext("Jogador")}</th>
                         <th class="w-1 px-2 pb-2 text-center font-normal">{gettext("V")}</th>
                         <th class="w-1 px-2 pb-2 text-center font-normal">{gettext("D")}</th>
+                        <th
+                          :if={@active_category.format == "team"}
+                          class="w-1 px-2 pb-2 text-center font-normal"
+                          title={gettext("Saldo de partidas")}
+                        >
+                          {gettext("J")}
+                        </th>
                         <th class="w-1 px-2 pb-2 text-center font-normal">{gettext("S")}</th>
                         <th class="w-1 pr-4 pb-2 pl-2 text-center font-normal">{gettext("P")}</th>
                       </tr>
@@ -472,6 +479,15 @@ defmodule T3SystemWeb.EventLive.Show do
                         </td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.won}</td>
                         <td class="w-1 px-2 py-2.5 text-center">{row.lost}</td>
+                        <td
+                          :if={@active_category.format == "team"}
+                          class={[
+                            "w-1 px-2 py-2.5 text-center",
+                            row.match_diff < 0 && "text-fg-muted"
+                          ]}
+                        >
+                          {format_diff(row.match_diff)}
+                        </td>
                         <td class={[
                           "w-1 px-2 py-2.5 text-center",
                           row.set_diff < 0 && "text-fg-muted"
@@ -2303,7 +2319,9 @@ defmodule T3SystemWeb.EventLive.Show do
   defp load_stage_data(socket, stage) do
     # Groups with standings
     groups_with_standings =
-      Enum.map(stage.groups, fn g -> {g, Matches.compute_group_standings(g)} end)
+      Enum.map(stage.groups, fn g ->
+        {g, Matches.compute_group_standings(g, team: team_category?(socket))}
+      end)
 
     # Bracket rounds (for bracket-type stages)
     bracket_rounds =
@@ -2508,12 +2526,13 @@ defmodule T3SystemWeb.EventLive.Show do
   defp team_stage?(%Stage{category: %{format: "team"}}), do: true
   defp team_stage?(_stage), do: false
 
+  defp team_category?(%{assigns: %{active_category: %{format: "team"}}}), do: true
+  defp team_category?(_socket), do: false
+
   # A team match card: team names, the derived score and status
   defp prepare_match_card(match, %{team: true, label: label, source: source} = ctx) do
-    # Matches inside team matches come with ticket 06
-    inner_matches = []
-    {score1, score2} = Matches.team_match_score(match, inner_matches)
-    status = Matches.team_match_status(match, inner_matches)
+    {score1, score2} = Matches.team_match_score(match, match.inner_matches)
+    status = Matches.team_match_status(match, match.inner_matches)
     winner_id = match.winner_registration_id
 
     %{
@@ -2732,6 +2751,9 @@ defmodule T3SystemWeb.EventLive.Show do
     |> Map.put("view", "schedule")
     |> then(&if(list == "finished", do: Map.put(&1, "list", list), else: &1))
   end
+
+  # Matches inside team matches get their team match context with ticket 07
+  defp schedule_match_label(%{team_match_id: id}) when not is_nil(id), do: gettext("Equipes")
 
   defp schedule_match_label(%{group: %Group{} = group}),
     do: "#{group.stage.category.name} · #{group.name}"
@@ -2992,11 +3014,7 @@ defmodule T3SystemWeb.EventLive.Show do
   defp slot_registration_label(_category), do: gettext("Jogador")
 
   # A bracket team match's score, counted from the matches inside it
-  defp bracket_team_score(match) do
-    # Matches inside team matches come with ticket 06
-    inner_matches = []
-    Matches.team_match_score(match, inner_matches)
-  end
+  defp bracket_team_score(match), do: Matches.team_match_score(match, match.inner_matches)
 
   # The score shows once both teams are in the slots
   defp bracket_teams_set?(match),
