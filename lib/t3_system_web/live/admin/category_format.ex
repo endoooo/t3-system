@@ -10,6 +10,7 @@ defmodule T3SystemWeb.Admin.CategoryFormat do
   @spec format_label(String.t()) :: String.t()
   def format_label("singles"), do: gettext("Simples")
   def format_label("doubles"), do: gettext("Duplas")
+  def format_label("team"), do: gettext("Equipes")
 
   @doc "Select options for the category format picker."
   @spec format_options() :: [{String.t(), String.t()}]

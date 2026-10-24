@@ -94,6 +94,25 @@ defmodule T3SystemWeb.CategoryLiveTest do
       |> assert_has("tr", text: "Duplas")
     end
 
+    test "creates a team category", %{conn: conn} do
+      conn
+      |> visit(~p"/admin/categories/new")
+      |> fill_in("Nome", with: "Equipes Livre")
+      |> select("Formato", option: "Equipes")
+      |> click_button("Save Category")
+      |> assert_has("p", text: "Category created successfully")
+      |> assert_has("tr", text: "Equipes Livre")
+    end
+
+    test "locks the team format once the category has a team", %{conn: conn} do
+      category = insert(:team_category)
+      insert(:team, category: category)
+
+      conn
+      |> visit(~p"/admin/categories/#{category}/edit")
+      |> assert_has("select[disabled]#category_format option[selected]", text: "Equipes")
+    end
+
     test "changes the format while the category has no registrations", %{conn: conn} do
       category = insert(:category)
 

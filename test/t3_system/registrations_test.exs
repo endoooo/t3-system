@@ -159,15 +159,25 @@ defmodule T3System.RegistrationsTest do
       singles = insert(:category)
       doubles = insert(:category, format: "doubles")
 
-      rows = fn count ->
-        # Positions stay within 1..2 so only the player count is wrong.
+      rows = fn count, max_position ->
+        # Positions stay within the format's range so only the player count is wrong.
         for position <- 1..count//1 do
-          %{player_id: insert(:player).id, club_id: insert(:club).id, position: min(position, 2)}
+          %{
+            player_id: insert(:player).id,
+            club_id: insert(:club).id,
+            position: min(position, max_position)
+          }
         end
       end
 
       attrs = fn category, count ->
-        %{event_id: event.id, category_id: category.id, registration_players: rows.(count)}
+        max_position = if category.format == "doubles", do: 2, else: 1
+
+        %{
+          event_id: event.id,
+          category_id: category.id,
+          registration_players: rows.(count, max_position)
+        }
       end
 
       assert {:error, changeset} = Registrations.create_registration(scope, attrs.(singles, 0))
@@ -518,7 +528,7 @@ defmodule T3System.RegistrationsTest do
       assert %{registration_players: [%{position: ["is invalid"]}]} = errors_on(changeset)
     end
 
-    test "the database rejects a player position other than 1 or 2" do
+    test "the database rejects a player position below 1" do
       registration = insert(:registration)
 
       changeset =
@@ -531,7 +541,147 @@ defmodule T3System.RegistrationsTest do
         |> Ecto.Changeset.force_change(:position, 0)
 
       assert {:error, changeset} = T3System.Repo.insert(changeset)
-      assert %{position: ["must be 1 or 2"]} = errors_on(changeset)
+      assert %{position: ["must be at least 1"]} = errors_on(changeset)
+    end
+
+    test "create_registration/2 rejects a third position in a doubles category" do
+      scope = Scope.for_user(insert(:superuser))
+
+      attrs = %{
+        event_id: insert(:event).id,
+        category_id: insert(:category, format: "doubles").id,
+        registration_players: [
+          %{player_id: insert(:player).id, club_id: insert(:club).id, position: 1},
+          %{player_id: insert(:player).id, club_id: insert(:club).id, position: 3}
+        ]
+      }
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+      assert %{registration_players: [%{}, %{position: ["is invalid"]}]} = errors_on(changeset)
+    end
+  end
+
+  describe "teams" do
+    setup do
+      %{scope: Scope.for_user(insert(:superuser)), event: insert(:event)}
+    end
+
+    defp team_rows(count) do
+      for position <- 1..count//1 do
+        %{player_id: insert(:player).id, club_id: insert(:club).id, position: position}
+      end
+    end
+
+    defp team_attrs(event, category, attrs) do
+      Map.merge(%{event_id: event.id, category_id: category.id}, attrs)
+    end
+
+    test "create_registration/2 accepts a named team of any size", %{scope: scope, event: event} do
+      category = insert(:team_category)
+
+      for count <- [1, 5] do
+        attrs =
+          team_attrs(event, category, %{
+            name: "Team #{count}",
+            registration_players: team_rows(count)
+          })
+
+        assert {:ok, %Registration{} = team} = Registrations.create_registration(scope, attrs)
+        assert length(Registrations.get_registration!(team.id).registration_players) == count
+        assert team.name == "Team #{count}"
+      end
+    end
+
+    test "create_registration/2 requires a team name", %{scope: scope, event: event} do
+      attrs = team_attrs(event, insert(:team_category), %{registration_players: team_rows(3)})
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+      assert %{name: ["can't be blank"]} = errors_on(changeset)
+    end
+
+    test "create_registration/2 requires at least one team player", %{scope: scope, event: event} do
+      attrs = team_attrs(event, insert(:team_category), %{name: "AABB", registration_players: []})
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+      assert %{registration_players: [_ | _]} = errors_on(changeset)
+    end
+
+    test "create_registration/2 rejects the same player twice in a team", %{
+      scope: scope,
+      event: event
+    } do
+      player = insert(:player)
+
+      rows = [
+        %{player_id: player.id, club_id: insert(:club).id, position: 1},
+        %{player_id: insert(:player).id, club_id: insert(:club).id, position: 2},
+        %{player_id: player.id, club_id: insert(:club).id, position: 3}
+      ]
+
+      attrs =
+        team_attrs(event, insert(:team_category), %{name: "AABB", registration_players: rows})
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+
+      assert %{registration_players: ["a team can't have the same player twice"]} =
+               errors_on(changeset)
+    end
+
+    test "create_registration/2 rejects a player already in another team of the category", %{
+      scope: scope
+    } do
+      existing = insert(:team)
+      [_, taken | _] = existing.registration_players
+
+      rows = [
+        %{player_id: insert(:player).id, club_id: insert(:club).id, position: 1},
+        %{player_id: taken.player_id, club_id: insert(:club).id, position: 2}
+      ]
+
+      attrs = %{
+        event_id: existing.event_id,
+        category_id: existing.category_id,
+        name: "Other",
+        registration_players: rows
+      }
+
+      assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+
+      assert %{registration_players: [%{}, %{player_id: ["already registered in this category"]}]} =
+               errors_on(changeset)
+    end
+
+    test "create_registration/2 rejects a name outside team categories", %{
+      scope: scope,
+      event: event
+    } do
+      for {category, count} <- [{insert(:category), 1}, {insert(:category, format: "doubles"), 2}] do
+        attrs =
+          team_attrs(event, category, %{name: "AABB", registration_players: team_rows(count)})
+
+        assert {:error, changeset} = Registrations.create_registration(scope, attrs)
+        assert %{name: ["must be blank outside team categories"]} = errors_on(changeset)
+      end
+    end
+
+    test "update_registration/3 renames a team and adds a player", %{scope: scope} do
+      team = insert(:team)
+      new_player = insert(:player)
+
+      rows =
+        Enum.map(team.registration_players, &Map.take(&1, [:player_id, :club_id, :position])) ++
+          [%{player_id: new_player.id, club_id: insert(:club).id, position: 4}]
+
+      assert {:ok, %Registration{}} =
+               Registrations.update_registration(scope, team, %{
+                 name: "Renamed",
+                 registration_players: rows
+               })
+
+      updated = Registrations.get_registration!(team.id)
+      assert updated.name == "Renamed"
+      assert List.last(updated.registration_players).player_id == new_player.id
+      assert length(updated.registration_players) == 4
     end
   end
 end

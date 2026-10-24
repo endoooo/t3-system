@@ -12,6 +12,7 @@ defmodule T3System.Registrations.Registration do
           id: pos_integer(),
           event_id: pos_integer(),
           category_id: pos_integer(),
+          name: String.t() | nil,
           event: Event.t() | Ecto.Association.NotLoaded.t(),
           registration_players: [RegistrationPlayer.t()] | Ecto.Association.NotLoaded.t(),
           category: Category.t() | Ecto.Association.NotLoaded.t(),
@@ -25,6 +26,7 @@ defmodule T3System.Registrations.Registration do
 
   schema "registrations" do
     belongs_to :event, Event
+    field :name, :string
     field :final_standing, :integer
     belongs_to :category, Category
 
@@ -47,7 +49,7 @@ defmodule T3System.Registrations.Registration do
   def players_preload, do: [registration_players: [:player, :club]]
 
   @required_fields [:event_id, :category_id]
-  @optional_fields [:final_standing]
+  @optional_fields [:name, :final_standing]
 
   @doc false
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
@@ -68,14 +70,58 @@ defmodule T3System.Registrations.Registration do
   end
 
   @doc """
-  Validates the registration's players against its category's format: exactly
-  1 player for singles and exactly 2 different players for doubles. A `nil`
-  format (unknown category) skips the check.
-  """
-  @spec validate_players(Ecto.Changeset.t(), String.t() | nil) :: Ecto.Changeset.t()
-  def validate_players(changeset, nil), do: changeset
+  Validates the registration against its category's format.
 
-  def validate_players(changeset, format) do
+  - singles: exactly 1 player, at position 1, and no name
+  - doubles: exactly 2 different players, at positions 1..2, and no name
+  - team: a name and at least 1 player, all different, at any position
+
+  A `nil` format (unknown category) skips the check.
+  """
+  @spec validate_format(Ecto.Changeset.t(), String.t() | nil) :: Ecto.Changeset.t()
+  def validate_format(changeset, nil), do: changeset
+
+  def validate_format(changeset, format) do
+    changeset
+    |> validate_name(format)
+    |> validate_positions(format)
+    |> validate_players(format)
+  end
+
+  defp validate_name(changeset, "team"), do: validate_required(changeset, [:name])
+
+  defp validate_name(changeset, _format) do
+    if get_field(changeset, :name) in [nil, ""] do
+      changeset
+    else
+      add_error(changeset, :name, "must be blank outside team categories")
+    end
+  end
+
+  # Caps each player row's position by format (teams have no upper limit).
+  defp validate_positions(changeset, "team"), do: changeset
+
+  defp validate_positions(changeset, format) do
+    positions = 1..Category.player_count(format)
+
+    case get_change(changeset, :registration_players) do
+      rows when is_list(rows) ->
+        rows = Enum.map(rows, &validate_inclusion(&1, :position, positions))
+        # `put_change/3` can't take the changesets `cast_assoc` built, so the
+        # validated rows go straight into the changes.
+        changeset = %{
+          changeset
+          | changes: Map.put(changeset.changes, :registration_players, rows)
+        }
+
+        if Enum.all?(rows, & &1.valid?), do: changeset, else: %{changeset | valid?: false}
+
+      _ ->
+        changeset
+    end
+  end
+
+  defp validate_players(changeset, format) do
     case get_field(changeset, :registration_players) do
       %Ecto.Association.NotLoaded{} -> changeset
       # An empty list is already rejected by `cast_assoc(required: true)`.
@@ -90,17 +136,24 @@ defmodule T3System.Registrations.Registration do
     player_ids = players |> Enum.map(& &1.player_id) |> Enum.reject(&is_nil/1)
 
     cond do
-      length(player_ids) != Category.player_count(format) ->
+      not player_count_valid?(format, length(player_ids)) ->
         add_error(changeset, :registration_players, player_count_message(format))
 
       length(Enum.uniq(player_ids)) != length(player_ids) ->
-        add_error(changeset, :registration_players, "a pair must have two different players")
+        add_error(changeset, :registration_players, duplicate_player_message(format))
 
       true ->
         changeset
     end
   end
 
+  defp player_count_valid?("team", count), do: count >= 1
+  defp player_count_valid?(format, count), do: count == Category.player_count(format)
+
+  defp player_count_message("team"), do: "a team must have at least 1 player"
   defp player_count_message("doubles"), do: "a doubles registration must have exactly 2 players"
   defp player_count_message(_singles), do: "a singles registration must have exactly 1 player"
+
+  defp duplicate_player_message("team"), do: "a team can't have the same player twice"
+  defp duplicate_player_message(_doubles), do: "a pair must have two different players"
 end

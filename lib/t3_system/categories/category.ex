@@ -17,15 +17,16 @@ defmodule T3System.Categories.Category do
     timestamps(type: :utc_datetime)
   end
 
-  @formats ~w(singles doubles)
+  @formats ~w(singles doubles team)
 
   @doc "The allowed format values."
   @spec formats() :: [String.t()]
   def formats, do: @formats
 
   @doc """
-  How many players a registration has in a category (or format): 1 for
-  singles, 2 for doubles.
+  How many players a registration has in a fixed-size category (or format):
+  1 for singles, 2 for doubles. Teams have any number of players, so the
+  `team` format has no player count.
   """
   @spec player_count(t() | String.t()) :: pos_integer()
   def player_count(%__MODULE__{format: format}), do: player_count(format)

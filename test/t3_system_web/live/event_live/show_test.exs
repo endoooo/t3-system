@@ -2250,4 +2250,150 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> refute_has("#match-#{other.id}")
     end
   end
+
+  describe "team category" do
+    setup %{conn: conn} do
+      event = insert(:event)
+      category = insert(:team_category, name: "Equipes")
+      associate_category(event, category)
+
+      %{
+        conn: log_in_user(conn, insert(:superuser)),
+        event: event,
+        category: category,
+        players: for(name <- ~w(Ana Bia Caio Duda), do: insert(:player, name: name)),
+        clubs: for(name <- ["Clube A", "Clube B", "Clube C"], do: insert(:club, name: name))
+      }
+    end
+
+    # A team named `name` with `players` (each `{player, club}`) in the setup's category.
+    defp insert_team(ctx, name, players) do
+      insert(:team,
+        event: ctx.event,
+        category: ctx.category,
+        name: name,
+        registration_players:
+          for {{player, club}, position} <- Enum.with_index(players, 1) do
+            build(:registration_player, player: player, club: club, position: position)
+          end
+      )
+    end
+
+    test "the team modal shows a name and three player rows, with add and remove", ctx do
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}")
+      |> click_button("Nova inscrição")
+      |> assert_has("#registration-form label", text: "Nome da equipe")
+      |> assert_has("#registration-form label", text: "Jogador 3")
+      |> refute_has("#registration-form label", text: "Jogador 4")
+      |> assert_has("#registration-form select[name$='[club_id]']", count: 3)
+      |> click_button("Adicionar jogador")
+      |> assert_has("#registration-form label", text: "Jogador 4")
+      |> assert_has("#registration-form select[name$='[club_id]']", count: 4)
+      |> within("#player-row-1", &click_button(&1, "Remover jogador"))
+      |> assert_has("#registration-form select[name$='[club_id]']", count: 3)
+      |> refute_has("#registration-form label", text: "Jogador 4")
+    end
+
+    test "removing a row keeps the other rows' players and clubs", ctx do
+      [ana, bia, caio, _] = ctx.players
+      [club_a, club_b, club_c] = ctx.clubs
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}")
+      |> click_button("Nova inscrição")
+      |> fill_in("Nome da equipe", with: "AABB")
+      |> select_pair_player(0, ana)
+      |> select_pair_player(1, bia)
+      |> select_pair_player(2, caio)
+      |> select("Clube 1", option: club_a.name)
+      |> select("Clube 2", option: club_b.name)
+      |> select("Clube 3", option: club_c.name)
+      |> within("#player-row-1", &click_button(&1, "Remover jogador"))
+      |> assert_has("#player-autocomplete[value='Ana']")
+      |> assert_has("#player-autocomplete-1[value='Caio']")
+      |> assert_has("#registration-form select[name$='[1][club_id]'] option[selected]",
+        text: club_c.name
+      )
+      |> click_button("Salvar")
+      |> assert_has("#registrations h3", text: "AABB")
+      |> assert_has("#registrations li li", text: "Caio")
+      |> refute_has("#registrations li li", text: "Bia")
+    end
+
+    test "registers a team and keeps the modal open with its clubs", ctx do
+      [ana, bia, caio, _] = ctx.players
+      [club_a, club_b, _] = ctx.clubs
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}")
+      |> click_button("Nova inscrição")
+      |> fill_in("Nome da equipe", with: "AABB")
+      |> select_pair_player(0, ana)
+      |> select_pair_player(1, bia)
+      |> select_pair_player(2, caio)
+      |> select("Clube 1", option: club_a.name)
+      |> select("Clube 2", option: club_a.name)
+      |> select("Clube 3", option: club_b.name)
+      |> click_button("Salvar")
+      |> assert_has("#registrations h3", text: "AABB")
+      |> assert_has("#registrations li li", text: "Ana")
+      |> assert_has("#registrations li li", text: "Caio")
+      |> assert_has("#registrations li li", text: "Clube B")
+      |> assert_has("#flash-info", text: "AABB")
+      |> assert_has("h2", text: "Nova Inscrição")
+      |> refute_has("#registration-form input[name='registration[name]'][value='AABB']")
+      |> assert_has("#registration-form select[name$='[2][club_id]'] option[selected]",
+        text: club_b.name
+      )
+    end
+
+    test "saving a team without a name shows an error", ctx do
+      [ana | _] = ctx.players
+      [club_a | _] = ctx.clubs
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}")
+      |> click_button("Nova inscrição")
+      |> select_pair_player(0, ana)
+      |> select("Clube 1", option: club_a.name)
+      |> click_button("Salvar")
+      |> assert_has("#registration-form", text: "can't be blank")
+      |> refute_has("#registrations h3", text: "Ana")
+    end
+
+    test "edits a team's name and adds a late player", ctx do
+      [ana, bia, caio, duda] = ctx.players
+      [club_a, club_b, club_c] = ctx.clubs
+      insert_team(ctx, "AABB", [{ana, club_a}, {bia, club_b}, {caio, club_c}])
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}")
+      |> click_button("Edit")
+      |> assert_has("h2", text: "Editar Inscrição")
+      |> assert_has("#player-autocomplete-2[value='Caio']")
+      |> fill_in("Nome da equipe", with: "AABB Renomeada")
+      |> click_button("Adicionar jogador")
+      |> select_pair_player(3, duda)
+      |> select("Clube 4", option: club_c.name)
+      |> click_button("Salvar")
+      |> refute_has("h2", text: "Editar Inscrição")
+      |> assert_has("#registrations h3", text: "AABB Renomeada")
+      |> assert_has("#registrations li li", text: "Duda")
+    end
+
+    test "visitors see the team name with its players and clubs", ctx do
+      [ana, bia | _] = ctx.players
+      [club_a, club_b, _] = ctx.clubs
+      insert_team(ctx, "AABB", [{ana, club_a}, {bia, club_b}])
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}")
+      |> assert_has("#registrations h3", text: "AABB")
+      |> assert_has("#registrations li li", text: "Ana")
+      |> assert_has("#registrations li li", text: "Clube A")
+      |> assert_has("#registrations li li", text: "Bia")
+      |> assert_has("#registrations li li", text: "Clube B")
+    end
+  end
 end

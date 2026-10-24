@@ -1,7 +1,6 @@
 defmodule T3SystemWeb.EventLive.Show do
   use T3SystemWeb, :live_view
 
-  alias T3System.Categories.Category
   alias T3System.Clubs
   alias T3System.Events
   alias T3System.Matches
@@ -275,7 +274,13 @@ defmodule T3SystemWeb.EventLive.Show do
                 tag="li"
                 class="flex items-center gap-3"
               >
+                <div :if={reg.name} class="min-w-0 flex-1 space-y-2">
+                  <h3 class="font-display text-lg font-black">{reg.name}</h3>
+                  <.final_standing final_standing={reg.final_standing} />
+                  <.team_members players={reg.registration_players} />
+                </div>
                 <.players
+                  :if={!reg.name}
                   players={reg.registration_players}
                   avatar_size="md"
                   show_clubs
@@ -648,71 +653,97 @@ defmodule T3SystemWeb.EventLive.Show do
             phx-submit="save_registration"
             class="space-y-6"
           >
+            <% team? = @active_category.format == "team"
+            numbered? = @active_category.format != "singles"
+            row_count = length(@form[:registration_players].value || []) %>
             <div class="space-y-5">
+              <.input
+                :if={team?}
+                field={@form[:name]}
+                type="text"
+                label={gettext("Nome da equipe")}
+                phx-mounted={JS.focus()}
+              />
               <.inputs_for :let={rp} field={@form[:registration_players]}>
-                <% pair? = Category.player_count(@active_category) == 2 %>
                 <.input
                   field={rp[:position]}
                   type="hidden"
                   value={rp[:position].value || rp.index + 1}
                 />
                 <.input field={rp[:player_id]} type="hidden" />
-                <div id={"player-combobox-#{rp.index}"} class={rp.index > 0 && "pt-2"}>
-                  <.label for={player_autocomplete_id(rp.index)}>
-                    {if pair?,
-                      do: gettext("Jogador %{n}", n: rp.index + 1),
-                      else: gettext("Jogador")}
-                  </.label>
-                  <%!-- Re-mounted (fresh options) when the key or another row's player changes --%>
-                  <div
-                    id={combobox_dom_id(rp.index, @combobox_key, @selected_players)}
-                    phx-hook=".PlayerCombobox"
-                    phx-update="ignore"
-                    data-index={rp.index}
-                  >
-                    <el-autocomplete class="relative block">
-                      <input
-                        id={player_autocomplete_id(rp.index)}
-                        type="text"
-                        placeholder={gettext("Buscar jogador...")}
-                        value={selected_player_name(@selected_players, rp.index)}
-                        phx-mounted={rp.index == 0 && JS.focus()}
-                        class={[field_class(), "pr-12"]}
+                <div id={"player-row-#{rp.index}"} class="space-y-5">
+                  <div id={"player-combobox-#{rp.index}"} class={(rp.index > 0 || team?) && "pt-2"}>
+                    <div class="flex items-center justify-between">
+                      <.label for={player_autocomplete_id(rp.index)}>
+                        {if numbered?,
+                          do: gettext("Jogador %{n}", n: rp.index + 1),
+                          else: gettext("Jogador")}
+                      </.label>
+                      <.icon_button
+                        :if={team? and row_count > 1}
+                        name="hero-x-mark-mini"
+                        sr_label={gettext("Remover jogador")}
+                        tone="danger"
+                        phx-click="remove_player_row"
+                        phx-value-index={rp.index}
                       />
-                      <button
-                        type="button"
-                        class="absolute inset-y-0 right-0 flex items-center rounded-r-control px-3"
-                      >
-                        <.icon name="hero-chevron-up-down" class="size-5 text-fg-muted" />
-                      </button>
-                      <el-options
-                        anchor="bottom end"
-                        popover
-                        class="max-h-60 w-(--input-width) overflow-auto rounded-control bg-surface py-1 text-base shadow-lg outline -outline-offset-1 outline-border transition-discrete [--anchor-gap:--spacing(1)] data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0 sm:text-sm"
-                      >
-                        <el-option
-                          :for={
-                            player <- row_players(@available_players, @selected_players, rp.index)
-                          }
-                          value={player.name}
-                          data-player-id={player.id}
-                          class="block truncate px-4 py-2 text-fg select-none aria-selected:bg-primary aria-selected:text-on-primary"
+                    </div>
+                    <%!-- Re-mounted (fresh options) when the key or another row's player changes --%>
+                    <div
+                      id={combobox_dom_id(rp.index, @combobox_key, @selected_players)}
+                      phx-hook=".PlayerCombobox"
+                      phx-update="ignore"
+                      data-index={rp.index}
+                    >
+                      <el-autocomplete class="relative block">
+                        <input
+                          id={player_autocomplete_id(rp.index)}
+                          type="text"
+                          placeholder={gettext("Buscar jogador...")}
+                          value={selected_player_name(@selected_players, rp.index)}
+                          phx-mounted={rp.index == 0 && !team? && JS.focus()}
+                          class={[field_class(), "pr-12"]}
+                        />
+                        <button
+                          type="button"
+                          class="absolute inset-y-0 right-0 flex items-center rounded-r-control px-3"
                         >
-                          {player.name}
-                        </el-option>
-                      </el-options>
-                    </el-autocomplete>
+                          <.icon name="hero-chevron-up-down" class="size-5 text-fg-muted" />
+                        </button>
+                        <el-options
+                          anchor="bottom end"
+                          popover
+                          class="max-h-60 w-(--input-width) overflow-auto rounded-control bg-surface py-1 text-base shadow-lg outline -outline-offset-1 outline-border transition-discrete [--anchor-gap:--spacing(1)] data-leave:transition data-leave:duration-100 data-leave:ease-in data-closed:data-leave:opacity-0 sm:text-sm"
+                        >
+                          <el-option
+                            :for={
+                              player <- row_players(@available_players, @selected_players, rp.index)
+                            }
+                            value={player.name}
+                            data-player-id={player.id}
+                            class="block truncate px-4 py-2 text-fg select-none aria-selected:bg-primary aria-selected:text-on-primary"
+                          >
+                            {player.name}
+                          </el-option>
+                        </el-options>
+                      </el-autocomplete>
+                    </div>
                   </div>
+                  <.player_errors field={rp[:player_id]} class="mt-1.5" />
+                  <.input
+                    field={rp[:club_id]}
+                    type="select"
+                    label={
+                      if numbered?, do: gettext("Clube %{n}", n: rp.index + 1), else: gettext("Clube")
+                    }
+                    options={Enum.map(@clubs, &{&1.name, &1.id})}
+                    prompt={gettext("Selecione um clube")}
+                  />
                 </div>
-                <.player_errors field={rp[:player_id]} class="mt-1.5" />
-                <.input
-                  field={rp[:club_id]}
-                  type="select"
-                  label={if pair?, do: gettext("Clube %{n}", n: rp.index + 1), else: gettext("Clube")}
-                  options={Enum.map(@clubs, &{&1.name, &1.id})}
-                  prompt={gettext("Selecione um clube")}
-                />
               </.inputs_for>
+              <.button :if={team?} type="button" phx-click="add_player_row">
+                <.icon name="hero-plus" /> {gettext("Adicionar jogador")}
+              </.button>
               <.player_errors field={@form[:registration_players]} />
               <.input
                 field={@form[:final_standing]}
@@ -724,7 +755,7 @@ defmodule T3SystemWeb.EventLive.Show do
               <input
                 type="hidden"
                 name="registration[category_id]"
-                value={@active_category && @active_category.id}
+                value={@active_category.id}
               />
             </div>
             <.modal_actions on_cancel="close_modal" />
@@ -1605,7 +1636,7 @@ defmodule T3SystemWeb.EventLive.Show do
     {:noreply, assign(socket, modal: nil, form: nil)}
   end
 
-  # `index` is the player row ("0" or "1" in a pair) whose combobox changed.
+  # `index` is the player row ("0", "1", ...) whose combobox changed.
   def handle_event("select_player", %{"id" => id, "name" => name} = params, socket) do
     index = Map.get(params, "index", "0")
     selected_players = Map.put(socket.assigns.selected_players, index, %{id: id, name: name})
@@ -1613,28 +1644,33 @@ defmodule T3SystemWeb.EventLive.Show do
     # Merge into the current params so other fields (e.g. club) are preserved
     attrs = RegistrationParams.put_player_id(socket.assigns.form.params, index, id)
 
-    form =
-      case socket.assigns.modal do
-        {:edit, reg} -> Registrations.change_registration(reg, attrs)
-        _ -> Registrations.change_registration(%Registration{}, attrs)
-      end
-      |> to_form()
-
-    {:noreply, assign(socket, selected_players: selected_players, form: form)}
+    {:noreply,
+     assign(socket, selected_players: selected_players, form: registration_form(socket, attrs))}
   end
 
   def handle_event("validate", %{"registration" => attrs}, socket) do
     attrs = RegistrationParams.put_selected_players(attrs, socket.assigns.selected_players)
+    {:noreply, assign(socket, :form, registration_form(socket, attrs, :validate))}
+  end
 
-    form =
-      case socket.assigns.modal do
-        {:edit, reg} -> Registrations.change_registration(reg, attrs)
-        _ -> Registrations.change_registration(%Registrations.Registration{}, attrs)
-      end
-      |> Map.put(:action, :validate)
-      |> to_form()
+  # A team's "add player" and remove-row controls.
+  def handle_event("add_player_row", _params, socket) do
+    attrs = RegistrationParams.add_row(socket.assigns.form.params)
+    {:noreply, assign(socket, :form, registration_form(socket, attrs))}
+  end
 
-    {:noreply, assign(socket, :form, form)}
+  def handle_event("remove_player_row", %{"index" => index}, socket) do
+    attrs = RegistrationParams.remove_row(socket.assigns.form.params, index)
+
+    {:noreply,
+     socket
+     |> assign(
+       form: registration_form(socket, attrs),
+       selected_players:
+         RegistrationParams.remove_selected_player(socket.assigns.selected_players, index)
+     )
+     # Rows moved up an index, so every combobox is rebuilt with its new value.
+     |> update(:combobox_key, &(&1 + 1))}
   end
 
   def handle_event("save_registration", %{"registration" => attrs}, socket) do
@@ -1673,9 +1709,7 @@ defmodule T3SystemWeb.EventLive.Show do
          |> update(:combobox_key, &(&1 + 1))
          |> put_flash(
            :info,
-           gettext("Inscrição de %{name} adicionada.",
-             name: player_names(reg.registration_players)
-           )
+           gettext("Inscrição de %{name} adicionada.", name: registration_name(reg))
          )}
 
       {_, {:ok, reg}} ->
@@ -2917,6 +2951,20 @@ defmodule T3SystemWeb.EventLive.Show do
     </span>
     """
   end
+
+  defp registration_form(socket, attrs, action \\ nil) do
+    changeset =
+      case socket.assigns.modal do
+        {:edit, reg} -> Registrations.change_registration(reg, attrs)
+        _ -> Registrations.change_registration(%Registration{}, attrs)
+      end
+
+    changeset |> Map.put(:action, action) |> to_form()
+  end
+
+  # A team is named by its name; a single player or pair by its players.
+  defp registration_name(%Registration{name: name}) when is_binary(name), do: name
+  defp registration_name(%Registration{} = reg), do: player_names(reg.registration_players)
 
   defp available_registrations(category_registrations, groups_with_standings) do
     taken_ids =

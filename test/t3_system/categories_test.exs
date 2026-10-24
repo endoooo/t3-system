@@ -112,7 +112,7 @@ defmodule T3System.CategoriesTest do
       scope = Scope.for_user(insert(:superuser))
 
       assert {:error, changeset} =
-               Categories.create_category(scope, %{name: "Equipes", format: "team"})
+               Categories.create_category(scope, %{name: "Trios", format: "trios"})
 
       assert %{format: ["is invalid"]} = errors_on(changeset)
     end

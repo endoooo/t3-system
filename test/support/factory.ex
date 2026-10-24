@@ -92,6 +92,23 @@ defmodule T3System.Factory do
     }
   end
 
+  def team_category_factory do
+    struct!(category_factory(), format: "team")
+  end
+
+  # A team in a team category: a name and three different players, each with
+  # their own club. `insert(:team, event: e, category: c)` with `c` a team
+  # category, or pass your own `registration_players`.
+  def team_factory do
+    %Registration{
+      name: sequence(:team_name, &"Team #{&1}"),
+      event: build(:event),
+      category: build(:team_category),
+      registration_players:
+        for(position <- 1..3, do: build(:registration_player, position: position))
+    }
+  end
+
   def registration_player_factory do
     %RegistrationPlayer{
       player: build(:player),

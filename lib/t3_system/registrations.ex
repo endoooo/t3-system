@@ -144,11 +144,11 @@ defmodule T3System.Registrations do
     changeset(registration, attrs)
   end
 
-  # The registration changeset plus the player rules of its category's format
-  # (singles: 1 player, doubles: 2 different players).
+  # The registration changeset plus the rules of its category's format
+  # (see `Registration.validate_format/2`).
   defp changeset(registration, attrs) do
     changeset = Registration.changeset(registration, attrs)
-    Registration.validate_players(changeset, category_format(changeset))
+    Registration.validate_format(changeset, category_format(changeset))
   end
 
   defp category_format(changeset) do

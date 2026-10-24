@@ -3,6 +3,9 @@ defmodule T3System.Registrations.RegistrationPlayer do
   One player of a registration, with the club they represent and a position
   used only for display order.
 
+  A team has any number of players; the registration changeset caps positions
+  by its category's format (1 for singles, 1..2 for doubles).
+
   The table also stores the registration's event and category (kept in sync by
   database triggers) so a player can appear at most once per event + category,
   in any position. Those columns are not part of this schema.
@@ -19,7 +22,7 @@ defmodule T3System.Registrations.RegistrationPlayer do
           registration_id: pos_integer(),
           player_id: pos_integer(),
           club_id: pos_integer(),
-          position: 1..2,
+          position: pos_integer(),
           registration: Registration.t() | Ecto.Association.NotLoaded.t(),
           player: Player.t() | Ecto.Association.NotLoaded.t(),
           club: Club.t() | Ecto.Association.NotLoaded.t(),
@@ -37,8 +40,6 @@ defmodule T3System.Registrations.RegistrationPlayer do
   end
 
   @required_fields [:player_id, :club_id, :position]
-  # A pair has at most two players.
-  @positions 1..2
 
   @doc false
   @spec changeset(t() | Ecto.Changeset.t(), map()) :: Ecto.Changeset.t()
@@ -46,10 +47,10 @@ defmodule T3System.Registrations.RegistrationPlayer do
     registration_player
     |> cast(attrs, @required_fields)
     |> validate_required(@required_fields)
-    |> validate_inclusion(:position, @positions)
+    |> validate_number(:position, greater_than_or_equal_to: 1)
     |> check_constraint(:position,
-      name: :registration_players_position_range,
-      message: "must be 1 or 2"
+      name: :registration_players_position_positive,
+      message: "must be at least 1"
     )
     |> assoc_constraint(:player)
     |> assoc_constraint(:club)

@@ -92,6 +92,29 @@ defmodule T3SystemWeb.PlayerComponents do
     """
   end
 
+  @doc """
+  Renders a team's players, one per line, each with their avatar, name and
+  club.
+
+  ## Examples
+
+      <.team_members players={registration.registration_players} />
+  """
+  attr :players, :list, required: true, doc: "entries with `:player` and `:club`"
+  attr :class, :any, default: "space-y-1.5"
+
+  def team_members(assigns) do
+    ~H"""
+    <ul class={@class}>
+      <li :for={entry <- @players} class="flex min-w-0 items-center gap-2">
+        <.avatar src={entry.player.picture_url} name={entry.player.name} size="xs" />
+        <span class="truncate text-sm text-fg">{entry.player.name}</span>
+        <span class="truncate text-sm text-primary">{entry.club.name}</span>
+      </li>
+    </ul>
+    """
+  end
+
   @doc ~s(Players' names joined by " / ", e.g. "Ana / Bia".)
   def player_names(players), do: Enum.map_join(players, @separator, & &1.player.name)
 
