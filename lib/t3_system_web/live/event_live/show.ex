@@ -5,6 +5,7 @@ defmodule T3SystemWeb.EventLive.Show do
   alias T3System.Events
   alias T3System.Matches
   alias T3System.Matches.Group
+  alias T3System.Matches.Match
   alias T3System.Matches.Stage
   alias T3System.Players
   alias T3System.Registrations
@@ -944,7 +945,7 @@ defmodule T3SystemWeb.EventLive.Show do
           module={T3SystemWeb.ScoreModalComponent}
           id="score-modal"
           match={elem(@score_modal, 0)}
-          labels={{slot_label(elem(@score_modal, 0), 1), slot_label(elem(@score_modal, 0), 2)}}
+          labels={{score_label(elem(@score_modal, 0), 1), score_label(elem(@score_modal, 0), 2)}}
           scope={@current_scope}
           event={@event}
           on_close="close_score_modal"
@@ -1288,7 +1289,11 @@ defmodule T3SystemWeb.EventLive.Show do
               <div class="min-w-0 flex-1">
                 <p class="truncate text-xs text-fg-muted">{schedule_match_label(match)}</p>
                 <p class="truncate text-sm">
-                  {slot_label(match, 1)} <span class="text-fg-muted">vs</span> {slot_label(match, 2)}
+                  {schedule_slot_label(match, 1)}
+                  <span class="text-fg-muted">vs</span> {schedule_slot_label(
+                    match,
+                    2
+                  )}
                 </p>
               </div>
               <.button
@@ -1439,6 +1444,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:all_match_cards, [])
       |> assign(:ongoing_match_cards, [])
       |> assign(:next_match_cards, [])
+      |> assign(:overview_inner_matches, [])
       |> assign(:filter_player_id, nil)
       |> assign(:match_view, "all")
       |> assign(:match_filter_players, [])
@@ -1939,7 +1945,8 @@ defmodule T3SystemWeb.EventLive.Show do
     match_id = String.to_integer(id)
 
     score_modal =
-      find_match_across_stages(match_id, socket.assigns.stages ++ socket.assigns.event_stages)
+      find_match_across_stages(match_id, socket.assigns.stages ++ socket.assigns.event_stages) ||
+        find_inner_match(match_id, socket.assigns.overview_inner_matches)
 
     {:noreply, assign(socket, :score_modal, score_modal)}
   end
@@ -2413,11 +2420,14 @@ defmodule T3SystemWeb.EventLive.Show do
   defp match_view_empty_message("next"), do: gettext("Nenhum próximo jogo.")
   defp match_view_empty_message(_view), do: gettext("No matches yet.")
 
-  # Ongoing matches, and the next match of each table (across all categories)
+  # Ongoing matches, and the next match of each table (across all categories).
+  # Team matches aren't played on tables: the matches inside them are shown.
   defp assign_overview_match_cards(%{assigns: %{current_tab: "overview"}} = socket) do
-    stages = Matches.list_stages_with_matches_for_event(socket.assigns.event.id)
+    %{event: event, active_category: active_category} = socket.assigns
+    stages = Matches.list_stages_with_matches_for_event(event.id)
+    inner_matches = Matches.list_pending_inner_matches(event.id)
 
-    cards =
+    stage_cards =
       stages
       |> Enum.flat_map(fn stage ->
         stage
@@ -2425,6 +2435,19 @@ defmodule T3SystemWeb.EventLive.Show do
         |> Enum.map(&Map.put(&1, :category_name, stage.category.name))
       end)
       |> Enum.reject(&(&1.kind == :team or &1.is_bye or &1.finished))
+
+    back_params = tab_params(nil, active_category, "overview")
+
+    inner_cards =
+      Enum.map(inner_matches, fn match ->
+        inner_match_card_data(match,
+          label: team_match_context(match),
+          label_navigate: ~p"/events/#{event}/team-matches/#{match.team_match_id}?#{back_params}",
+          category_name: team_match_category(match.team_match).name
+        )
+      end)
+
+    cards = stage_cards ++ inner_cards
 
     {ongoing, pending} = Enum.split_with(cards, & &1.ongoing)
 
@@ -2436,6 +2459,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
     socket
     |> assign(:event_stages, stages)
+    |> assign(:overview_inner_matches, inner_matches)
     |> assign(:ongoing_match_cards, sort_by_schedule(ongoing))
     |> assign(:next_match_cards, sort_by_schedule(next))
   end
@@ -2501,6 +2525,13 @@ defmodule T3SystemWeb.EventLive.Show do
       find_match_in_groups(match_id, stage.groups) ||
         find_match_in_stage(match_id, stage)
     end)
+  end
+
+  defp find_inner_match(match_id, inner_matches) do
+    case Enum.find(inner_matches, &(&1.id == match_id)) do
+      nil -> nil
+      match -> {match, :team_match}
+    end
   end
 
   defp find_match_in_groups(match_id, groups) do
@@ -2708,7 +2739,7 @@ defmodule T3SystemWeb.EventLive.Show do
             "font-bold"
         ]}
       >
-        {slot_label(@match, slot)}
+        {schedule_slot_label(@match, slot)}
       </p>
       <button
         :if={@can_toggle_ongoing}
@@ -2752,8 +2783,8 @@ defmodule T3SystemWeb.EventLive.Show do
     |> then(&if(list == "finished", do: Map.put(&1, "list", list), else: &1))
   end
 
-  # Matches inside team matches get their team match context with ticket 07
-  defp schedule_match_label(%{team_match_id: id}) when not is_nil(id), do: gettext("Equipes")
+  defp schedule_match_label(%{team_match: %Match{} = team_match} = match),
+    do: "#{team_match_category(team_match).name} · #{team_match_context(match)}"
 
   defp schedule_match_label(%{group: %Group{} = group}),
     do: "#{group.stage.category.name} · #{group.name}"
@@ -2771,8 +2802,31 @@ defmodule T3SystemWeb.EventLive.Show do
   defp filter_unscheduled(matches, category_id),
     do: Enum.filter(matches, &(schedule_match_category(&1).id == category_id))
 
+  defp schedule_match_category(%{team_match: %Match{} = team_match}),
+    do: team_match_category(team_match)
+
   defp schedule_match_category(%{group: %Group{stage: stage}}), do: stage.category
   defp schedule_match_category(%{stage: %Stage{} = stage}), do: stage.category
+
+  defp team_match_category(%Match{group: %Group{stage: stage}}), do: stage.category
+  defp team_match_category(%Match{stage: %Stage{} = stage}), do: stage.category
+
+  # A schedule side: the position label and players of a match inside a team
+  # match, the registration (or bracket slot) otherwise
+  defp schedule_slot_label(%Match{team_match_id: id} = match, slot) when not is_nil(id) do
+    position = if slot == 1, do: match.position1, else: match.position2
+
+    [position, match_side_names(match, slot, :full)]
+    |> Enum.reject(&(&1 in [nil, ""]))
+    |> Enum.join(" ")
+  end
+
+  defp schedule_slot_label(match, slot), do: slot_label(match, slot)
+
+  defp score_label(%Match{team_match_id: id} = match, slot) when not is_nil(id),
+    do: match_side_names(match, slot, :full)
+
+  defp score_label(match, slot), do: slot_label(match, slot)
 
   defp slot_registration_id(match, 1), do: match.registration1_id
   defp slot_registration_id(match, 2), do: match.registration2_id

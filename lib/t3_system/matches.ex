@@ -771,12 +771,76 @@ defmodule T3System.Matches do
   # Table schedule
   # ---------------------------------------------------------------------------
 
-  @schedule_preloads [
+  @team_match_context_preloads [
     group: [stage: :category],
     stage: :category,
     registration1: @registration_preload,
     registration2: @registration_preload
   ]
+
+  @schedule_preloads [
+    group: [stage: :category],
+    stage: :category,
+    registration1: @registration_preload,
+    registration2: @registration_preload,
+    match_players: {from(mp in MatchPlayer, order_by: mp.id), :player},
+    team_match: @team_match_context_preloads
+  ]
+
+  # Matches with their stage and category as named bindings (`:team_match`,
+  # `:group`, `:stage`, `:category`), reached through the group, the bracket
+  # stage or, for matches inside a team match, the team match's group or stage
+  defp with_category(query) do
+    query
+    |> join(:left, [m], tm in Match, as: :team_match, on: tm.id == m.team_match_id)
+    |> join(:left, [m, team_match: tm], g in Group,
+      as: :group,
+      on: g.id == coalesce(m.group_id, tm.group_id)
+    )
+    |> join(:inner, [m, team_match: tm, group: g], s in Stage,
+      as: :stage,
+      on: s.id == coalesce(coalesce(m.stage_id, tm.stage_id), g.stage_id)
+    )
+    |> join(:inner, [stage: s], c in Category, as: :category, on: c.id == s.category_id)
+  end
+
+  # Playable matches: team matches only wrap the matches inside them, they're
+  # never played on a table. Needs `with_category/1`.
+  defp playable(query) do
+    where(query, [m, category: c], c.format != "team" or not is_nil(m.team_match_id))
+  end
+
+  defp playable_match_ids(event_id) do
+    Match
+    |> where([m], m.event_id == ^event_id)
+    |> with_category()
+    |> playable()
+    |> select([m], m.id)
+  end
+
+  defp get_playable_match(event_id, match_id) do
+    Match
+    |> where([m], m.id == ^match_id and m.id in subquery(playable_match_ids(event_id)))
+    |> Repo.one()
+  end
+
+  @doc """
+  Returns the matches inside team matches of the event that have no winner
+  yet, with their sets, table, players and team match (teams, group or stage
+  and category) preloaded.
+  """
+  @spec list_pending_inner_matches(pos_integer()) :: [Match.t()]
+  def list_pending_inner_matches(event_id) do
+    Match
+    |> where(
+      [m],
+      m.event_id == ^event_id and not is_nil(m.team_match_id) and
+        is_nil(m.winner_registration_id) and not m.is_bye
+    )
+    |> order_by([m], m.id)
+    |> Repo.all()
+    |> Repo.preload([:sets, :table | @schedule_preloads])
+  end
 
   @doc """
   Returns the match queue of every table in the event, as maps with `:table`,
@@ -791,6 +855,7 @@ defmodule T3System.Matches do
     matches_by_table =
       Match
       |> where([m], m.event_id == ^event_id and not is_nil(m.table_id) and not m.is_bye)
+      |> where([m], m.id in subquery(playable_match_ids(event_id)))
       |> order_by([m], [m.table_position, m.id])
       |> Repo.all()
       |> Repo.preload(@schedule_preloads)
@@ -819,22 +884,23 @@ defmodule T3System.Matches do
   @spec list_unscheduled_matches(pos_integer(), pos_integer() | nil) :: [Match.t()]
   def list_unscheduled_matches(event_id, category_id \\ nil) do
     Match
-    |> join(:left, [m], g in Group, on: m.group_id == g.id)
-    |> join(:inner, [m, g], s in Stage, on: s.id == coalesce(m.stage_id, g.stage_id))
-    |> join(:inner, [m, g, s], c in Category, on: c.id == s.category_id)
+    |> with_category()
+    |> playable()
     |> where(
       [m],
       m.event_id == ^event_id and is_nil(m.table_id) and is_nil(m.winner_registration_id) and
         not m.is_bye
     )
     |> maybe_filter_category(category_id)
-    |> order_by([m, g, s, c], [
+    # Matches inside a team match follow their team match's order, then their own
+    |> order_by([m, team_match: tm, group: g, stage: s, category: c], [
       c.name,
       s.order,
       g.position,
-      m.scheduled_position,
-      m.round,
-      m.position,
+      coalesce(tm.scheduled_position, m.scheduled_position),
+      coalesce(tm.round, m.round),
+      coalesce(tm.position, m.position),
+      coalesce(tm.id, m.id),
       m.id
     ])
     |> Repo.all()
@@ -848,7 +914,7 @@ defmodule T3System.Matches do
   `lists` holds the new state of each list touched by the move, as maps with
   `:table_id` (nil for the unscheduled pool) and `:match_ids` in queue order.
   Matches moved to the pool lose their table and time. Finished matches, byes,
-  and matches or tables from other events are ignored.
+  team matches, and matches or tables from other events are ignored.
   """
   @spec update_table_schedule(Scope.t(), Event.t(), [
           %{table_id: pos_integer() | nil, match_ids: [pos_integer()]}
@@ -861,7 +927,9 @@ defmodule T3System.Matches do
 
     movable =
       from(m in Match,
-        where: m.event_id == ^event.id and is_nil(m.winner_registration_id) and not m.is_bye
+        where:
+          m.event_id == ^event.id and is_nil(m.winner_registration_id) and not m.is_bye and
+            m.id in subquery(playable_match_ids(event.id))
       )
 
     moved_ids = Enum.flat_map(lists, & &1.match_ids)
@@ -890,18 +958,18 @@ defmodule T3System.Matches do
   defp maybe_filter_category(query, nil), do: query
 
   defp maybe_filter_category(query, category_id),
-    do: where(query, [m, g, s], s.category_id == ^category_id)
+    do: where(query, [stage: s], s.category_id == ^category_id)
 
   @doc """
-  Adds a pending match to the end of a table queue and schedules it.
-  Requires a superuser scope.
+  Adds a pending match to the end of a table queue and schedules it. Team
+  matches can't be added. Requires a superuser scope.
   """
   @spec add_match_to_table(Scope.t(), Event.t(), pos_integer(), pos_integer()) ::
           :ok | {:error, :not_found}
   def add_match_to_table(%Scope{user: %{role: "superuser"}}, %Event{} = event, match_id, table_id) do
     with %Table{} <- Repo.get_by(Table, id: table_id, event_id: event.id),
          %Match{winner_registration_id: nil, is_bye: false} = match <-
-           Repo.get_by(Match, id: match_id, event_id: event.id) do
+           get_playable_match(event.id, match_id) do
       Repo.transaction(fn -> append_to_table(event, match, table_id) end)
       Events.broadcast_event_updated(event.id)
       :ok
@@ -957,7 +1025,7 @@ defmodule T3System.Matches do
           :ok | {:error, :not_found}
   def set_match_ongoing(%Scope{user: %{role: "superuser"}}, %Event{} = event, match_id, ongoing?) do
     with %Match{winner_registration_id: nil, is_bye: false, table_id: table_id} = match
-         when not is_nil(table_id) <- Repo.get_by(Match, id: match_id, event_id: event.id),
+         when not is_nil(table_id) <- get_playable_match(event.id, match_id),
          ^match_id <- first_pending_match_id(table_id) do
       Repo.transaction(fn ->
         match |> Ecto.Changeset.change(is_ongoing: ongoing?) |> Repo.update!()
@@ -1124,7 +1192,8 @@ defmodule T3System.Matches do
   # ---------------------------------------------------------------------------
 
   @doc """
-  Returns match counts per category for a given event. Byes are not counted.
+  Returns match counts per category for a given event. Byes and team matches
+  are not counted (the matches inside team matches are).
   """
   @spec count_matches_per_category(pos_integer()) :: [
           %{category_name: String.t(), count: integer()}
@@ -1132,17 +1201,17 @@ defmodule T3System.Matches do
   def count_matches_per_category(event_id) do
     Match
     |> where([m], m.event_id == ^event_id and not m.is_bye)
-    |> join(:left, [m], g in Group, on: m.group_id == g.id)
-    |> join(:inner, [m, g], s in Stage, on: s.id == coalesce(m.stage_id, g.stage_id))
-    |> join(:inner, [m, g, s], c in Category, on: c.id == s.category_id)
-    |> group_by([m, g, s, c], c.name)
-    |> select([m, g, s, c], %{category_name: c.name, count: count(m.id)})
-    |> order_by([m, g, s, c], c.name)
+    |> with_category()
+    |> playable()
+    |> group_by([category: c], c.name)
+    |> select([m, category: c], %{category_name: c.name, count: count(m.id)})
+    |> order_by([category: c], c.name)
     |> Repo.all()
   end
 
   @doc """
-  Returns finished vs unfinished match counts for a given event. Byes are not counted.
+  Returns finished vs unfinished match counts for a given event. Byes and team
+  matches are not counted.
   """
   @spec count_matches_by_status(pos_integer()) :: %{
           finished: integer(),
@@ -1152,6 +1221,7 @@ defmodule T3System.Matches do
     result =
       Match
       |> where([m], m.event_id == ^event_id and not m.is_bye)
+      |> where([m], m.id in subquery(playable_match_ids(event_id)))
       |> select([m], %{
         finished: count() |> filter(not is_nil(m.winner_registration_id)),
         unfinished: count() |> filter(is_nil(m.winner_registration_id))
@@ -1163,7 +1233,7 @@ defmodule T3System.Matches do
 
   @doc """
   Returns match counts per table and unassigned unfinished count for a given event.
-  Byes are not counted.
+  Byes and team matches are not counted.
   """
   @spec count_matches_per_table(pos_integer()) ::
           {%{pos_integer() => %{finished: integer(), unfinished: integer()}}, integer()}
@@ -1171,6 +1241,7 @@ defmodule T3System.Matches do
     rows =
       Match
       |> where([m], m.event_id == ^event_id and not m.is_bye)
+      |> where([m], m.id in subquery(playable_match_ids(event_id)))
       |> group_by([m], m.table_id)
       |> select([m], %{
         table_id: m.table_id,

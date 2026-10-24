@@ -2640,5 +2640,105 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("#team-match-#{team_match.id}", text: "Final")
       |> assert_has("#team-match-#{team_match.id}", text: "0 — 0")
     end
+
+    # A singles match inside the team match: Ana (A) x Caio (X)
+    defp insert_inner_match(team_match, ctx, attrs \\ []) do
+      [ana, _, caio, _] = ctx.players
+
+      insert(
+        :inner_match,
+        [
+          team_match: team_match,
+          players1: [ana.id],
+          players2: [caio.id],
+          position1: "A",
+          position2: "X"
+        ] ++ attrs
+      )
+    end
+
+    test "the schedule lists matches inside team matches with their context", ctx do
+      %{team_match: team_match} = team_match_setup(ctx)
+      table = insert(:table, event: ctx.event, name: "Mesa 1")
+      unscheduled = insert_inner_match(team_match, ctx)
+      scheduled = insert_inner_match(team_match, ctx, table: table)
+      # The pool's category filter shows with more than one category
+      associate_category(ctx.event, insert(:category, name: "Adulto"))
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> assert_has("#unscheduled-indicator", text: "1 partida sem mesa")
+      |> assert_has("#schedule-match-#{scheduled.id}", text: "Equipes · AABB x Clube Y · A x X")
+      |> assert_has("#schedule-match-#{scheduled.id}", text: "Ana")
+      |> assert_has("#schedule-match-#{scheduled.id}", text: "Caio")
+      |> refute_has("#schedule-match-#{scheduled.id} a")
+      |> refute_has("#schedule-match-#{team_match.id}")
+      |> click_button("#unscheduled-indicator", "1 partida sem mesa")
+      |> assert_has("#unscheduled-match-#{unscheduled.id}", text: "AABB x Clube Y · A x X")
+      |> refute_has("#unscheduled-match-#{team_match.id}")
+      |> select("Categoria", option: "Equipes")
+      |> assert_has("#unscheduled-match-#{unscheduled.id}")
+      |> within("#assign-table-form-#{unscheduled.id}", &select(&1, "Mesa", option: "Mesa 1"))
+      |> assert_has("#schedule-match-#{unscheduled.id}", text: "12:")
+      |> assert_has("#unscheduled-indicator", text: "0 partidas sem mesa")
+    end
+
+    test "a match inside a team match can be toggled as ongoing from the schedule", ctx do
+      %{team_match: team_match} = team_match_setup(ctx)
+      table = insert(:table, event: ctx.event, name: "Mesa 1")
+      inner = insert_inner_match(team_match, ctx, table: table)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management&view=schedule")
+      |> click_button("#schedule-match-#{inner.id} button[role=switch]", "Em andamento")
+      |> assert_has("#schedule-match-#{inner.id} button[role=switch][aria-checked=true]")
+    end
+
+    test "the unassigned warning counts matches inside team matches, not team matches", ctx do
+      %{team_match: team_match} = team_match_setup(ctx)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management")
+      |> refute_has("[role=alert]", text: "sem mesa")
+
+      insert_inner_match(team_match, ctx)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=management")
+      |> assert_has("*", text: "1 jogo pendente sem mesa")
+    end
+
+    test "the overview shows ongoing and next matches inside team matches with their context",
+         ctx do
+      %{team_match: team_match} = team_match_setup(ctx)
+      table1 = insert(:table, event: ctx.event, name: "Mesa 1")
+      table2 = insert(:table, event: ctx.event, name: "Mesa 2")
+      ongoing = insert_inner_match(team_match, ctx, table: table1, is_ongoing: true)
+      next = insert_inner_match(team_match, ctx, table: table2, position1: "B", position2: "Y")
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?category_id=#{ctx.category.id}")
+      |> refute_has("#ongoing-matches #team-match-#{team_match.id}")
+      |> assert_has("#ongoing-matches #match-#{ongoing.id}", text: "AABB x Clube Y · A x X")
+      |> assert_has("#ongoing-matches #match-#{ongoing.id}", text: "Ana")
+      |> assert_has("#ongoing-matches #match-#{ongoing.id}", text: "Equipes")
+      |> assert_has("#next-matches #match-#{next.id}", text: "AABB x Clube Y · B x Y")
+      |> click_link("#match-#{next.id} a", "AABB x Clube Y · B x Y")
+      |> assert_path(~p"/events/#{ctx.event}/team-matches/#{team_match}",
+        query_params: %{"tab" => "overview", "category_id" => to_string(ctx.category.id)}
+      )
+    end
+
+    test "superusers score a match inside a team match from the overview", ctx do
+      %{team_match: team_match} = team_match_setup(ctx)
+      table = insert(:table, event: ctx.event, name: "Mesa 1")
+      inner = insert_inner_match(team_match, ctx, table: table, is_ongoing: true)
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?category_id=#{ctx.category.id}")
+      |> click_button("#match-#{inner.id} button", "Resultados")
+      |> assert_has("#score-modal", text: "Ana")
+      |> assert_has("#score-modal", text: "Caio")
+    end
   end
 end

@@ -10,9 +10,12 @@ defmodule T3SystemWeb.MatchComponents do
   import T3SystemWeb.CoreComponents,
     only: [button: 1, card: 1, icon: 1, tooltip: 1]
 
+  import T3SystemWeb.PlayerComponents, only: [player_names: 1, player_short_names: 1]
+
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.Stage
+  alias T3System.Registrations.Registration
 
   @doc """
   A bracket round's name, counted from the final: "Final", "Semis",
@@ -47,10 +50,66 @@ defmodule T3SystemWeb.MatchComponents do
   def stage_label(%Match{stage: %Stage{} = stage}), do: stage.name
 
   @doc """
+  A match inside a team match, in its team match's context: the team names
+  and its position labels, "AABB A x Clube Y · AB x XY". Needs the team match
+  (with its teams) preloaded.
+  """
+  @spec team_match_context(Match.t()) :: String.t()
+  def team_match_context(%Match{team_match: %Match{} = team_match} = match) do
+    teams = "#{team_label(team_match.registration1)} x #{team_label(team_match.registration2)}"
+
+    if blank?(match.position1) and blank?(match.position2),
+      do: teams,
+      else: "#{teams} · #{match.position1} x #{match.position2}"
+  end
+
+  defp team_label(%Registration{name: name}), do: name
+  defp team_label(_registration), do: gettext("TBD")
+
+  defp blank?(value), do: value in [nil, ""]
+
+  @doc """
+  The players of one side (1 or 2) of a match inside a team match, from its
+  preloaded match players: short (`:short`) or full (`:full`) names.
+  """
+  @spec match_side_names(Match.t(), 1 | 2, :short | :full) :: String.t()
+  def match_side_names(%Match{match_players: players}, side, format) do
+    case Enum.filter(players, &(&1.side == side)) do
+      [] -> gettext("TBD")
+      side_players when format == :short -> player_short_names(side_players)
+      side_players -> player_names(side_players)
+    end
+  end
+
+  @doc """
+  The `match_card/1` data of a match inside a team match (sets, table and
+  match players preloaded): position labels and each side's players. `fields`
+  names the card (`:label`, ...) like in `match_card_data/2`.
+  """
+  @spec inner_match_card_data(Match.t(), map() | keyword()) :: map()
+  def inner_match_card_data(%Match{} = match, fields) do
+    match_card_data(
+      match,
+      Map.merge(
+        %{
+          p1_position: match.position1,
+          p2_position: match.position2,
+          p1_name: match_side_names(match, 1, :short),
+          p2_name: match_side_names(match, 2, :short),
+          p1_full_name: match_side_names(match, 1, :full),
+          p2_full_name: match_side_names(match, 2, :full)
+        },
+        Map.new(fields)
+      )
+    )
+  end
+
+  @doc """
   The data `match_card/1` renders, from a match with its sets and table
   preloaded. `fields` names the card (`:label`, `:p1_name`, `:p2_name`,
-  `:p1_full_name`, `:p2_full_name`, optional `:p1_position`/`:p2_position`)
-  and may add keys the caller needs (e.g. a sort key).
+  `:p1_full_name`, `:p2_full_name`, optional `:p1_position`/`:p2_position`
+  and `:label_navigate`, a path that turns the label into a link) and may add
+  keys the caller needs (e.g. a sort key).
   """
   @spec match_card_data(Match.t(), map() | keyword()) :: map()
   def match_card_data(%Match{} = match, fields) do
@@ -75,7 +134,8 @@ defmodule T3SystemWeb.MatchComponents do
         p1_won: not is_nil(winner_id) and winner_id == match.registration1_id,
         p2_won: not is_nil(winner_id) and winner_id == match.registration2_id,
         p1_position: nil,
-        p2_position: nil
+        p2_position: nil,
+        label_navigate: nil
       },
       Map.new(fields)
     )
@@ -107,7 +167,14 @@ defmodule T3SystemWeb.MatchComponents do
       <div class="flex items-center gap-4 border-b border-border px-4 py-2.5">
         <.ongoing_dot :if={@card.ongoing} class="-mr-2" />
         <p class="min-w-0 flex-1 truncate font-display text-sm font-bold text-fg-muted">
-          {@card.label}
+          <.link
+            :if={@card.label_navigate}
+            navigate={@card.label_navigate}
+            class="hover:text-fg hover:underline"
+          >
+            {@card.label}
+          </.link>
+          <span :if={!@card.label_navigate}>{@card.label}</span>
         </p>
         <p :if={@card.scheduled_at || @card.table} class="text-xs text-fg-muted">
           {if @card.scheduled_at, do: Calendar.strftime(@card.scheduled_at, "%H:%M")}

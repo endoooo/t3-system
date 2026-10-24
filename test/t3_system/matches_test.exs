@@ -1576,6 +1576,118 @@ defmodule T3System.MatchesTest do
     end
   end
 
+  describe "schedule and counts in team categories" do
+    setup do
+      event = insert(:event, datetime: ~U[2026-03-07 12:00:00Z], match_duration_minutes: 20)
+      category = insert(:team_category, name: "Equipes")
+      stage = insert(:stage, event: event, category: category)
+      group = insert(:group, stage: stage)
+      team1 = insert(:team, event: event, category: category, name: "AABB A")
+      team2 = insert(:team, event: event, category: category, name: "Clube Y")
+
+      team_match =
+        insert(:team_match,
+          event: event,
+          group: group,
+          registration1: team1,
+          registration2: team2
+        )
+
+      %{
+        scope: Scope.for_user(insert(:superuser)),
+        event: event,
+        category: category,
+        team_match: team_match,
+        table: insert(:table, event: event)
+      }
+    end
+
+    defp finished_inner_match(ctx, attrs \\ []) do
+      insert(
+        :inner_match,
+        [team_match: ctx.team_match, winner_registration_id: ctx.team_match.registration1_id] ++
+          attrs
+      )
+    end
+
+    test "the unscheduled pool lists inner matches, never team matches", ctx do
+      inner = insert(:inner_match, team_match: ctx.team_match)
+      _finished = finished_inner_match(ctx)
+
+      assert [match] = Matches.list_unscheduled_matches(ctx.event.id)
+      assert match.id == inner.id
+      assert match.team_match.registration1.name == "AABB A"
+
+      assert [%{id: id}] = Matches.list_unscheduled_matches(ctx.event.id, ctx.category.id)
+      assert id == inner.id
+    end
+
+    test "inner matches are scheduled, toggled ongoing and listed on tables", ctx do
+      inner1 = insert(:inner_match, team_match: ctx.team_match)
+      inner2 = insert(:inner_match, team_match: ctx.team_match)
+
+      :ok =
+        Matches.update_table_schedule(ctx.scope, ctx.event, [
+          %{table_id: ctx.table.id, match_ids: [inner1.id]}
+        ])
+
+      :ok = Matches.add_match_to_table(ctx.scope, ctx.event, inner2.id, ctx.table.id)
+      :ok = Matches.set_match_ongoing(ctx.scope, ctx.event, inner1.id, true)
+
+      assert [%{pending: [first, second]}] = Matches.list_table_schedules(ctx.event.id)
+
+      assert {first.id, first.is_ongoing, first.scheduled_at} ==
+               {inner1.id, true, ctx.event.datetime}
+
+      assert {second.id, second.scheduled_at} == {inner2.id, ~U[2026-03-07 12:20:00Z]}
+      assert first.team_match.registration2.name == "Clube Y"
+    end
+
+    test "team matches can't be put on a table", ctx do
+      tm = ctx.team_match
+
+      assert {:error, :not_found} =
+               Matches.add_match_to_table(ctx.scope, ctx.event, tm.id, ctx.table.id)
+
+      :ok =
+        Matches.update_table_schedule(ctx.scope, ctx.event, [
+          %{table_id: ctx.table.id, match_ids: [tm.id]}
+        ])
+
+      assert Repo.get!(Match, tm.id).table_id == nil
+      assert [%{pending: [], finished: []}] = Matches.list_table_schedules(ctx.event.id)
+    end
+
+    test "counts and the unassigned count include inner matches, not team matches", ctx do
+      _pending = insert(:inner_match, team_match: ctx.team_match)
+      _on_table = insert(:inner_match, team_match: ctx.team_match, table: ctx.table)
+      _finished = finished_inner_match(ctx, table: ctx.table)
+
+      assert Matches.count_matches_per_category(ctx.event.id) == [
+               %{category_name: "Equipes", count: 3}
+             ]
+
+      assert Matches.count_matches_by_status(ctx.event.id) == %{finished: 1, unfinished: 2}
+
+      table_id = ctx.table.id
+
+      assert {%{^table_id => %{finished: 1, unfinished: 1}}, 1} =
+               Matches.count_matches_per_table(ctx.event.id)
+    end
+
+    test "list_pending_inner_matches/1 lists unfinished inner matches with their team match",
+         ctx do
+      inner = insert(:inner_match, team_match: ctx.team_match, position1: "A", position2: "X")
+      _finished = finished_inner_match(ctx)
+      _regular = insert(:match, event: ctx.event)
+
+      assert [match] = Matches.list_pending_inner_matches(ctx.event.id)
+      assert match.id == inner.id
+      assert match.team_match.registration2.name == "Clube Y"
+      assert [%{side: 1, player: %{}}, %{side: 2}] = match.match_players
+    end
+  end
+
   describe "event broadcasts" do
     setup do
       event = insert(:event)

@@ -205,7 +205,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
         module={T3SystemWeb.ScoreModalComponent}
         id="score-modal"
         match={@score_match}
-        labels={{side_names(@score_match, 1, :full), side_names(@score_match, 2, :full)}}
+        labels={{match_side_names(@score_match, 1, :full), match_side_names(@score_match, 2, :full)}}
         scope={@current_scope}
         event={@event}
         on_close="close_score_modal"
@@ -456,30 +456,9 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
     inner_matches
     |> Enum.with_index(1)
     |> Enum.map(fn {match, n} ->
-      match_card_data(match,
-        label: gettext("Partida %{n}", n: n),
-        p1_position: match.position1,
-        p2_position: match.position2,
-        p1_name: side_names(match, 1, :short),
-        p2_name: side_names(match, 2, :short),
-        p1_full_name: side_names(match, 1, :full),
-        p2_full_name: side_names(match, 2, :full)
-      )
+      inner_match_card_data(match, label: gettext("Partida %{n}", n: n))
     end)
   end
-
-  # The players of one side of a match inside the team match
-  defp side_names(%Match{match_players: players}, side, format) do
-    players
-    |> Enum.filter(&(&1.side == side))
-    |> then(fn
-      [] -> gettext("TBD")
-      side_players -> names(side_players, format)
-    end)
-  end
-
-  defp names(players, :short), do: player_short_names(players)
-  defp names(players, :full), do: player_names(players)
 
   defp flush_event_updates(event_id) do
     receive do
