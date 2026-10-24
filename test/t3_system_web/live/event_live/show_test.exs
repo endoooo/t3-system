@@ -1925,10 +1925,10 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       assert has_element?(view, "button[phx-click=remove_score_row]")
 
       # Remove rows until only 1 remains
-      render_click(view, "remove_score_row")
+      view |> element("#remove-set-3") |> render_click()
       assert has_element?(view, "button[phx-click=remove_score_row]")
 
-      render_click(view, "remove_score_row")
+      view |> element("#remove-set-2") |> render_click()
 
       # At 1 row, remove buttons should be hidden
       refute has_element?(view, "button[phx-click=remove_score_row]")

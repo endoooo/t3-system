@@ -892,91 +892,16 @@ defmodule T3SystemWeb.EventLive.Show do
         </.modal>
 
         <%!-- Scores modal --%>
-        <.modal
+        <.live_component
           :if={@score_modal != nil}
+          module={T3SystemWeb.ScoreModalComponent}
           id="score-modal"
-          title={gettext("Editar Resultados")}
+          match={elem(@score_modal, 0)}
+          labels={{slot_label(elem(@score_modal, 0), 1), slot_label(elem(@score_modal, 0), 2)}}
+          scope={@current_scope}
+          event={@event}
           on_close="close_score_modal"
-        >
-          <% {sm_match, _sm_context} = @score_modal %>
-          <% sm_sets_by_num = Map.new(sm_match.sets, &{&1.set_number, &1}) %>
-          <form id="score-form" phx-submit="save_scores" class="space-y-6">
-            <div>
-              <div class="grid w-full grid-cols-[min-content_minmax(0,1fr)_min-content_minmax(0,1fr)_2.5rem] items-center gap-2 text-center">
-                <%!-- Column headers --%>
-                <div class="col-span-5 grid grid-cols-subgrid items-center text-xs text-fg-muted">
-                  <span>{gettext("Set")}</span>
-                  <span class="truncate text-fg">
-                    <span class="font-bold text-fg-muted">P1</span> {slot_label(sm_match, 1)}
-                  </span>
-                  <span>vs</span>
-                  <span class="truncate text-fg">
-                    <span class="font-bold text-fg-muted">P2</span> {slot_label(sm_match, 2)}
-                  </span>
-                </div>
-                <%!-- Set rows --%>
-                <div
-                  :for={n <- 1..@score_set_count}
-                  class="col-span-5 grid grid-cols-subgrid items-center"
-                >
-                  <% sm_set = Map.get(sm_sets_by_num, n) %>
-                  <input :if={sm_set} type="hidden" name={"sets[#{n - 1}][id]"} value={sm_set.id} />
-                  <input type="hidden" name={"sets[#{n - 1}][set_number]"} value={n} />
-                  <span class="text-xs text-fg-muted">{n}</span>
-                  <.input
-                    id={"score-#{n}-1"}
-                    type="number"
-                    name={"sets[#{n - 1}][score1]"}
-                    value={sm_set && sm_set.score1}
-                    label={gettext("Set %{n}, P1", n: n)}
-                    sr_only
-                    min="0"
-                    class="text-center"
-                  />
-                  <span class="text-xs text-fg-muted">x</span>
-                  <.input
-                    id={"score-#{n}-2"}
-                    type="number"
-                    name={"sets[#{n - 1}][score2]"}
-                    value={sm_set && sm_set.score2}
-                    label={gettext("Set %{n}, P2", n: n)}
-                    sr_only
-                    min="0"
-                    class="text-center"
-                  />
-                  <.icon_button
-                    :if={@score_set_count > 1}
-                    name="hero-x-circle-mini"
-                    sr_label={gettext("Remove set")}
-                    tone="danger"
-                    phx-click="remove_score_row"
-                  />
-                </div>
-              </div>
-              <%!-- Add set button --%>
-              <.button
-                type="button"
-                variant="ghost"
-                size="sm"
-                phx-click="add_score_row"
-                class="mt-3 -ml-3"
-              >
-                <.icon name="hero-plus-micro" class="size-3.5" /> {gettext("Adicionar set")}
-              </.button>
-            </div>
-            <%!-- Match Winner --%>
-            <.input
-              id="winner-registration-id"
-              type="select"
-              name="winner_registration_id"
-              label={gettext("Vencedor da partida")}
-              prompt={gettext("No winner yet")}
-              options={winner_options(sm_match)}
-              value={sm_match.winner_registration_id}
-            />
-            <.modal_actions on_cancel="close_score_modal" />
-          </form>
-        </.modal>
+        />
 
         <%!-- Schedule modal --%>
         <.modal
@@ -1456,7 +1381,6 @@ defmodule T3SystemWeb.EventLive.Show do
       |> assign(:category_registrations, [])
       |> assign(:groups_with_standings, [])
       |> assign(:score_modal, nil)
-      |> assign(:score_set_count, 3)
       |> assign(:schedule_modal, nil)
       |> assign(:table_schedules, [])
       |> assign(:unscheduled_matches, [])
@@ -1518,6 +1442,10 @@ defmodule T3SystemWeb.EventLive.Show do
      |> assign(:event, event)
      |> assign(:page_title, event.name)
      |> load_event_data()}
+  end
+
+  def handle_info({T3SystemWeb.ScoreModalComponent, :saved}, socket) do
+    {:noreply, socket |> reload_stage_data() |> assign(:score_modal, nil)}
   end
 
   @impl true
@@ -1966,60 +1894,11 @@ defmodule T3SystemWeb.EventLive.Show do
     score_modal =
       find_match_across_stages(match_id, socket.assigns.stages ++ socket.assigns.event_stages)
 
-    score_set_count =
-      case score_modal do
-        {match, _} -> max(length(match.sets), 3)
-        nil -> 3
-      end
-
-    {:noreply, assign(socket, score_modal: score_modal, score_set_count: score_set_count)}
+    {:noreply, assign(socket, :score_modal, score_modal)}
   end
 
   def handle_event("close_score_modal", _params, socket) do
-    {:noreply, assign(socket, score_modal: nil, score_set_count: 3)}
-  end
-
-  def handle_event("add_score_row", _params, socket) do
-    {:noreply, update(socket, :score_set_count, &(&1 + 1))}
-  end
-
-  def handle_event("remove_score_row", _params, socket) do
-    {:noreply, update(socket, :score_set_count, &max(&1 - 1, 1))}
-  end
-
-  def handle_event("save_scores", params, socket) do
-    {match, _context} = socket.assigns.score_modal
-    scope = socket.assigns.current_scope
-
-    filtered_sets =
-      (params["sets"] || %{})
-      |> Enum.reject(fn {_, s} ->
-        s["score1"] in [nil, ""] and s["score2"] in [nil, ""]
-      end)
-      |> Enum.map(fn {k, s} ->
-        {k, Map.put(s, "winner_registration_id", infer_set_winner(s, match))}
-      end)
-      |> Map.new()
-
-    match_attrs = %{
-      "sets" => filtered_sets,
-      "winner_registration_id" => params["winner_registration_id"]
-    }
-
-    case Matches.update_match(scope, match, match_attrs) do
-      {:ok, _} ->
-        # Finishing (or reopening) a match changes which times are frozen on its table
-        if match.table_id,
-          do: Matches.recalculate_table_schedule(scope, socket.assigns.event, match.table_id)
-
-        {:noreply,
-         socket
-         |> reload_stage_data()
-         |> assign(:score_modal, nil)}
-
-      {:error, _changeset} ->
-        {:noreply, put_flash(socket, :error, gettext("Could not save scores."))}
-    end
+    {:noreply, assign(socket, :score_modal, nil)}
   end
 
   # Schedule (superuser only)
@@ -2630,43 +2509,17 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   defp prepare_match_card(match, %{label: label, source: source} = ctx) do
-    sorted_sets = sort_sets(match.sets)
-
-    sw1 = Enum.count(sorted_sets, &(&1.winner_registration_id == match.registration1_id))
-    sw2 = Enum.count(sorted_sets, &(&1.winner_registration_id == match.registration2_id))
-
-    sort_key = match_sort_key(match, ctx)
-
-    %{
-      id: match.id,
-      kind: :match,
+    match_card_data(match,
       label: label,
       source: source,
-      sort_key: sort_key,
-      scheduled_at: match.scheduled_at,
-      table: match.table,
-      table_position: match.table_position,
-      is_bye: match.is_bye,
-      finished: not is_nil(match.winner_registration_id),
-      ongoing: match.is_ongoing,
-      has_sets: sorted_sets != [],
-      p1_scores: Enum.map(sorted_sets, &format_set_score(&1.score1)),
-      p2_scores: Enum.map(sorted_sets, &format_set_score(&1.score2)),
-      sw1: sw1,
-      sw2: sw2,
-      p1_won:
-        match.winner_registration_id == match.registration1_id and
-          not is_nil(match.winner_registration_id),
-      p2_won:
-        match.winner_registration_id == match.registration2_id and
-          not is_nil(match.winner_registration_id),
+      sort_key: match_sort_key(match, ctx),
       p1_name: card_player_name(match, 1, source, &player_short_names/1),
       p2_name: card_player_name(match, 2, source, &player_short_names/1),
       p1_full_name: card_player_name(match, 1, source, &player_names/1),
       p2_full_name: card_player_name(match, 2, source, &player_names/1),
       p1_player_ids: card_player_ids(match.registration1),
       p2_player_ids: card_player_ids(match.registration2)
-    }
+    )
   end
 
   defp match_sort_key(match, %{source: :group} = ctx) do
@@ -2679,9 +2532,6 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp sort_sets(%Ecto.Association.NotLoaded{}), do: []
   defp sort_sets(sets), do: Enum.sort_by(sets, & &1.set_number)
-
-  defp format_set_score(nil), do: "–"
-  defp format_set_score(score), do: to_string(score)
 
   defp card_player_name(match, 1, :group, format),
     do: match_player_name(match.registration1, format)
@@ -2708,73 +2558,6 @@ defmodule T3SystemWeb.EventLive.Show do
   end
 
   defp assign_match_filter_players(socket), do: socket
-
-  attr :card, :map, required: true
-  attr :is_superuser, :boolean, required: true
-  attr :show_category, :boolean, default: false
-
-  defp match_card(assigns) do
-    ~H"""
-    <.card id={"match-#{@card.id}"} padded={false}>
-      <%!-- Card header --%>
-      <div class="flex items-center gap-4 border-b border-border px-4 py-2.5">
-        <.ongoing_dot :if={@card.ongoing} class="-mr-2" />
-        <p class="min-w-0 flex-1 truncate font-display text-sm font-bold text-fg-muted">
-          {@card.label}
-        </p>
-        <p :if={@card.scheduled_at || @card.table} class="text-xs text-fg-muted">
-          {if @card.scheduled_at, do: Calendar.strftime(@card.scheduled_at, "%H:%M")}
-          {if @card.table, do: @card.table.name}
-        </p>
-        <div :if={@card.has_sets} class="font-display text-sm font-bold text-primary tabular-nums">
-          {@card.sw1} — {@card.sw2}
-        </div>
-      </div>
-
-      <%!-- Player rows --%>
-      <div class="space-y-2 p-4 pt-3">
-        <.match_card_row
-          id={"tooltip-match-#{@card.id}-1"}
-          name={@card.p1_name}
-          full_name={@card.p1_full_name}
-          won={@card.p1_won}
-          has_sets={@card.has_sets}
-          set_wins={@card.sw1}
-          scores={@card.p1_scores}
-        />
-        <.match_card_row
-          id={"tooltip-match-#{@card.id}-2"}
-          name={@card.p2_name}
-          full_name={@card.p2_full_name}
-          won={@card.p2_won}
-          has_sets={@card.has_sets}
-          set_wins={@card.sw2}
-          scores={@card.p2_scores}
-        />
-      </div>
-
-      <%!-- Footer: category and superuser actions --%>
-      <div
-        :if={@is_superuser || @show_category}
-        class="flex min-h-11 items-center justify-between gap-2 border-t border-border px-2 py-1.5"
-      >
-        <p :if={@show_category} class="min-w-0 truncate px-2 text-xs text-fg-muted">
-          {@card.category_name}
-        </p>
-        <.button
-          :if={@is_superuser}
-          class="ml-auto"
-          variant="ghost"
-          size="sm"
-          phx-click="open_score_modal"
-          phx-value-id={@card.id}
-        >
-          {gettext("Resultados")}
-        </.button>
-      </div>
-    </.card>
-    """
-  end
 
   attr :card, :map, required: true
   attr :navigate, :string, required: true
@@ -2906,19 +2689,6 @@ defmodule T3SystemWeb.EventLive.Show do
     """
   end
 
-  attr :class, :any, default: nil
-
-  defp ongoing_dot(assigns) do
-    ~H"""
-    <span class={["relative flex size-2 shrink-0", @class]} title={gettext("Em andamento")}>
-      <span class="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75">
-      </span>
-      <span class="relative inline-flex size-2 rounded-full bg-primary"></span>
-      <span class="sr-only">{gettext("Em andamento")}</span>
-    </span>
-    """
-  end
-
   defp parse_schedule_list("finished"), do: "finished"
   defp parse_schedule_list(_list), do: "pending"
 
@@ -2953,39 +2723,6 @@ defmodule T3SystemWeb.EventLive.Show do
 
   defp slot_registration_id(match, 1), do: match.registration1_id
   defp slot_registration_id(match, 2), do: match.registration2_id
-
-  attr :id, :string, required: true
-  attr :name, :string, required: true
-  attr :full_name, :string, required: true, doc: "shown in the tooltip"
-  attr :won, :boolean, required: true
-  attr :has_sets, :boolean, required: true
-  attr :set_wins, :integer, required: true
-  attr :scores, :list, required: true
-
-  defp match_card_row(assigns) do
-    ~H"""
-    <div class="flex items-center gap-2">
-      <div class="flex min-w-0 flex-1 items-center gap-2">
-        <.tooltip
-          id={@id}
-          text={@full_name}
-          class={["min-w-0 truncate text-sm", @won && "font-bold"]}
-        >
-          {@name}
-        </.tooltip>
-        <.icon :if={@won} name="hero-check-micro" class="shrink-0 text-primary" />
-      </div>
-      <span :if={@has_sets} class="w-5 shrink-0 text-center text-sm font-bold tabular-nums">
-        {@set_wins}
-      </span>
-      <div class="flex shrink-0 gap-1">
-        <span :for={score <- @scores} class="w-7 text-center text-xs text-fg-muted tabular-nums">
-          {score}
-        </span>
-      </div>
-    </div>
-    """
-  end
 
   attr :id, :string, required: true, doc: "id for the full-names tooltip"
   attr :registration, :any, required: true
@@ -3196,19 +2933,6 @@ defmodule T3SystemWeb.EventLive.Show do
   defp format_diff(n) when n > 0, do: "+#{n}"
   defp format_diff(n), do: to_string(n)
 
-  defp infer_set_winner(set_params, match) do
-    with {s1, ""} <- Integer.parse(set_params["score1"] || ""),
-         {s2, ""} <- Integer.parse(set_params["score2"] || "") do
-      cond do
-        s1 > s2 -> match.registration1_id
-        s2 > s1 -> match.registration2_id
-        true -> nil
-      end
-    else
-      _ -> nil
-    end
-  end
-
   defp slot_label(match, n, format \\ &player_names/1) do
     case n do
       1 -> {match.registration1, match.slot1_label}
@@ -3265,15 +2989,6 @@ defmodule T3SystemWeb.EventLive.Show do
   defp winner_bg(%Registration{final_standing: 2}, _won), do: "bg-silver/20"
   defp winner_bg(_registration, true), do: "bg-primary/10"
   defp winner_bg(_registration, _won), do: nil
-
-  defp winner_options(match) do
-    for {n, registration, registration_id} <- [
-          {1, match.registration1, match.registration1_id},
-          {2, match.registration2, match.registration2_id}
-        ],
-        is_struct(registration, Registration),
-        do: {slot_label(match, n), registration_id}
-  end
 
   attr :final_standing, :any, required: true
 
