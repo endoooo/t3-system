@@ -2517,5 +2517,83 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("#team-match-#{team_match.id}")
       |> refute_has("#team-match-#{other.id}")
     end
+
+    # A one-round bracket stage ("Final") of the setup's category with the team
+    # match "AABB" vs "Clube Y".
+    defp bracket_team_match_setup(ctx) do
+      [ana, bia, caio, duda] = ctx.players
+      [club_a, club_b, club_c] = ctx.clubs
+      team1 = insert_team(ctx, "AABB", [{ana, club_a}, {bia, club_b}])
+      team2 = insert_team(ctx, "Clube Y", [{caio, club_c}, {duda, club_c}])
+
+      stage =
+        insert(:stage,
+          event: ctx.event,
+          category: ctx.category,
+          type: "bracket",
+          rounds: 1,
+          name: "Final"
+        )
+
+      team_match =
+        insert(:team_match,
+          event: ctx.event,
+          stage: stage,
+          group: nil,
+          round: 1,
+          position: 1,
+          registration1: team1,
+          registration2: team2
+        )
+
+      %{team1: team1, team2: team2, stage: stage, team_match: team_match}
+    end
+
+    test "bracket slots show team names and the score, linking to the team match page", ctx do
+      %{stage: stage, team_match: team_match, team2: team2} = bracket_team_match_setup(ctx)
+      set_winner(team_match, team2)
+      stage_params = %{"tab" => "stage-#{stage.id}", "category_id" => to_string(ctx.category.id)}
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.category.id}")
+      |> assert_has("#bracket-match-#{team_match.id}", text: "AABB")
+      |> assert_has("#bracket-match-#{team_match.id} .font-bold", text: "Clube Y")
+      |> refute_has("#bracket-match-#{team_match.id}", text: "Ana")
+      |> assert_has("#bracket-match-#{team_match.id} .tabular-nums", text: "0", count: 2)
+      |> click_link("#bracket-team-match-#{team_match.id}", "AABB")
+      |> assert_path(~p"/events/#{ctx.event}/team-matches/#{team_match}",
+        query_params: stage_params
+      )
+      |> click_link("Voltar")
+      |> assert_path(~p"/events/#{ctx.event}", query_params: stage_params)
+      |> assert_has("#bracket-match-#{team_match.id}", text: "AABB")
+    end
+
+    test "superusers assign teams to bracket slots by name, without the score modal", ctx do
+      %{stage: stage, team_match: team_match} = bracket_team_match_setup(ctx)
+      insert_team(ctx, "Equipe Z", [{insert(:player, name: "Eva"), hd(ctx.clubs)}])
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.category.id}")
+      |> refute_has("#bracket-match-#{team_match.id} button", text: "Resultados")
+      |> within("#bracket-match-#{team_match.id}", &click_button(&1, "Jogadores"))
+      |> assert_has("#slot1-registration-id option", text: "AABB")
+      |> assert_has("#slot1-registration-id option", text: "Equipe Z")
+      |> refute_has("#slot1-registration-id option", text: "Ana")
+      |> select("#slot2-registration-id", "Equipe", option: "Equipe Z")
+      |> click_button("#assign-slot-form button", "Salvar")
+      |> assert_has("#bracket-match-#{team_match.id}", text: "Equipe Z")
+      |> refute_has("#bracket-match-#{team_match.id}", text: "Clube Y")
+    end
+
+    test "bracket team matches appear in the matches tab", ctx do
+      %{team_match: team_match} = bracket_team_match_setup(ctx)
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}")
+      |> assert_has("#team-match-#{team_match.id}", text: "AABB")
+      |> assert_has("#team-match-#{team_match.id}", text: "Final")
+      |> assert_has("#team-match-#{team_match.id}", text: "0 — 0")
+    end
   end
 end
