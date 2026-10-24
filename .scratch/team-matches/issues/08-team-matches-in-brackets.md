@@ -1,6 +1,6 @@
 # 08: Team matches in brackets
 
-Status: ready-for-agent
+Status: resolved
 
 **What to build:** A team category's bracket stage works with teams: slot assignment lists teams by name, bracket slots show team names and the derived team match score, and a team match's bracket card links to the team match page (from 05) instead of opening the score modal; the page's back link returns to the bracket stage tab. Advancing winners stays manual. Spec: `.scratch/team-matches/spec.md`.
 

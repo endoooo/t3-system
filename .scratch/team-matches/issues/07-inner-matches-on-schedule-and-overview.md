@@ -1,6 +1,6 @@
 # 07: Inner matches on the schedule and overview
 
-Status: ready-for-agent
+Status: resolved
 
 **What to build:** The table schedule works with matches inside team matches and never with team matches: per-table finished/pending lists, the unscheduled pool (reaching category/stage through the team match), drag and drop, add to table, ongoing toggle and time recalculation include inner matches and exclude team matches. The unassigned-matches warning, matches-per-table, per-category and by-status counts count inner matches for team categories, not team matches. The overview's ongoing and next sections show inner matches. Inner match cards (overview, matches tab) and schedule cards carry the team match context ("AABB A x Clube Y · AB x XY") and the position labels; on match cards the context links to the team match page, schedule board cards don't link. Spec: `.scratch/team-matches/spec.md`.
 

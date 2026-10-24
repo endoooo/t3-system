@@ -28,6 +28,7 @@ A spec plus `ready-for-agent` tickets for team categories, built in two lanes: a
 
 - [How a team match wraps matches](issues/01-how-a-team-match-wraps-matches.md): a team match is a `Match` in a group/bracket; its matches are `Match` rows with `team_match_id`, team registrations as sides, a match-players list and `position1/2` labels; teams get a name; winner manual, score derived (ADR-0002)
 - [Team match overlay and admin flow](issues/02-team-match-overlay-and-admin-flow.md): a team match detail page (`/events/:id/team-matches/:id`) reached from the matches tab and bracket; it lists the inner matches as existing match cards and holds "Adicionar partida" and "Resultado" (amended from expand-in-place)
+- [Sunday slice spec and tickets](issues/03-sunday-slice-spec-and-tickets.md): built per `spec.md` (tickets 04–08) on branch `team-matches`; dashboard counts count matches inside team matches, never team matches; bracket slot changes are refused while a team match has inner matches
 
 ## Not yet specified
 
