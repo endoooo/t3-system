@@ -629,6 +629,95 @@ defmodule T3System.MatchesTest do
   end
 
   # ---------------------------------------------------------------------------
+  # Team matches
+  # ---------------------------------------------------------------------------
+
+  describe "team matches" do
+    test "get_team_match!/2 returns a team match of the event with its teams" do
+      team_match = insert(:team_match)
+
+      result = Matches.get_team_match!(team_match.event_id, team_match.id)
+
+      assert result.id == team_match.id
+      assert result.registration1.name == team_match.registration1.name
+      assert length(result.registration2.registration_players) == 3
+      assert result.group.stage.category.format == "team"
+    end
+
+    test "get_team_match!/2 finds bracket team matches" do
+      event = insert(:event)
+      stage = insert(:stage, event: event, category: build(:team_category), type: "bracket")
+      match = insert(:match, event: event, group: nil, stage: stage, round: 1, position: 1)
+
+      assert Matches.get_team_match!(event.id, match.id).id == match.id
+    end
+
+    test "get_team_match!/2 raises for a match of another event" do
+      team_match = insert(:team_match)
+      other_event = insert(:event)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Matches.get_team_match!(other_event.id, team_match.id)
+      end
+    end
+
+    test "get_team_match!/2 raises for a match outside a team category" do
+      match = insert(:match)
+
+      assert_raise Ecto.NoResultsError, fn ->
+        Matches.get_team_match!(match.event_id, match.id)
+      end
+    end
+
+    test "team_match_score/2 counts the matches each team won" do
+      team_match = insert(:team_match)
+      %{registration1_id: t1, registration2_id: t2} = team_match
+
+      inner = [
+        %Match{registration1_id: t1, registration2_id: t2, winner_registration_id: t1},
+        %Match{registration1_id: t1, registration2_id: t2, winner_registration_id: t2},
+        %Match{registration1_id: t1, registration2_id: t2, winner_registration_id: t1},
+        %Match{registration1_id: t1, registration2_id: t2, winner_registration_id: nil}
+      ]
+
+      assert Matches.team_match_score(team_match, inner) == {2, 1}
+      assert Matches.team_match_score(team_match, []) == {0, 0}
+    end
+
+    test "team_match_status/2 is finished with a winner, ongoing once a match started" do
+      team_match = insert(:team_match)
+      %{registration1_id: t1, registration2_id: t2} = team_match
+      pending = %Match{registration1_id: t1, registration2_id: t2}
+
+      assert Matches.team_match_status(team_match, []) == :pending
+      assert Matches.team_match_status(team_match, [pending]) == :pending
+
+      assert Matches.team_match_status(team_match, [pending, %{pending | is_ongoing: true}]) ==
+               :ongoing
+
+      assert Matches.team_match_status(team_match, [%{pending | winner_registration_id: t2}]) ==
+               :ongoing
+
+      assert Matches.team_match_status(%{team_match | winner_registration_id: t1}, [pending]) ==
+               :finished
+    end
+
+    test "update_match/3 sets and clears the team match winner" do
+      scope = Scope.for_user(insert(:superuser))
+      team_match = insert(:team_match)
+
+      assert {:ok, won} =
+               Matches.update_match(scope, team_match, %{
+                 "winner_registration_id" => team_match.registration2_id
+               })
+
+      assert won.winner_registration_id == team_match.registration2_id
+      assert {:ok, cleared} = Matches.update_match(scope, won, %{"winner_registration_id" => nil})
+      assert is_nil(cleared.winner_registration_id)
+    end
+  end
+
+  # ---------------------------------------------------------------------------
   # Dashboard metrics
   # ---------------------------------------------------------------------------
 

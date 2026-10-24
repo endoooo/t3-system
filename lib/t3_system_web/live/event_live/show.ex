@@ -358,12 +358,22 @@ defmodule T3SystemWeb.EventLive.Show do
             </.empty_state>
 
             <div id="match-cards" class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <.match_card
-                :for={card <- @all_match_cards}
-                card={card}
-                is_superuser={@is_superuser}
-                show_category={@filter_player_id != nil}
-              />
+              <%= for card <- @all_match_cards do %>
+                <.team_match_card
+                  :if={card.kind == :team}
+                  card={card}
+                  navigate={
+                    ~p"/events/#{@event}/team-matches/#{card.id}?#{%{tab: "matches", category_id: card.category_id}}"
+                  }
+                  show_category={@filter_player_id != nil}
+                />
+                <.match_card
+                  :if={card.kind == :match}
+                  card={card}
+                  is_superuser={@is_superuser}
+                  show_category={@filter_player_id != nil}
+                />
+              <% end %>
             </div>
           </div>
 
@@ -443,7 +453,11 @@ defmodule T3SystemWeb.EventLive.Show do
                         <td class="w-1 py-2.5 pl-4 text-fg-muted">{row.rank}</td>
                         <td class={["w-full max-w-0 px-2 py-2", row.qualified && "font-bold"]}>
                           <div class="flex items-center gap-1">
+                            <span :if={row.registration.name} class="truncate">
+                              {row.registration.name}
+                            </span>
                             <.players
+                              :if={!row.registration.name}
                               players={row.registration.registration_players}
                               avatar_size="xs"
                               lines
@@ -783,7 +797,8 @@ defmodule T3SystemWeb.EventLive.Show do
                   :for={reg <- @players_modal.registrations}
                   class="flex items-center justify-between gap-3 rounded-control py-1 pr-1 pl-2 hover:bg-fg/5"
                 >
-                  <span class="min-w-0 truncate text-sm">
+                  <span :if={reg.name} class="min-w-0 truncate text-sm">{reg.name}</span>
+                  <span :if={!reg.name} class="min-w-0 truncate text-sm">
                     {player_names(reg.registration_players)}
                     <span class="ml-1 text-xs text-fg-muted">
                       {player_clubs(reg.registration_players)}
@@ -2433,7 +2448,7 @@ defmodule T3SystemWeb.EventLive.Show do
       |> Enum.flat_map(fn stage ->
         for card <- stage_match_cards(stage) do
           %{card | sort_key: {category_order[stage.category_id], card.sort_key}}
-          |> Map.put(:category_name, stage.category.name)
+          |> Map.merge(%{category_name: stage.category.name, category_id: stage.category_id})
         end
       end)
       |> filter_match_cards(player_id)
@@ -2455,12 +2470,16 @@ defmodule T3SystemWeb.EventLive.Show do
     cards |> Enum.filter(& &1.ongoing) |> sort_by_schedule()
   end
 
-  # Matches not yet started, already placed on a table
+  # Matches not yet started, already placed on a table; team matches (never on
+  # a table) not yet started
   defp apply_match_view(cards, "next") do
     cards
-    |> Enum.filter(&(not is_nil(&1.table) and not &1.finished and not &1.ongoing))
+    |> Enum.filter(&(not &1.finished and not &1.ongoing and next_on_table?(&1)))
     |> sort_by_schedule()
   end
+
+  defp next_on_table?(%{kind: :team}), do: true
+  defp next_on_table?(card), do: not is_nil(card.table)
 
   defp match_view_empty_message("ongoing"), do: gettext("Nenhum jogo em andamento.")
   defp match_view_empty_message("next"), do: gettext("Nenhum próximo jogo.")
@@ -2477,7 +2496,7 @@ defmodule T3SystemWeb.EventLive.Show do
         |> stage_match_cards()
         |> Enum.map(&Map.put(&1, :category_name, stage.category.name))
       end)
-      |> Enum.reject(&(&1.is_bye or &1.finished))
+      |> Enum.reject(&(&1.kind == :team or &1.is_bye or &1.finished))
 
     {ongoing, pending} = Enum.split_with(cards, & &1.ongoing)
 
@@ -2515,6 +2534,7 @@ defmodule T3SystemWeb.EventLive.Show do
         ctx = %{
           label: "#{group.name}",
           source: :group,
+          team: team_stage?(stage),
           stage_order: stage.order,
           group_position: group.position
         }
@@ -2528,6 +2548,7 @@ defmodule T3SystemWeb.EventLive.Show do
           ctx = %{
             label: "#{stage.name} - #{round_label(round, stage.rounds)}",
             source: :bracket,
+            team: team_stage?(stage),
             stage_order: stage.order
           }
 
@@ -2574,6 +2595,40 @@ defmodule T3SystemWeb.EventLive.Show do
     end
   end
 
+  defp team_stage?(%Stage{category: %{format: "team"}}), do: true
+  defp team_stage?(_stage), do: false
+
+  # A team match card: team names, the derived score and status
+  defp prepare_match_card(match, %{team: true, label: label, source: source} = ctx) do
+    # Matches inside team matches come with ticket 06
+    inner_matches = []
+    {score1, score2} = Matches.team_match_score(match, inner_matches)
+    status = Matches.team_match_status(match, inner_matches)
+    winner_id = match.winner_registration_id
+
+    %{
+      id: match.id,
+      kind: :team,
+      label: label,
+      source: source,
+      sort_key: match_sort_key(match, ctx),
+      scheduled_at: nil,
+      table: nil,
+      table_position: 0,
+      is_bye: match.is_bye,
+      finished: status == :finished,
+      ongoing: status == :ongoing,
+      score1: score1,
+      score2: score2,
+      p1_won: not is_nil(winner_id) and winner_id == match.registration1_id,
+      p2_won: not is_nil(winner_id) and winner_id == match.registration2_id,
+      p1_name: team_name(match, 1),
+      p2_name: team_name(match, 2),
+      p1_player_ids: card_player_ids(match.registration1),
+      p2_player_ids: card_player_ids(match.registration2)
+    }
+  end
+
   defp prepare_match_card(match, %{label: label, source: source} = ctx) do
     sorted_sets = sort_sets(match.sets)
 
@@ -2584,6 +2639,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
     %{
       id: match.id,
+      kind: :match,
       label: label,
       source: source,
       sort_key: sort_key,
@@ -2717,6 +2773,61 @@ defmodule T3SystemWeb.EventLive.Show do
         </.button>
       </div>
     </.card>
+    """
+  end
+
+  attr :card, :map, required: true
+  attr :navigate, :string, required: true
+  attr :show_category, :boolean, default: false
+
+  # Same shape as `match_card`, as a link to the team match page
+  defp team_match_card(assigns) do
+    ~H"""
+    <.link
+      id={"team-match-#{@card.id}"}
+      navigate={@navigate}
+      class="group block rounded-card"
+    >
+      <.card padded={false} class="transition-shadow group-hover:inset-ring-border-strong">
+        <div class="flex items-center gap-4 border-b border-border px-4 py-2.5">
+          <.ongoing_dot :if={@card.ongoing} class="-mr-2" />
+          <p class="min-w-0 flex-1 truncate font-display text-sm font-bold text-fg-muted">
+            {@card.label}
+          </p>
+          <div class="font-display text-sm font-bold text-primary tabular-nums">
+            {@card.score1} — {@card.score2}
+          </div>
+        </div>
+
+        <div class="space-y-2 p-4 pt-3">
+          <.match_card_row
+            id={"tooltip-team-match-#{@card.id}-1"}
+            name={@card.p1_name}
+            full_name={@card.p1_name}
+            won={@card.p1_won}
+            has_sets={false}
+            set_wins={0}
+            scores={[]}
+          />
+          <.match_card_row
+            id={"tooltip-team-match-#{@card.id}-2"}
+            name={@card.p2_name}
+            full_name={@card.p2_name}
+            won={@card.p2_won}
+            has_sets={false}
+            set_wins={0}
+            scores={[]}
+          />
+        </div>
+
+        <div
+          :if={@show_category}
+          class="flex min-h-11 items-center border-t border-border px-2 py-1.5"
+        >
+          <p class="min-w-0 truncate px-2 text-xs text-fg-muted">{@card.category_name}</p>
+        </div>
+      </.card>
+    </.link>
     """
   end
 
@@ -3085,21 +3196,6 @@ defmodule T3SystemWeb.EventLive.Show do
   defp format_diff(n) when n > 0, do: "+#{n}"
   defp format_diff(n), do: to_string(n)
 
-  defp round_label(round, total_rounds) do
-    rounds_from_end = total_rounds - round
-
-    case rounds_from_end do
-      0 -> gettext("Final")
-      1 -> gettext("Semis")
-      2 -> gettext("Quartas")
-      3 -> gettext("Oitavas")
-      4 -> gettext("R32")
-      5 -> gettext("R64")
-      6 -> gettext("R128")
-      _ -> gettext("R%{n}", n: round)
-    end
-  end
-
   defp infer_set_winner(set_params, match) do
     with {s1, ""} <- Integer.parse(set_params["score1"] || ""),
          {s2, ""} <- Integer.parse(set_params["score2"] || "") do
@@ -3137,10 +3233,19 @@ defmodule T3SystemWeb.EventLive.Show do
     "grid-column: #{match.round}; grid-row: #{start} / span #{span};"
   end
 
+  defp team_name(match, n) do
+    case if(n == 1, do: match.registration1, else: match.registration2) do
+      %Registration{name: name} when is_binary(name) -> name
+      _ -> slot_label(match, n)
+    end
+  end
+
   defp match_player_name(%Registration{registration_players: [_ | _]} = registration, format),
     do: format.(registration.registration_players)
 
   defp match_player_name(_, _format), do: gettext("TBD")
+
+  defp registration_label(%Registration{name: name}) when is_binary(name), do: name
 
   defp registration_label(registration),
     do: player_names_with_clubs(registration.registration_players)

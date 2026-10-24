@@ -584,6 +584,68 @@ defmodule T3System.Matches do
   end
 
   # ---------------------------------------------------------------------------
+  # Team matches
+  # ---------------------------------------------------------------------------
+
+  @doc """
+  Gets a team match of the event: a match in a group or bracket stage of a
+  team category, with its teams (players and clubs), its group or stage and
+  their category preloaded.
+
+  Raises `Ecto.NoResultsError` if the match doesn't exist, belongs to another
+  event or isn't a team match.
+  """
+  @spec get_team_match!(pos_integer(), pos_integer() | String.t()) :: Match.t()
+  def get_team_match!(event_id, id) do
+    from(m in Match,
+      left_join: g in assoc(m, :group),
+      left_join: gs in assoc(g, :stage),
+      left_join: s in assoc(m, :stage),
+      join: c in Category,
+      on: c.id == coalesce(gs.category_id, s.category_id),
+      where: m.id == ^id and m.event_id == ^event_id and c.format == "team"
+    )
+    |> Repo.one!()
+    |> Repo.preload([
+      :sets,
+      group: [stage: :category],
+      stage: :category,
+      registration1: @registration_preload,
+      registration2: @registration_preload
+    ])
+  end
+
+  @doc """
+  The team match score: how many of the matches inside it each team won,
+  as `{team1_wins, team2_wins}`.
+  """
+  @spec team_match_score(Match.t(), [Match.t()]) :: {non_neg_integer(), non_neg_integer()}
+  def team_match_score(%Match{} = team_match, inner_matches) do
+    {count_wins(inner_matches, team_match.registration1_id),
+     count_wins(inner_matches, team_match.registration2_id)}
+  end
+
+  defp count_wins(_matches, nil), do: 0
+
+  defp count_wins(matches, reg_id),
+    do: Enum.count(matches, &(&1.winner_registration_id == reg_id))
+
+  @doc """
+  The team match status: `:finished` once it has a winner, `:ongoing` once any
+  match inside it is ongoing or has a result, `:pending` otherwise.
+  """
+  @spec team_match_status(Match.t(), [Match.t()]) :: :finished | :ongoing | :pending
+  def team_match_status(%Match{winner_registration_id: winner_id}, _inner)
+      when not is_nil(winner_id),
+      do: :finished
+
+  def team_match_status(%Match{}, inner_matches) do
+    if Enum.any?(inner_matches, &(&1.is_ongoing or not is_nil(&1.winner_registration_id))),
+      do: :ongoing,
+      else: :pending
+  end
+
+  # ---------------------------------------------------------------------------
   # Table schedule
   # ---------------------------------------------------------------------------
 

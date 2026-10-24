@@ -90,6 +90,7 @@ defmodule T3SystemWeb do
       # Core UI components
       import T3SystemWeb.CoreComponents
       import T3SystemWeb.PlayerComponents
+      import T3SystemWeb.MatchComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS

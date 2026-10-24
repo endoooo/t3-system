@@ -2395,5 +2395,127 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("#registrations li li", text: "Bia")
       |> assert_has("#registrations li li", text: "Clube B")
     end
+
+    # Two teams ("AABB" and "Clube Y") in a group of the setup's category, with
+    # their team match.
+    defp team_match_setup(ctx) do
+      [ana, bia, caio, duda] = ctx.players
+      [club_a, club_b, club_c] = ctx.clubs
+      team1 = insert_team(ctx, "AABB", [{ana, club_a}, {bia, club_b}])
+      team2 = insert_team(ctx, "Clube Y", [{caio, club_c}, {duda, club_c}])
+      stage = insert(:stage, event: ctx.event, category: ctx.category, name: "Grupos")
+      group = insert(:group, stage: stage, name: "Grupo A", position: 1)
+      add_to_group(group, team1)
+      add_to_group(group, team2)
+
+      team_match =
+        insert(:team_match,
+          event: ctx.event,
+          group: group,
+          registration1: team1,
+          registration2: team2
+        )
+
+      %{team1: team1, team2: team2, stage: stage, group: group, team_match: team_match}
+    end
+
+    defp set_winner(team_match, team) do
+      {:ok, _} =
+        Matches.update_match(Scope.for_user(insert(:superuser)), team_match, %{
+          "winner_registration_id" => team.id
+        })
+    end
+
+    test "group standings list teams by name", ctx do
+      %{stage: stage, group: group} = team_match_setup(ctx)
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.category.id}")
+      |> assert_has("#group-#{group.id} td", text: "AABB")
+      |> assert_has("#group-#{group.id} td", text: "Clube Y")
+      |> refute_has("#group-#{group.id} td", text: "Ana")
+    end
+
+    test "the group players modal lists and adds teams by name", ctx do
+      %{stage: stage, group: group} = team_match_setup(ctx)
+      [ana | _] = ctx.players
+      insert_team(ctx, "Equipe Z", [{insert(:player, name: "Eva"), hd(ctx.clubs)}])
+
+      ctx.conn
+      |> visit(~p"/events/#{ctx.event}?tab=stage-#{stage.id}&category_id=#{ctx.category.id}")
+      |> within("#group-#{group.id}", &click_button(&1, "Jogadores"))
+      |> assert_has("#players-modal li", text: "AABB")
+      |> refute_has("#players-modal li", text: ana.name)
+      |> select("Add Player", option: "Equipe Z")
+      |> assert_has("#players-modal li", text: "Equipe Z")
+    end
+
+    test "the matches tab shows team match cards linking to the team match page", ctx do
+      %{team_match: team_match} = team_match_setup(ctx)
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}")
+      |> assert_has("#team-match-#{team_match.id}", text: "AABB")
+      |> assert_has("#team-match-#{team_match.id}", text: "Clube Y")
+      |> assert_has("#team-match-#{team_match.id}", text: "0 — 0")
+      |> assert_has("#team-match-#{team_match.id}", text: "Grupo A")
+      |> click_link("#team-match-#{team_match.id}", "AABB")
+      |> assert_path(~p"/events/#{ctx.event}/team-matches/#{team_match}",
+        query_params: %{"tab" => "matches", "category_id" => to_string(ctx.category.id)}
+      )
+    end
+
+    test "a team match card highlights the winner", ctx do
+      %{team_match: team_match, team2: team2} = team_match_setup(ctx)
+      set_winner(team_match, team2)
+
+      build_conn()
+      |> visit(~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}")
+      |> assert_has("#team-match-#{team_match.id} .font-bold", text: "Clube Y")
+      |> refute_has("#team-match-#{team_match.id} .font-bold", text: "AABB")
+    end
+
+    test "the ongoing and next filters use the derived team match status", ctx do
+      %{team_match: team_match, team1: team1} = team_match_setup(ctx)
+      base = ~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}"
+
+      build_conn()
+      |> visit(base <> "&view=next")
+      |> assert_has("#team-match-#{team_match.id}")
+      |> visit(base <> "&view=ongoing")
+      |> refute_has("#team-match-#{team_match.id}")
+
+      set_winner(team_match, team1)
+
+      build_conn()
+      |> visit(base <> "&view=next")
+      |> refute_has("#team-match-#{team_match.id}")
+      |> visit(base)
+      |> assert_has("#team-match-#{team_match.id}")
+    end
+
+    test "the player filter keeps the team matches of the player's team", ctx do
+      %{team_match: team_match, group: group, team2: team2} = team_match_setup(ctx)
+      eva = insert(:player, name: "Eva")
+      team3 = insert_team(ctx, "Equipe Z", [{eva, hd(ctx.clubs)}])
+      add_to_group(group, team3)
+
+      other =
+        insert(:team_match,
+          event: ctx.event,
+          group: group,
+          registration1: team2,
+          registration2: team3
+        )
+
+      [ana | _] = ctx.players
+
+      build_conn()
+      |> visit(
+        ~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}&player_id=#{ana.id}"
+      )
+      |> assert_has("#team-match-#{team_match.id}")
+      |> refute_has("#team-match-#{other.id}")
+    end
   end
 end

@@ -150,6 +150,22 @@ defmodule T3System.Factory do
     }
   end
 
+  # A team match: a match between two teams in a team category's group. Pass
+  # `event:`, `group:` and the teams (`registration1:`, `registration2:`) to
+  # place it in your own event.
+  def team_match_factory do
+    event = build(:event)
+    category = build(:team_category)
+    stage = build(:stage, event: event, category: category)
+
+    %Match{
+      event: event,
+      group: build(:group, stage: stage),
+      registration1: build(:team, event: event, category: category),
+      registration2: build(:team, event: event, category: category)
+    }
+  end
+
   def match_set_factory do
     %MatchSet{
       match: build(:match),
