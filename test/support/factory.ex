@@ -10,6 +10,7 @@ defmodule T3System.Factory do
   alias T3System.Events.League
   alias T3System.Matches.Group
   alias T3System.Matches.Match
+  alias T3System.Matches.MatchPlayer
   alias T3System.Matches.MatchSet
   alias T3System.Matches.Stage
   alias T3System.Players.Player
@@ -165,6 +166,33 @@ defmodule T3System.Factory do
       registration2: build(:team, event: event, category: category)
     }
   end
+
+  # A match inside a team match: pass `team_match:` (with its teams and their
+  # players loaded, e.g. an inserted `:team_match`). Copies the event and teams
+  # from it; `players1:`/`players2:` are each side's player ids (defaults to
+  # each team's first player, a singles match).
+  def inner_match_factory(attrs) do
+    {team_match, attrs} = Map.pop!(attrs, :team_match)
+    {players1, attrs} = Map.pop(attrs, :players1, first_player_ids(team_match.registration1))
+    {players2, attrs} = Map.pop(attrs, :players2, first_player_ids(team_match.registration2))
+
+    match_players =
+      Enum.map(players1, &%MatchPlayer{side: 1, player_id: &1}) ++
+        Enum.map(players2, &%MatchPlayer{side: 2, player_id: &1})
+
+    %Match{
+      event_id: team_match.event_id,
+      team_match_id: team_match.id,
+      registration1_id: team_match.registration1_id,
+      registration2_id: team_match.registration2_id,
+      match_players: match_players
+    }
+    |> merge_attributes(attrs)
+    |> evaluate_lazy_attributes()
+  end
+
+  defp first_player_ids(%Registration{registration_players: [first | _]}),
+    do: [first.player_id]
 
   def match_set_factory do
     %MatchSet{

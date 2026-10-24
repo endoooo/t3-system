@@ -717,6 +717,334 @@ defmodule T3System.MatchesTest do
     end
   end
 
+  describe "matches inside a team match" do
+    setup do
+      team_match = insert(:team_match)
+      team_match = Matches.get_team_match!(team_match.event_id, team_match.id)
+
+      %{
+        scope: Scope.for_user(insert(:superuser)),
+        team_match: team_match,
+        p1: player_ids(team_match.registration1),
+        p2: player_ids(team_match.registration2)
+      }
+    end
+
+    test "create_inner_match/3 adds a singles match between the two teams", ctx do
+      %{scope: scope, team_match: tm, p1: [a | _], p2: [x | _]} = ctx
+
+      assert {:ok, %Match{} = match} =
+               Matches.create_inner_match(scope, tm, %{
+                 "kind" => "singles",
+                 "position1" => "A",
+                 "position2" => "X",
+                 "player_ids1" => [to_string(a)],
+                 "player_ids2" => [to_string(x)]
+               })
+
+      assert match.event_id == tm.event_id
+      assert match.team_match_id == tm.id
+      assert match.registration1_id == tm.registration1_id
+      assert match.registration2_id == tm.registration2_id
+
+      assert [inner] = inner_matches(tm)
+      assert inner.position1 == "A"
+      assert inner.position2 == "X"
+
+      assert inner.match_players |> Enum.map(&{&1.side, &1.player_id}) |> Enum.sort() ==
+               [{1, a}, {2, x}]
+    end
+
+    test "create_inner_match/3 adds a doubles match with two players per side", ctx do
+      %{scope: scope, team_match: tm, p1: [a, b | _], p2: [x, y | _]} = ctx
+
+      assert {:ok, _} =
+               Matches.create_inner_match(scope, tm, %{
+                 "kind" => "doubles",
+                 "position1" => "AB",
+                 "position2" => "XY",
+                 "player_ids1" => [a, b],
+                 "player_ids2" => [x, y]
+               })
+
+      assert [inner] = inner_matches(tm)
+
+      assert inner.match_players |> Enum.map(& &1.player_id) |> Enum.sort() ==
+               Enum.sort([a, b, x, y])
+    end
+
+    test "create_inner_match/3 requires the player count of the kind", ctx do
+      %{scope: scope, team_match: tm, p1: [a, b | _], p2: [x, y | _]} = ctx
+
+      assert {:error, changeset} =
+               Matches.create_inner_match(scope, tm, %{
+                 "kind" => "singles",
+                 "player_ids1" => [a, b],
+                 "player_ids2" => []
+               })
+
+      assert errors_on(changeset)[:player_ids1]
+      assert errors_on(changeset)[:player_ids2]
+
+      assert {:error, changeset} =
+               Matches.create_inner_match(scope, tm, %{
+                 "kind" => "doubles",
+                 "player_ids1" => [a, a],
+                 "player_ids2" => [x, y]
+               })
+
+      assert errors_on(changeset)[:player_ids1]
+      refute errors_on(changeset)[:player_ids2]
+      assert inner_matches(tm) == []
+    end
+
+    test "create_inner_match/3 rejects a player who isn't in the side's team", ctx do
+      %{scope: scope, team_match: tm, p1: [a | _], p2: [x | _]} = ctx
+      outsider = insert(:player)
+
+      assert {:error, changeset} =
+               Matches.create_inner_match(scope, tm, %{
+                 "kind" => "singles",
+                 "player_ids1" => [x],
+                 "player_ids2" => [outsider.id]
+               })
+
+      assert errors_on(changeset)[:player_ids1]
+      assert errors_on(changeset)[:player_ids2]
+
+      assert {:ok, _} =
+               Matches.create_inner_match(scope, tm, %{
+                 "kind" => "singles",
+                 "player_ids1" => [a],
+                 "player_ids2" => [x]
+               })
+    end
+
+    test "a player may play several matches of one team match", ctx do
+      %{scope: scope, team_match: tm, p1: [a, b | _], p2: [x, y | _]} = ctx
+
+      for {p1, p2} <- [{[a], [y]}, {[a, b], [x, y]}, {[a], [x]}] do
+        assert {:ok, _} =
+                 Matches.create_inner_match(scope, tm, %{
+                   "kind" => if(length(p1) == 1, do: "singles", else: "doubles"),
+                   "player_ids1" => p1,
+                   "player_ids2" => p2
+                 })
+      end
+
+      assert length(inner_matches(tm)) == 3
+    end
+
+    test "an inner match can be put on a table, moved off it with an update", ctx do
+      %{scope: scope, team_match: tm, p1: [a | _], p2: [x | _]} = ctx
+      table = insert(:table, event_id: tm.event_id, event: nil)
+      lineup = %{"kind" => "singles", "player_ids1" => [a], "player_ids2" => [x]}
+
+      assert {:ok, match} =
+               Matches.create_inner_match(scope, tm, Map.put(lineup, "table_id", "#{table.id}"))
+
+      assert match.table_id == table.id
+      assert match.scheduled_at
+
+      [inner] = inner_matches(tm)
+
+      assert {:ok, moved} =
+               Matches.update_inner_match(scope, tm, inner, Map.put(lineup, "table_id", ""))
+
+      assert is_nil(moved.table_id)
+      assert is_nil(moved.scheduled_at)
+    end
+
+    test "create_inner_match/3 with non-superuser scope raises", ctx do
+      assert_raise FunctionClauseError, fn ->
+        Matches.create_inner_match(Scope.for_user(insert(:user)), ctx.team_match, %{})
+      end
+    end
+
+    test "update_inner_match/4 changes the lineup and positions", ctx do
+      %{scope: scope, team_match: tm, p1: [a, b, c], p2: [x, y | _]} = ctx
+      insert(:inner_match, team_match: tm, players1: [a], players2: [x])
+      [inner] = inner_matches(tm)
+
+      assert {:ok, _} =
+               Matches.update_inner_match(scope, tm, inner, %{
+                 "kind" => "doubles",
+                 "position1" => "BC",
+                 "position2" => "XY",
+                 "player_ids1" => [b, c],
+                 "player_ids2" => [x, y]
+               })
+
+      assert [updated] = inner_matches(tm)
+      assert updated.position1 == "BC"
+
+      assert updated.match_players |> Enum.map(&{&1.side, &1.player_id}) |> Enum.sort() ==
+               Enum.sort([{1, b}, {1, c}, {2, x}, {2, y}])
+    end
+
+    test "inner matches are ordered by creation and count in the score and status", ctx do
+      %{scope: scope, team_match: tm} = ctx
+      first = insert(:inner_match, team_match: tm, winner_registration_id: tm.registration1_id)
+      second = insert(:inner_match, team_match: tm)
+
+      inner = inner_matches(tm)
+      assert Enum.map(inner, & &1.id) == [first.id, second.id]
+      assert Matches.team_match_score(tm, inner) == {1, 0}
+      assert Matches.team_match_status(tm, inner) == :ongoing
+
+      {:ok, _} =
+        Matches.update_match(scope, second, %{"winner_registration_id" => tm.registration2_id})
+
+      assert Matches.team_match_score(tm, inner_matches(tm)) == {1, 1}
+    end
+
+    test "a match belongs to exactly one of a group, a stage or a team match", ctx do
+      %{team_match: tm} = ctx
+
+      changeset =
+        Match.changeset(%Match{}, %{
+          event_id: tm.event_id,
+          group_id: tm.group_id,
+          team_match_id: tm.id
+        })
+
+      refute changeset.valid?
+      assert Match.changeset(%Match{}, %{event_id: tm.event_id, team_match_id: tm.id}).valid?
+
+      assert_raise Ecto.ConstraintError, ~r/exactly_one_context/, fn ->
+        T3System.Repo.insert!(%Match{
+          event_id: tm.event_id,
+          group_id: tm.group_id,
+          team_match_id: tm.id
+        })
+      end
+    end
+
+    test "deleting the team match deletes the matches inside it", ctx do
+      %{scope: scope, team_match: tm} = ctx
+      inner = insert(:inner_match, team_match: tm)
+
+      assert {:ok, _} = Matches.delete_match(scope, tm)
+      assert_raise Ecto.NoResultsError, fn -> Matches.get_match!(inner.id) end
+    end
+
+    test "regenerating the group's matches deletes the matches inside team matches", ctx do
+      %{scope: scope, team_match: tm} = ctx
+      inner = insert(:inner_match, team_match: tm)
+      group = Matches.get_group!(tm.group_id)
+
+      Matches.add_registration_to_group(scope, group.id, tm.registration1_id)
+      Matches.add_registration_to_group(scope, group.id, tm.registration2_id)
+      assert {:ok, 1} = Matches.generate_group_matches(scope, group)
+      assert_raise Ecto.NoResultsError, fn -> Matches.get_match!(inner.id) end
+    end
+
+    test "deleting the stage deletes the matches inside team matches", ctx do
+      %{scope: scope, team_match: tm} = ctx
+      inner = insert(:inner_match, team_match: tm)
+
+      assert {:ok, _} = Matches.delete_stage(scope, tm.group.stage)
+      assert_raise Ecto.NoResultsError, fn -> Matches.get_match!(inner.id) end
+    end
+  end
+
+  describe "team group standings" do
+    # Teams T1..T3 in a team category group
+    setup do
+      event = insert(:event)
+      category = insert(:team_category)
+      stage = insert(:stage, event: event, category: category)
+      group = insert(:group, stage: stage)
+      teams = for _ <- 1..3, do: insert(:team, event: event, category: category)
+      now = DateTime.utc_now(:second)
+
+      T3System.Repo.insert_all(
+        "group_registrations",
+        for(
+          t <- teams,
+          do: %{group_id: group.id, registration_id: t.id, inserted_at: now, updated_at: now}
+        )
+      )
+
+      %{event: event, category: category, group: group, teams: teams}
+    end
+
+    # A team match between r1 and r2 whose inner matches are won by
+    # `inner_winners`, each by one set 11-5
+    defp team_match_between(ctx, r1, r2, winner, inner_winners) do
+      tm =
+        insert(:team_match,
+          event: ctx.event,
+          group: ctx.group,
+          registration1: r1,
+          registration2: r2,
+          winner_registration_id: winner && winner.id
+        )
+
+      for w <- inner_winners do
+        inner = insert(:inner_match, team_match: tm, winner_registration_id: w.id)
+        {s1, s2} = if w.id == r1.id, do: {11, 5}, else: {5, 11}
+
+        insert(:match_set,
+          match: inner,
+          set_number: 1,
+          score1: s1,
+          score2: s2,
+          winner_registration_id: w.id
+        )
+      end
+
+      tm
+    end
+
+    defp standings(ctx) do
+      [group] = Matches.list_groups_for_event_and_category(ctx.event.id, ctx.category.id)
+      Matches.compute_group_standings(group, team: true)
+    end
+
+    test "ranks by team match wins, then inner match difference", ctx do
+      [t1, t2, t3] = ctx.teams
+      # T1 and T2 both win one team match; T1 by 3-0, T2 by 2-1
+      team_match_between(ctx, t1, t3, t1, [t1, t1, t1])
+      team_match_between(ctx, t2, t3, t2, [t2, t3, t2])
+      # T1 x T2 not finished yet, one inner match each
+      team_match_between(ctx, t1, t2, nil, [t2, t1])
+
+      rows = standings(ctx)
+
+      assert Enum.map(rows, & &1.registration.id) == [t1.id, t2.id, t3.id]
+
+      assert Enum.map(rows, &{&1.won, &1.lost, &1.match_diff}) ==
+               [{1, 0, 3}, {1, 0, 1}, {0, 2, -4}]
+
+      assert hd(rows).set_diff == 3
+      assert hd(rows).point_diff == 18
+    end
+
+    test "breaks match difference ties by set difference", ctx do
+      [t1, t2, t3] = ctx.teams
+      team_match_between(ctx, t2, t3, t2, [t2, t3, t2])
+      tm = team_match_between(ctx, t1, t3, t1, [t1, t3, t1])
+      # An extra set won by T1 in one of its inner matches
+      [inner | _] = inner_matches(tm)
+
+      insert(:match_set,
+        match: inner,
+        set_number: 2,
+        score1: 11,
+        score2: 9,
+        winner_registration_id: t1.id
+      )
+
+      assert Enum.map(standings(ctx), & &1.registration.id) == [t1.id, t2.id, t3.id]
+    end
+  end
+
+  defp player_ids(team), do: Enum.map(team.registration_players, & &1.player_id)
+
+  defp inner_matches(team_match),
+    do: Matches.get_team_match!(team_match.event_id, team_match.id).inner_matches
+
   # ---------------------------------------------------------------------------
   # Dashboard metrics
   # ---------------------------------------------------------------------------

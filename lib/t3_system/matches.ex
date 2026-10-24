@@ -12,6 +12,7 @@ defmodule T3System.Matches do
   alias T3System.Events.Event
   alias T3System.Matches.Group
   alias T3System.Matches.Match
+  alias T3System.Matches.MatchPlayer
   alias T3System.Matches.MatchSet
   alias T3System.Matches.Stage
   alias T3System.Registrations.Registration
@@ -75,6 +76,7 @@ defmodule T3System.Matches do
            matches: [
              :sets,
              :table,
+             inner_matches: :sets,
              registration1: @registration_preload,
              registration2: @registration_preload,
              winner: @registration_preload
@@ -85,6 +87,7 @@ defmodule T3System.Matches do
          [
            :sets,
            :table,
+           inner_matches: :sets,
            registration1: @registration_preload,
            registration2: @registration_preload,
            winner: @registration_preload
@@ -211,6 +214,7 @@ defmodule T3System.Matches do
       registrations: @registration_preload,
       matches: [
         :sets,
+        inner_matches: :sets,
         registration1: @registration_preload,
         registration2: @registration_preload,
         winner: @registration_preload
@@ -323,10 +327,17 @@ defmodule T3System.Matches do
   Computes standings for a group from its preloaded registrations and matches.
 
   Returns a list of maps with keys: registration, played, won, lost,
-  set_diff, point_diff, rank, qualified.
+  match_diff, set_diff, point_diff, rank, qualified. Ranked by wins, then set
+  difference, then point difference.
+
+  With `team: true` (a team category), the group's matches are team matches
+  with their inner matches (and sets) preloaded: wins count team matches, and
+  the tiebreaks are inner match difference (`match_diff`), then set and point
+  difference, all counted from the inner matches. Otherwise `match_diff` is 0.
   """
-  def compute_group_standings(%Group{matches: matches} = group) do
+  def compute_group_standings(%Group{matches: matches} = group, opts \\ []) do
     qualifies_count = group.qualifies_count
+    team? = Keyword.get(opts, :team, false)
 
     valid_matches =
       Enum.filter(matches, fn m ->
@@ -356,21 +367,33 @@ defmodule T3System.Matches do
         played = length(completed)
         lost = played - won
 
+        # Tiebreaks come from the matches played: inner matches for teams
+        scored_matches =
+          if team?, do: Enum.flat_map(my_matches, & &1.inner_matches), else: my_matches
+
         {sets_won, sets_lost, pts_won, pts_lost} =
-          Enum.reduce(my_matches, {0, 0, 0, 0}, &accumulate_set_stats(&1, reg.id, &2))
+          Enum.reduce(scored_matches, {0, 0, 0, 0}, &accumulate_set_stats(&1, reg.id, &2))
+
+        match_diff =
+          if team?,
+            do:
+              Enum.count(scored_matches, &(&1.winner_registration_id == reg.id)) -
+                Enum.count(scored_matches, &(&1.winner_registration_id not in [nil, reg.id])),
+            else: 0
 
         %{
           registration: reg,
           played: played,
           won: won,
           lost: lost,
+          match_diff: match_diff,
           set_diff: sets_won - sets_lost,
           point_diff: pts_won - pts_lost
         }
       end)
 
     stats
-    |> Enum.sort_by(fn s -> {-s.won, -s.set_diff, -s.point_diff} end)
+    |> Enum.sort_by(fn s -> {-s.won, -s.match_diff, -s.set_diff, -s.point_diff} end)
     |> Enum.with_index(1)
     |> Enum.map(fn {s, rank} ->
       Map.merge(s, %{rank: rank, qualified: group.is_finished and rank <= qualifies_count})
@@ -608,6 +631,15 @@ defmodule T3System.Matches do
     |> Repo.one!()
     |> Repo.preload([
       :sets,
+      inner_matches:
+        {from(im in Match, order_by: im.id),
+         [
+           :sets,
+           :table,
+           registration1: @registration_preload,
+           registration2: @registration_preload,
+           match_players: {from(mp in MatchPlayer, order_by: mp.id), :player}
+         ]},
       group: [stage: :category],
       stage: :category,
       registration1: @registration_preload,
@@ -643,6 +675,96 @@ defmodule T3System.Matches do
     if Enum.any?(inner_matches, &(&1.is_ongoing or not is_nil(&1.winner_registration_id))),
       do: :ongoing,
       else: :pending
+  end
+
+  @doc """
+  Adds a match inside a team match (from `get_team_match!/2`): its kind,
+  position labels, each side's players (`"player_ids1"`, `"player_ids2"`,
+  picked from that side's team) and an optional `"table_id"`, which puts it at
+  the end of that table's queue. Requires a superuser scope.
+  """
+  @spec create_inner_match(Scope.t(), Match.t(), map()) ::
+          {:ok, Match.t()} | {:error, Ecto.Changeset.t()}
+  def create_inner_match(%Scope{user: %{role: "superuser"}}, %Match{} = team_match, attrs) do
+    Repo.transaction(fn ->
+      case %Match{} |> Match.inner_match_changeset(team_match, attrs) |> Repo.insert() do
+        {:ok, match} -> move_to_table(match, parse_table_id(attrs))
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+    |> broadcast_change()
+  end
+
+  @doc """
+  Updates a match inside a team match: its lineup (see `create_inner_match/3`)
+  and table. Moving it to another table puts it at the end of that queue;
+  clearing the table unschedules it. Requires a superuser scope.
+  """
+  @spec update_inner_match(Scope.t(), Match.t(), Match.t(), map()) ::
+          {:ok, Match.t()} | {:error, Ecto.Changeset.t()}
+  def update_inner_match(
+        %Scope{user: %{role: "superuser"}},
+        %Match{} = team_match,
+        %Match{} = match,
+        attrs
+      ) do
+    match = Repo.preload(match, :match_players)
+
+    Repo.transaction(fn ->
+      case match |> Match.inner_match_changeset(team_match, attrs) |> Repo.update() do
+        {:ok, updated} -> move_to_table(updated, parse_table_id(attrs))
+        {:error, changeset} -> Repo.rollback(changeset)
+      end
+    end)
+    |> broadcast_change()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for the lineup form of a match inside a team match.
+  """
+  @spec change_inner_match(Match.t(), Match.t(), map()) :: Ecto.Changeset.t()
+  def change_inner_match(%Match{} = team_match, %Match{} = match, attrs \\ %{}) do
+    Match.inner_match_changeset(match, team_match, attrs)
+  end
+
+  defp parse_table_id(attrs) do
+    case attrs["table_id"] || attrs[:table_id] do
+      id when id in [nil, ""] -> nil
+      id when is_integer(id) -> id
+      id -> String.to_integer(id)
+    end
+  end
+
+  # Same table: nothing to do. No table: leaves its queue (unscheduled). A new
+  # table of the event: appended to its queue.
+  defp move_to_table(%Match{table_id: table_id} = match, table_id), do: match
+
+  defp move_to_table(%Match{table_id: old_table_id} = match, nil) do
+    match =
+      match
+      |> Ecto.Changeset.change(
+        table_id: nil,
+        table_position: 0,
+        scheduled_at: nil,
+        is_ongoing: false
+      )
+      |> Repo.update!()
+
+    reschedule_table(Repo.get!(Event, match.event_id), old_table_id)
+    match
+  end
+
+  defp move_to_table(%Match{} = match, table_id) do
+    event = Repo.get!(Event, match.event_id)
+
+    case Repo.get_by(Table, id: table_id, event_id: event.id) do
+      nil ->
+        match
+
+      %Table{} ->
+        append_to_table(event, match, table_id)
+        Repo.get!(Match, match.id)
+    end
   end
 
   # ---------------------------------------------------------------------------
