@@ -54,6 +54,13 @@ defmodule T3SystemWeb.Layouts do
         class="flex w-full items-center justify-center gap-4 border-t border-border bg-chrome px-4 py-2 text-center text-xs text-fg-muted"
       >
         Logged in as {@current_scope.user.email}
+        <.link
+          :if={@current_scope.user.role == "superuser"}
+          href={~p"/admin"}
+          class="font-medium hover:text-fg"
+        >
+          {gettext("Admin")}
+        </.link>
         <.link href={~p"/users/log-out"} method="delete" class="font-medium hover:text-fg">
           Log out
         </.link>

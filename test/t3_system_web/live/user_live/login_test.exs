@@ -75,4 +75,23 @@ defmodule T3SystemWeb.UserLive.LoginTest do
                ~s(<input type="email" name="user[email]" id="login_form_password_email" value="#{user.email}")
     end
   end
+
+  describe "already logged in admin" do
+    test "redirects to the admin area", %{conn: conn} do
+      conn = log_in_user(conn, T3System.Factory.insert(:superuser))
+
+      assert {:error, {:redirect, %{to: "/admin"}}} = live(conn, ~p"/users/log-in")
+    end
+
+    test "shows the re-authentication form when not in sudo mode", %{conn: conn} do
+      conn =
+        log_in_user(conn, T3System.Factory.insert(:superuser),
+          token_authenticated_at: DateTime.add(DateTime.utc_now(:second), -11, :minute)
+        )
+
+      {:ok, _lv, html} = live(conn, ~p"/users/log-in")
+
+      assert html =~ "You need to reauthenticate"
+    end
+  end
 end

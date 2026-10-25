@@ -1,6 +1,9 @@
 defmodule T3SystemWeb.UserLive.Login do
   use T3SystemWeb, :live_view
 
+  alias T3System.Accounts
+  alias T3System.Accounts.Scope
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -62,7 +65,23 @@ defmodule T3SystemWeb.UserLive.Login do
   end
 
   @impl true
-  def mount(_params, _session, socket) do
+  # An admin who is already signed in (and doesn't need to re-authenticate for
+  # sudo mode) has nothing to do here, so send them to the admin area.
+  def mount(
+        _params,
+        _session,
+        %{assigns: %{current_scope: %Scope{user: %{role: "superuser"} = user}}} = socket
+      ) do
+    if Accounts.sudo_mode?(user, -10) do
+      {:ok, redirect(socket, to: ~p"/admin")}
+    else
+      mount_login(socket)
+    end
+  end
+
+  def mount(_params, _session, socket), do: mount_login(socket)
+
+  defp mount_login(socket) do
     email =
       Phoenix.Flash.get(socket.assigns.flash, :email) ||
         get_in(socket.assigns, [:current_scope, Access.key(:user), Access.key(:email)])

@@ -26,6 +26,8 @@ defmodule T3SystemWeb.Router do
   scope "/admin", T3SystemWeb.Admin do
     pipe_through [:browser, :require_authenticated_user]
 
+    get "/", HomeController, :index
+
     live_session :admin,
       on_mount: [{T3SystemWeb.UserAuth, :require_superuser}] do
       # -- Players

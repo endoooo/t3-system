@@ -2831,4 +2831,25 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       |> assert_has("#score-modal", text: "Caio")
     end
   end
+
+  describe "footer admin link" do
+    test "is shown to a logged in admin", %{conn: conn} do
+      event = insert(:event)
+
+      conn
+      |> log_in_user(insert(:superuser))
+      |> visit(~p"/events/#{event}")
+      |> assert_has("a[href='/admin']", text: "Admin")
+    end
+
+    test "is hidden from a regular user", %{conn: conn} do
+      event = insert(:event)
+
+      conn
+      |> log_in_user(insert(:user))
+      |> visit(~p"/events/#{event}")
+      |> assert_has("a", text: "Log out")
+      |> refute_has("a[href='/admin']")
+    end
+  end
 end

@@ -20,6 +20,14 @@ defmodule T3SystemWeb.EventLiveTest do
       |> assert_has("td", text: event.name)
     end
 
+    test "links each event to its public page", %{conn: conn} do
+      event = insert(:event)
+
+      conn
+      |> visit(~p"/admin/events")
+      |> assert_has("a[href='/events/#{event.id}']", text: "View event")
+    end
+
     test "formats the event datetime", %{conn: conn} do
       insert(:event, datetime: ~U[2026-03-28 10:00:00Z])
 

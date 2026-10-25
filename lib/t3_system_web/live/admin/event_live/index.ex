@@ -38,6 +38,11 @@ defmodule T3SystemWeb.Admin.EventLive.Index do
           <div class="sr-only">
             <.link navigate={~p"/admin/events/#{event}"}>{gettext("Show")}</.link>
           </div>
+          <.link navigate={~p"/events/#{event}"} class="hover:text-primary-hover">
+            {gettext("View event")}
+          </.link>
+        </:action>
+        <:action :let={{_id, event}}>
           <.link navigate={~p"/admin/events/#{event}/edit"} class="hover:text-primary-hover">
             {gettext("Edit")}
           </.link>
