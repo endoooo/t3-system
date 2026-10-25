@@ -8,6 +8,7 @@ defmodule T3System.Matches.Match do
   alias T3System.Matches.MatchPlayer
   alias T3System.Matches.MatchSet
   alias T3System.Matches.Stage
+  alias T3System.Matches.TeamMatchPosition
   alias T3System.Registrations.Registration
   alias T3System.Tables.Table
 
@@ -17,11 +18,11 @@ defmodule T3System.Matches.Match do
           group_id: pos_integer() | nil,
           stage_id: pos_integer() | nil,
           team_match_id: pos_integer() | nil,
-          position1: String.t() | nil,
-          position2: String.t() | nil,
           kind: String.t() | nil,
           player_ids1: [pos_integer()] | nil,
           player_ids2: [pos_integer()] | nil,
+          positions1: %{optional(String.t()) => String.t()} | nil,
+          positions2: %{optional(String.t()) => String.t()} | nil,
           registration1_id: pos_integer() | nil,
           registration2_id: pos_integer() | nil,
           winner_registration_id: pos_integer() | nil,
@@ -46,6 +47,7 @@ defmodule T3System.Matches.Match do
           team_match: t() | Ecto.Association.NotLoaded.t() | nil,
           inner_matches: [t()] | Ecto.Association.NotLoaded.t(),
           match_players: [MatchPlayer.t()] | Ecto.Association.NotLoaded.t(),
+          player_positions: [TeamMatchPosition.t()] | Ecto.Association.NotLoaded.t(),
           inserted_at: DateTime.t(),
           updated_at: DateTime.t()
         }
@@ -60,13 +62,15 @@ defmodule T3System.Matches.Match do
     field :scheduled_at, :utc_datetime
     field :slot1_label, :string
     field :slot2_label, :string
-    field :position1, :string
-    field :position2, :string
 
     # Lineup form fields of a match inside a team match (see inner_match_changeset/3)
     field :kind, :string, virtual: true
     field :player_ids1, {:array, :integer}, virtual: true
     field :player_ids2, {:array, :integer}, virtual: true
+
+    # Positions form fields of a team match (see positions_changeset/2)
+    field :positions1, {:map, :string}, virtual: true
+    field :positions2, {:map, :string}, virtual: true
 
     belongs_to :event, Event
     belongs_to :table, Table
@@ -80,6 +84,10 @@ defmodule T3System.Matches.Match do
     has_many :inner_matches, __MODULE__, foreign_key: :team_match_id
     has_many :match_players, MatchPlayer, on_replace: :delete
 
+    has_many :player_positions, TeamMatchPosition,
+      foreign_key: :team_match_id,
+      on_replace: :delete
+
     timestamps(type: :utc_datetime)
   end
 
@@ -88,8 +96,6 @@ defmodule T3System.Matches.Match do
     :group_id,
     :stage_id,
     :team_match_id,
-    :position1,
-    :position2,
     :registration1_id,
     :registration2_id,
     :winner_registration_id,
@@ -223,7 +229,7 @@ defmodule T3System.Matches.Match do
   @doc """
   The lineup of a match inside `team_match` (whose teams' players are
   preloaded): its kind ("singles": 1 player per side, "doubles": 2 different
-  players per side), position labels, each side's players, picked from that
+  players per side), each side's players, picked from that
   side's team (blank picks are ignored), and its table. The match copies the
   event and both teams from its team match. `player_ids1`/`player_ids2`
   default to the match's current players (`match_players` preloaded when
@@ -238,8 +244,6 @@ defmodule T3System.Matches.Match do
     |> with_lineup_fields()
     |> cast(lineup_picks(attrs), [
       :kind,
-      :position1,
-      :position2,
       :player_ids1,
       :player_ids2,
       :table_id
@@ -334,5 +338,88 @@ defmodule T3System.Matches.Match do
       end
 
     put_assoc(changeset, :match_players, players)
+  end
+
+  @doc """
+  The positions of a team match (whose teams' players and `player_positions`
+  are preloaded): `positions1`/`positions2` map each side's player ids to their
+  position ("A", "X"), for every match inside the team match. A side given
+  replaces that side's positions (blank ones are cleared); a side not given
+  keeps them. A position is used once per side.
+  """
+  @spec positions_changeset(t(), map()) :: Ecto.Changeset.t()
+  def positions_changeset(%__MODULE__{} = team_match, attrs) do
+    team_match
+    |> with_positions_fields()
+    |> cast(position_picks(attrs), [:positions1, :positions2])
+    |> validate_positions(:positions1, team_match.registration1)
+    |> validate_positions(:positions2, team_match.registration2)
+    |> put_player_positions(team_match)
+  end
+
+  # Trims the posted positions and drops non-player keys (LiveView's
+  # `"_unused_<id>"` for untouched inputs)
+  defp position_picks(attrs) do
+    Map.new(attrs, fn
+      {key, %{} = positions} when key in ["positions1", "positions2"] ->
+        picks =
+          for {id, position} <- positions,
+              {_n, ""} <- [Integer.parse(id)],
+              into: %{},
+              do: {id, String.trim(position || "")}
+
+        {key, picks}
+
+      pair ->
+        pair
+    end)
+  end
+
+  # Fills the positions form fields from the team match's current positions
+  defp with_positions_fields(%__MODULE__{player_positions: positions} = team_match) do
+    by_side = fn side ->
+      for p <- positions, p.side == side, into: %{}, do: {to_string(p.player_id), p.position}
+    end
+
+    %{team_match | positions1: by_side.(1), positions2: by_side.(2)}
+  end
+
+  defp validate_positions(changeset, field, team) do
+    positions = get_field(changeset, field) || %{}
+    team_ids = team_player_ids(team)
+    taken = positions |> Map.values() |> Enum.reject(&(&1 == ""))
+
+    cond do
+      not Enum.all?(Map.keys(positions), &(String.to_integer(&1) in team_ids)) ->
+        add_error(changeset, field, "must be players of this side's team")
+
+      length(Enum.uniq(taken)) != length(taken) ->
+        add_error(changeset, field, "use each position once")
+
+      true ->
+        changeset
+    end
+  end
+
+  # Keeps the rows of the players who keep a position (with the new one), adds
+  # the new ones, deletes the cleared ones
+  defp put_player_positions(%{valid?: false} = changeset, _team_match), do: changeset
+
+  defp put_player_positions(changeset, team_match) do
+    current = team_match.player_positions
+
+    positions =
+      for {field, side} <- [positions1: 1, positions2: 2],
+          {id, position} <- get_field(changeset, field),
+          position != "" do
+        player_id = String.to_integer(id)
+
+        case Enum.find(current, &(&1.side == side and &1.player_id == player_id)) do
+          nil -> %TeamMatchPosition{side: side, player_id: player_id, position: position}
+          row -> change(row, position: position)
+        end
+      end
+
+    put_assoc(changeset, :player_positions, positions)
   end
 end

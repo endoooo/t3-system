@@ -2416,6 +2416,21 @@ defmodule T3SystemWeb.EventLive.ShowTest do
           registration2: team2
         )
 
+      # Positions in the team match: Ana A, Bia B (AABB); Caio X, Duda Y (Clube Y)
+      for {player, side, position} <- [
+            {ana, 1, "A"},
+            {bia, 1, "B"},
+            {caio, 2, "X"},
+            {duda, 2, "Y"}
+          ] do
+        insert(:team_match_position,
+          team_match_id: team_match.id,
+          player_id: player.id,
+          side: side,
+          position: position
+        )
+      end
+
       %{team1: team1, team2: team2, stage: stage, group: group, team_match: team_match}
     end
 
@@ -2681,9 +2696,7 @@ defmodule T3SystemWeb.EventLive.ShowTest do
         [
           team_match: team_match,
           players1: [ana.id],
-          players2: [caio.id],
-          position1: "A",
-          position2: "X"
+          players2: [caio.id]
         ] ++ attrs
       )
     end
@@ -2745,7 +2758,14 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       table1 = insert(:table, event: ctx.event, name: "Mesa 1")
       table2 = insert(:table, event: ctx.event, name: "Mesa 2")
       ongoing = insert_inner_match(team_match, ctx, table: table1, is_ongoing: true)
-      next = insert_inner_match(team_match, ctx, table: table2, position1: "B", position2: "Y")
+      [_, bia, _, duda] = ctx.players
+
+      next =
+        insert_inner_match(team_match, ctx,
+          table: table2,
+          players1: [bia.id],
+          players2: [duda.id]
+        )
 
       build_conn()
       |> visit(~p"/events/#{ctx.event}?category_id=#{ctx.category.id}")

@@ -634,6 +634,7 @@ defmodule T3System.Matches do
 
   @team_match_preloads [
     :sets,
+    :player_positions,
     inner_matches:
       {from(im in Match, order_by: im.id),
        [
@@ -716,8 +717,30 @@ defmodule T3System.Matches do
   end
 
   @doc """
+  Sets each team's player positions in a team match (from `get_team_match!/2`):
+  `"positions1"`/`"positions2"` map a side's player ids to their position (see
+  `Match.positions_changeset/2`). Requires a superuser scope.
+  """
+  @spec save_positions(Scope.t(), Match.t(), map()) ::
+          {:ok, Match.t()} | {:error, Ecto.Changeset.t()}
+  def save_positions(%Scope{user: %{role: "superuser"}}, %Match{} = team_match, attrs) do
+    team_match
+    |> Match.positions_changeset(attrs)
+    |> Repo.update()
+    |> broadcast_change()
+  end
+
+  @doc """
+  Returns an `%Ecto.Changeset{}` for the positions form of a team match.
+  """
+  @spec change_positions(Match.t(), map()) :: Ecto.Changeset.t()
+  def change_positions(%Match{} = team_match, attrs \\ %{}) do
+    Match.positions_changeset(team_match, attrs)
+  end
+
+  @doc """
   Adds a match inside a team match (from `get_team_match!/2`): its kind,
-  position labels, each side's players (`"player_ids1"`, `"player_ids2"`,
+  each side's players (`"player_ids1"`, `"player_ids2"`,
   picked from that side's team) and an optional `"table_id"`, which puts it at
   the end of that table's queue. Requires a superuser scope.
   """
@@ -805,6 +828,7 @@ defmodule T3System.Matches do
   # ---------------------------------------------------------------------------
 
   @team_match_context_preloads [
+    :player_positions,
     group: [stage: :category],
     stage: :category,
     registration1: @registration_preload,

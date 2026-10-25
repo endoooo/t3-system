@@ -2442,7 +2442,7 @@ defmodule T3SystemWeb.EventLive.Show do
 
     inner_cards =
       Enum.map(inner_matches, fn match ->
-        inner_match_card_data(match,
+        inner_match_card_data(match, match.team_match.player_positions,
           label: team_match_context(match),
           label_navigate: ~p"/events/#{event}/team-matches/#{match.team_match_id}?#{back_params}",
           category_name: match_category(match.team_match).name
@@ -2819,7 +2819,7 @@ defmodule T3SystemWeb.EventLive.Show do
   # A schedule side: the position label and players of a match inside a team
   # match, the registration (or bracket slot) otherwise
   defp schedule_slot_label(%Match{team_match_id: id} = match, slot) when not is_nil(id) do
-    position = if slot == 1, do: match.position1, else: match.position2
+    position = side_position(match, match.team_match.player_positions, slot)
 
     [position, match_side_names(match, slot, :full)]
     |> Enum.reject(&(&1 in [nil, ""]))

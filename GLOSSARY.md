@@ -39,7 +39,7 @@ The ordered list of matches a team match is made of, written in positions (e.g. 
 _Avoid_: Team format, system
 
 **Position**:
-A free label naming who plays each side of a match inside a team match, by the team's chosen letters (e.g. "AB" against "XY", "C" against "Z").
+A letter a team gives one of its players for a whole team match (e.g. "A", "X"). A side of a match inside the team match is named by its players' positions, in alphabetical order ("AB" against "XY", "C" against "Z").
 _Avoid_: Slot, seat
 
 **Lineup**:

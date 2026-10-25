@@ -2,8 +2,9 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
   @moduledoc """
   A team match's page: its header (category, stage, teams, derived score and
   status), the matches played inside it (as match cards, in creation order)
-  and each team's players. Superusers add, edit, delete and score the matches
-  inside it, and set the team match winner here.
+  and each team's players with their positions. Superusers set the players'
+  positions, add, edit, delete and score the matches inside it, and set the
+  team match winner here.
   """
   use T3SystemWeb, :live_view
 
@@ -90,15 +91,25 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
 
         <%!-- Each team's players --%>
         <section class="space-y-4">
-          <.section_title>{gettext("Equipes")}</.section_title>
+          <.section_title>
+            {gettext("Equipes")}
+            <:actions :if={@is_superuser and teams(@team_match) |> length() == 2}>
+              <.button phx-click="open_positions_modal">
+                <.icon name="hero-pencil-square" /> {gettext("Posições")}
+              </.button>
+            </:actions>
+          </.section_title>
           <div class="grid gap-3 sm:grid-cols-2">
             <.card
-              :for={team <- teams(@team_match)}
+              :for={{team, side} <- team_sides(@team_match)}
               id={"team-#{team.id}"}
               class="space-y-3"
             >
               <h3 class="font-display text-lg font-black">{team.name}</h3>
-              <.team_members players={team.registration_players} />
+              <.team_members
+                players={team.registration_players}
+                positions={side_positions(@team_match, side)}
+              />
             </.card>
           </div>
         </section>
@@ -130,6 +141,46 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
         </.form>
       </.modal>
 
+      <%!-- Each team's player positions --%>
+      <.modal
+        :if={@positions_form}
+        id="team-match-positions-modal"
+        title={gettext("Posições")}
+        on_close="close_positions_modal"
+      >
+        <.form
+          for={@positions_form}
+          id="team-match-positions-form"
+          phx-submit="save_positions"
+          class="space-y-6"
+        >
+          <fieldset
+            :for={{team, side} <- team_sides(@team_match)}
+            id={"team-match-positions-side-#{side}"}
+            class="space-y-4"
+          >
+            <legend class="mb-2 font-display text-sm font-bold">{team.name}</legend>
+            <.input
+              :for={{entry, n} <- Enum.with_index(team.registration_players, 1)}
+              id={"team-match-position-#{side}-#{entry.player_id}"}
+              name={@positions_form[:"positions#{side}"].name <> "[#{entry.player_id}]"}
+              type="text"
+              label={entry.player.name}
+              value={(@positions_form[:"positions#{side}"].value || %{})[to_string(entry.player_id)]}
+              errors={
+                if n == length(team.registration_players),
+                  do: field_errors(@positions_form, :"positions#{side}"),
+                  else: []
+              }
+            />
+          </fieldset>
+          <.form_actions align="end">
+            <.button type="button" phx-click="close_positions_modal">{gettext("Cancelar")}</.button>
+            <.button type="submit" variant="primary">{gettext("Salvar")}</.button>
+          </.form_actions>
+        </.form>
+      </.modal>
+
       <%!-- Add/edit a match inside the team match --%>
       <.modal
         :if={@inner_form}
@@ -152,16 +203,11 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
               options={[{gettext("Simples"), "singles"}, {gettext("Duplas"), "doubles"}]}
             />
             <fieldset
-              :for={{team, side} <- Enum.with_index(teams(@team_match), 1)}
+              :for={{team, side} <- team_sides(@team_match)}
               id={"inner-match-side-#{side}"}
               class="space-y-4"
             >
               <legend class="mb-2 font-display text-sm font-bold">{team.name}</legend>
-              <.input
-                field={@inner_form[:"position#{side}"]}
-                type="text"
-                label={gettext("Posição — %{team}", team: team.name)}
-              />
               <.input
                 :for={n <- 1..player_count(@inner_form)}
                 id={"inner-match-player-#{side}-#{n}"}
@@ -169,10 +215,12 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
                 type="select"
                 label={gettext("Jogador %{n} — %{team}", n: n, team: team.name)}
                 prompt={gettext("Selecione um jogador")}
-                options={Enum.map(team.registration_players, &{&1.player.name, &1.player_id})}
+                options={player_options(@team_match, team, side)}
                 value={Enum.at(@inner_form[:"player_ids#{side}"].value || [], n - 1)}
                 errors={
-                  if n == player_count(@inner_form), do: side_errors(@inner_form, side), else: []
+                  if n == player_count(@inner_form),
+                    do: field_errors(@inner_form, :"player_ids#{side}"),
+                    else: []
                 }
               />
             </fieldset>
@@ -245,6 +293,7 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
      |> assign(:winner_form, nil)
      |> assign(:inner_form, nil)
      |> assign(:inner_editing, nil)
+     |> assign(:positions_form, nil)
      |> assign(:score_match, nil)
      |> assign(:tables, [])
      |> stream_configure(:inner_cards, dom_id: &"match-#{&1.id}")
@@ -303,6 +352,29 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
 
       {:error, _changeset} ->
         {:noreply, put_flash(socket, :error, gettext("Could not save the result."))}
+    end
+  end
+
+  # Player positions (superuser only)
+
+  def handle_event("open_positions_modal", _params, socket) do
+    form = socket.assigns.team_match |> Matches.change_positions() |> to_form(as: :team_match)
+    {:noreply, assign(socket, :positions_form, form)}
+  end
+
+  def handle_event("close_positions_modal", _params, socket) do
+    {:noreply, assign(socket, :positions_form, nil)}
+  end
+
+  def handle_event("save_positions", %{"team_match" => attrs}, socket) do
+    %{current_scope: scope, team_match: team_match} = socket.assigns
+
+    case Matches.save_positions(scope, team_match, attrs) do
+      {:ok, _} ->
+        {:noreply, socket |> assign(:positions_form, nil) |> reload_team_match()}
+
+      {:error, %Ecto.Changeset{} = changeset} ->
+        {:noreply, assign(socket, :positions_form, to_form(changeset, as: :team_match))}
     end
   end
 
@@ -395,9 +467,10 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
 
   defp player_count(form), do: Match.side_player_count(form[:kind].value)
 
-  defp side_errors(form, side) do
+  # Errors of a form field rendered as several inputs, shown under the last one
+  defp field_errors(form, field) do
     if form.source.action,
-      do: Enum.map(form[:"player_ids#{side}"].errors, &translate_error/1),
+      do: Enum.map(form[field].errors, &translate_error/1),
       else: []
   end
 
@@ -411,17 +484,17 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
 
     socket
     |> assign(:team_match, team_match)
-    |> stream(:inner_cards, inner_cards(inner_matches), reset: true)
+    |> stream(:inner_cards, inner_cards(inner_matches, team_match.player_positions), reset: true)
     |> assign(:score, Matches.team_match_score(team_match, inner_matches))
     |> assign(:status, Matches.team_match_status(team_match, inner_matches))
     |> assign(:page_title, "#{team_name(team_match, 1)} x #{team_name(team_match, 2)}")
   end
 
-  defp inner_cards(inner_matches) do
+  defp inner_cards(inner_matches, player_positions) do
     inner_matches
     |> Enum.with_index(1)
     |> Enum.map(fn {match, n} ->
-      inner_match_card_data(match, label: gettext("Partida %{n}", n: n))
+      inner_match_card_data(match, player_positions, label: gettext("Partida %{n}", n: n))
     end)
   end
 
@@ -431,6 +504,30 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
         [team_match.registration1, team_match.registration2],
         &is_struct(&1, Registration)
       )
+
+  # Each team with its side (1 or 2)
+  defp team_sides(%Match{} = team_match),
+    do:
+      Enum.filter(
+        [{team_match.registration1, 1}, {team_match.registration2, 2}],
+        fn {team, _side} -> is_struct(team, Registration) end
+      )
+
+  # A side's player ids to their position in the team match
+  defp side_positions(%Match{player_positions: positions}, side),
+    do: for(%{side: ^side} = p <- positions, into: %{}, do: {p.player_id, p.position})
+
+  # A side's player options, "A — Ana" for a player with a position
+  defp player_options(%Match{} = team_match, team, side) do
+    positions = side_positions(team_match, side)
+
+    Enum.map(team.registration_players, fn entry ->
+      case positions[entry.player_id] do
+        nil -> {entry.player.name, entry.player_id}
+        position -> {"#{position} — #{entry.player.name}", entry.player_id}
+      end
+    end)
+  end
 
   defp winner?(%Match{winner_registration_id: nil}, _registration_id), do: false
 

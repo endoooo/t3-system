@@ -16,6 +16,7 @@ defmodule T3SystemWeb.MatchComponents do
   alias T3System.Matches.Group
   alias T3System.Matches.Match
   alias T3System.Matches.Stage
+  alias T3System.Matches.TeamMatchPosition
   alias T3System.Registrations.Registration
 
   @doc """
@@ -92,16 +93,34 @@ defmodule T3SystemWeb.MatchComponents do
 
   @doc """
   A match inside a team match, in its team match's context: the team names
-  and its position labels, "AABB A x Clube Y · AB x XY". Needs the team match
-  (with its teams) preloaded.
+  and its sides' positions, "AABB A x Clube Y · AB x XY". Needs the team match
+  (with its teams and player positions) and the match players preloaded.
   """
   @spec team_match_context(Match.t()) :: String.t()
   def team_match_context(%Match{team_match: %Match{} = team_match} = match) do
     teams = "#{team_label(team_match.registration1)} x #{team_label(team_match.registration2)}"
+    position1 = side_position(match, team_match.player_positions, 1)
+    position2 = side_position(match, team_match.player_positions, 2)
 
-    if blank?(match.position1) and blank?(match.position2),
+    if blank?(position1) and blank?(position2),
       do: teams,
-      else: "#{teams} · #{match.position1} x #{match.position2}"
+      else: "#{teams} · #{position1} x #{position2}"
+  end
+
+  @doc """
+  The position of one side (1 or 2) of a match inside a team match: the team
+  match positions (`player_positions`) of that side's players, in alphabetical
+  order ("AB" for a doubles of A and B), or `nil` when none of them has one.
+  Needs the match players preloaded.
+  """
+  @spec side_position(Match.t(), [TeamMatchPosition.t()], 1 | 2) :: String.t() | nil
+  def side_position(%Match{match_players: players}, player_positions, side) do
+    positions =
+      for %{side: ^side, player_id: player_id} <- players,
+          %{side: ^side, player_id: ^player_id, position: position} <- player_positions,
+          do: position
+
+    if positions == [], do: nil, else: positions |> Enum.sort() |> Enum.join()
   end
 
   defp team_label(%Registration{name: name}), do: name
@@ -124,17 +143,18 @@ defmodule T3SystemWeb.MatchComponents do
 
   @doc """
   The `match_card/1` data of a match inside a team match (sets, table and
-  match players preloaded): position labels and each side's players. `fields`
-  names the card (`:label`, ...) like in `match_card_data/2`.
+  match players preloaded): each side's position, from its team match's
+  `player_positions`, and players. `fields` names the card (`:label`, ...)
+  like in `match_card_data/2`.
   """
-  @spec inner_match_card_data(Match.t(), map() | keyword()) :: map()
-  def inner_match_card_data(%Match{} = match, fields) do
+  @spec inner_match_card_data(Match.t(), [TeamMatchPosition.t()], map() | keyword()) :: map()
+  def inner_match_card_data(%Match{} = match, player_positions, fields) do
     match_card_data(
       match,
       Map.merge(
         %{
-          p1_position: match.position1,
-          p2_position: match.position2,
+          p1_position: side_position(match, player_positions, 1),
+          p2_position: side_position(match, player_positions, 2),
           p1_name: match_side_names(match, 1, :short),
           p2_name: match_side_names(match, 2, :short),
           p1_full_name: match_side_names(match, 1, :full),

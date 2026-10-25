@@ -94,19 +94,27 @@ defmodule T3SystemWeb.PlayerComponents do
 
   @doc """
   Renders a team's players, one per line, each with their avatar, name and
-  club.
+  club, and their position in a team match when given.
 
   ## Examples
 
       <.team_members players={registration.registration_players} />
+      <.team_members players={team.registration_players} positions={%{player_id => "A"}} />
   """
   attr :players, :list, required: true, doc: "entries with `:player` and `:club`"
+  attr :positions, :map, default: %{}, doc: "player ids to their position, shown before them"
   attr :class, :any, default: "space-y-1.5"
 
   def team_members(assigns) do
     ~H"""
     <ul class={@class}>
       <li :for={entry <- @players} class="flex min-w-0 items-center gap-2">
+        <span
+          :if={@positions != %{}}
+          class="w-6 shrink-0 text-xs font-bold whitespace-nowrap text-fg-muted"
+        >
+          {@positions[entry.player_id]}
+        </span>
         <.avatar src={entry.player.picture_url} name={entry.player.name} size="xs" />
         <span class="truncate text-sm text-fg">{entry.player.name}</span>
         <span class="truncate text-sm text-primary">{entry.club.name}</span>

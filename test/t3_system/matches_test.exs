@@ -746,8 +746,6 @@ defmodule T3System.MatchesTest do
       assert {:ok, %Match{} = match} =
                Matches.create_inner_match(scope, tm, %{
                  "kind" => "singles",
-                 "position1" => "A",
-                 "position2" => "X",
                  "player_ids1" => [to_string(a)],
                  "player_ids2" => [to_string(x)]
                })
@@ -758,8 +756,6 @@ defmodule T3System.MatchesTest do
       assert match.registration2_id == tm.registration2_id
 
       assert [inner] = inner_matches(tm)
-      assert inner.position1 == "A"
-      assert inner.position2 == "X"
 
       assert inner.match_players |> Enum.map(&{&1.side, &1.player_id}) |> Enum.sort() ==
                [{1, a}, {2, x}]
@@ -771,8 +767,6 @@ defmodule T3System.MatchesTest do
       assert {:ok, _} =
                Matches.create_inner_match(scope, tm, %{
                  "kind" => "doubles",
-                 "position1" => "AB",
-                 "position2" => "XY",
                  "player_ids1" => [a, b],
                  "player_ids2" => [x, y]
                })
@@ -871,7 +865,7 @@ defmodule T3System.MatchesTest do
       end
     end
 
-    test "update_inner_match/4 changes the lineup and positions", ctx do
+    test "update_inner_match/4 changes the lineup", ctx do
       %{scope: scope, team_match: tm, p1: [a, b, c], p2: [x, y | _]} = ctx
       insert(:inner_match, team_match: tm, players1: [a], players2: [x])
       [inner] = inner_matches(tm)
@@ -879,17 +873,63 @@ defmodule T3System.MatchesTest do
       assert {:ok, _} =
                Matches.update_inner_match(scope, tm, inner, %{
                  "kind" => "doubles",
-                 "position1" => "BC",
-                 "position2" => "XY",
                  "player_ids1" => [b, c],
                  "player_ids2" => [x, y]
                })
 
       assert [updated] = inner_matches(tm)
-      assert updated.position1 == "BC"
 
       assert updated.match_players |> Enum.map(&{&1.side, &1.player_id}) |> Enum.sort() ==
                Enum.sort([{1, b}, {1, c}, {2, x}, {2, y}])
+    end
+
+    test "save_positions/3 sets, swaps and clears each side's positions", ctx do
+      %{scope: scope, team_match: tm, p1: [a, b, c], p2: [x | _]} = ctx
+      id = &to_string/1
+
+      assert {:ok, _} =
+               Matches.save_positions(scope, tm, %{
+                 "positions1" => %{id.(a) => "A", id.(b) => " B ", id.(c) => ""},
+                 "positions2" => %{id.(x) => "A"}
+               })
+
+      tm = Matches.get_team_match!(tm.event_id, tm.id)
+      assert positions(tm) == Enum.sort([{1, a, "A"}, {1, b, "B"}, {2, x, "A"}])
+
+      assert {:ok, _} =
+               Matches.save_positions(scope, tm, %{
+                 "positions1" => %{id.(a) => "B", id.(b) => "A", id.(c) => ""},
+                 "positions2" => %{id.(x) => ""}
+               })
+
+      tm = Matches.get_team_match!(tm.event_id, tm.id)
+      assert positions(tm) == Enum.sort([{1, a, "B"}, {1, b, "A"}])
+    end
+
+    test "save_positions/3 rejects a position used twice on a side", ctx do
+      %{scope: scope, team_match: tm, p1: [a, b | _]} = ctx
+
+      assert {:error, changeset} =
+               Matches.save_positions(scope, tm, %{
+                 "positions1" => %{to_string(a) => "A", to_string(b) => "A"}
+               })
+
+      assert "use each position once" in errors_on(changeset).positions1
+    end
+
+    test "save_positions/3 rejects a player of the other team", ctx do
+      %{scope: scope, team_match: tm, p2: [x | _]} = ctx
+
+      assert {:error, changeset} =
+               Matches.save_positions(scope, tm, %{"positions1" => %{to_string(x) => "A"}})
+
+      assert "must be players of this side's team" in errors_on(changeset).positions1
+    end
+
+    test "save_positions/3 requires a superuser", ctx do
+      assert_raise FunctionClauseError, fn ->
+        Matches.save_positions(Scope.for_user(insert(:user)), ctx.team_match, %{})
+      end
     end
 
     test "inner matches are ordered by creation and count in the score and status", ctx do
@@ -1151,6 +1191,12 @@ defmodule T3System.MatchesTest do
   end
 
   defp player_ids(team), do: Enum.map(team.registration_players, & &1.player_id)
+
+  defp positions(team_match),
+    do:
+      team_match.player_positions
+      |> Enum.map(&{&1.side, &1.player_id, &1.position})
+      |> Enum.sort()
 
   defp inner_matches(team_match),
     do: Matches.get_team_match!(team_match.event_id, team_match.id).inner_matches
@@ -1787,7 +1833,7 @@ defmodule T3System.MatchesTest do
 
     test "list_pending_inner_matches/1 lists unfinished inner matches with their team match",
          ctx do
-      inner = insert(:inner_match, team_match: ctx.team_match, position1: "A", position2: "X")
+      inner = insert(:inner_match, team_match: ctx.team_match)
       _finished = finished_inner_match(ctx)
       _regular = insert(:match, event: ctx.event)
 

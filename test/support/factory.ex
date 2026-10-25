@@ -13,6 +13,7 @@ defmodule T3System.Factory do
   alias T3System.Matches.MatchPlayer
   alias T3System.Matches.MatchSet
   alias T3System.Matches.Stage
+  alias T3System.Matches.TeamMatchPosition
   alias T3System.Players.Player
   alias T3System.Registrations.Registration
   alias T3System.Registrations.RegistrationPlayer
@@ -189,6 +190,12 @@ defmodule T3System.Factory do
     }
     |> merge_attributes(attrs)
     |> evaluate_lazy_attributes()
+  end
+
+  # A player's position in a team match: pass `team_match_id:`, `player_id:`
+  # and, for side 2, `side: 2`.
+  def team_match_position_factory do
+    %TeamMatchPosition{side: 1, position: "A"}
   end
 
   defp first_player_ids(%Registration{registration_players: [first | _]}),

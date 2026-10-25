@@ -1,6 +1,6 @@
 # A team match is a match that wraps matches
 
-Team categories need a team match (team against team) made of singles and doubles matches between their players. We store both levels as `Match` rows: the team match is an ordinary match between the two team registrations, living in a group or bracket stage like any other, and each match inside it is a match that points to its team match instead of to a group or stage. Inner matches keep the two team registrations as their sides, so winners, set winners, scoring, tables, the ongoing flag and live updates work unchanged; who actually plays each side is a separate list of that team's players, plus a free position label ("AB", "XY"). The team match is a thin wrapper: its winner is set by hand, its score is counted from the inner matches, and it never goes on a table itself.
+Team categories need a team match (team against team) made of singles and doubles matches between their players. We store both levels as `Match` rows: the team match is an ordinary match between the two team registrations, living in a group or bracket stage like any other, and each match inside it is a match that points to its team match instead of to a group or stage. Inner matches keep the two team registrations as their sides, so winners, set winners, scoring, tables, the ongoing flag and live updates work unchanged; who actually plays each side is a separate list of that team's players. Positions belong to the team match, not to its matches: each team gives its players a position for the whole team match, and a match side's label ("AB", "XY") comes from its players' positions. The team match is a thin wrapper: its winner is set by hand, its score is counted from the inner matches, and it never goes on a table itself.
 
 ## Considered Options
 
@@ -12,3 +12,4 @@ Team categories need a team match (team against team) made of singles and double
 - A match belongs to exactly one of a group, a bracket stage or a team match.
 - Queries must pick the right level: groups, brackets and the matches tab read team matches; the table schedule and the ongoing/next sections read the matches inside them.
 - Deleting a team match (or regenerating a group) deletes the matches inside it.
+- Positions were first a free label per side on each match inside the team match. They moved to the team match (2026-10-25): a team's positions are fixed for the whole team match, so typing them on every match repeated the same fact and let matches disagree.
