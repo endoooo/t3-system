@@ -8,7 +8,7 @@ defmodule T3SystemWeb.MatchComponents do
   use Gettext, backend: T3SystemWeb.Gettext
 
   import T3SystemWeb.CoreComponents,
-    only: [button: 1, card: 1, icon: 1, tooltip: 1]
+    only: [badge: 1, button: 1, card: 1, icon: 1, tooltip: 1]
 
   import T3SystemWeb.PlayerComponents, only: [player_names: 1, player_short_names: 1]
 
@@ -341,12 +341,29 @@ defmodule T3SystemWeb.MatchComponents do
     """
   end
 
+  @doc "An \"Em andamento\" badge with the pulsing dot, for ongoing matches and groups."
+  attr :class, :any, default: nil
+
+  def ongoing_badge(assigns) do
+    ~H"""
+    <.badge tone="primary" class={@class}>
+      <.ongoing_dot aria-hidden="true" />
+      {gettext("Em andamento")}
+    </.badge>
+    """
+  end
+
   @doc "A pulsing dot marking an ongoing match."
   attr :class, :any, default: nil
+  attr :rest, :global
 
   def ongoing_dot(assigns) do
     ~H"""
-    <span class={["relative flex size-2 shrink-0", @class]} title={gettext("Em andamento")}>
+    <span
+      class={["relative flex size-2 shrink-0", @class]}
+      title={gettext("Em andamento")}
+      {@rest}
+    >
       <span class="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-75">
       </span>
       <span class="relative inline-flex size-2 rounded-full bg-primary"></span>

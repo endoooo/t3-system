@@ -118,7 +118,7 @@ defmodule T3SystemWeb.EventLive.Show do
                   label={gettext("Finalizados")}
                   value={@dashboard_metrics.by_status.finished}
                   max={total}
-                  tone="success"
+                  tone="finished"
                 />
                 <.meter
                   label={gettext("Pendentes")}
@@ -174,7 +174,7 @@ defmodule T3SystemWeb.EventLive.Show do
                       finished: 0,
                       unfinished: 0
                     }) %>
-                  <.badge tone="success" title={gettext("Finalizados")}>
+                  <.badge tone="finished" title={gettext("Finalizados")}>
                     <.icon name="hero-check-circle-micro" class="size-3.5" />
                     {counts.finished}
                   </.badge>
@@ -431,8 +431,8 @@ defmodule T3SystemWeb.EventLive.Show do
               >
                 <div class="flex items-center justify-between gap-3 p-4">
                   <h2 class="font-display text-sm font-bold">{group.name}</h2>
-                  <.badge :if={group.is_finished} tone="primary">{gettext("Finalizado")}</.badge>
-                  <.badge :if={!group.is_finished}>{gettext("Em andamento")}</.badge>
+                  <.badge :if={group.is_finished} tone="finished">{gettext("Finalizado")}</.badge>
+                  <.ongoing_badge :if={!group.is_finished} />
                 </div>
 
                 <p :if={standings == []} class="px-4 pb-4 text-sm text-fg-muted">

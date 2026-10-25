@@ -1015,7 +1015,7 @@ defmodule T3SystemWeb.CoreComponents do
   """
   attr :tone, :string,
     default: "neutral",
-    values: ~w(neutral primary success warning danger gold silver bronze)
+    values: ~w(neutral primary success warning danger finished gold silver bronze)
 
   attr :class, :any, default: nil
   attr :rest, :global
@@ -1028,6 +1028,7 @@ defmodule T3SystemWeb.CoreComponents do
       "success" => "bg-success/15 text-success",
       "warning" => "bg-warning/15 text-warning",
       "danger" => "bg-danger/15 text-danger",
+      "finished" => "bg-finished/15 text-finished",
       "gold" => "bg-gold/15 text-gold",
       "silver" => "bg-silver/20 text-fg",
       "bronze" => "bg-bronze/20 text-fg"
@@ -1104,13 +1105,14 @@ defmodule T3SystemWeb.CoreComponents do
   attr :label, :string, required: true
   attr :value, :integer, required: true
   attr :max, :integer, required: true
-  attr :tone, :string, default: "primary", values: ~w(primary success warning)
+  attr :tone, :string, default: "primary", values: ~w(primary success warning finished)
 
   def meter(assigns) do
     tones = %{
       "primary" => "bg-primary-strong",
       "success" => "bg-success-strong",
-      "warning" => "bg-warning-strong"
+      "warning" => "bg-warning-strong",
+      "finished" => "bg-finished-strong"
     }
 
     pct = if assigns.max > 0, do: round(assigns.value / assigns.max * 100), else: 0

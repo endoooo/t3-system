@@ -37,7 +37,10 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
               </p>
             </div>
             <div class="flex items-center gap-2">
-              <.badge tone={status_tone(@status)}>{status_label(@status)}</.badge>
+              <.ongoing_badge :if={@status == :ongoing} />
+              <.badge :if={@status != :ongoing} tone={status_tone(@status)}>
+                {status_label(@status)}
+              </.badge>
               <.button :if={@is_superuser} phx-click="open_winner_modal">
                 {gettext("Resultado")}
               </.button>
@@ -538,10 +541,8 @@ defmodule T3SystemWeb.TeamMatchLive.Show do
     do: Enum.map(teams(team_match), &{&1.name, &1.id})
 
   defp status_label(:finished), do: gettext("Finalizado")
-  defp status_label(:ongoing), do: gettext("Em andamento")
   defp status_label(:pending), do: gettext("Pendente")
 
-  defp status_tone(:finished), do: "primary"
-  defp status_tone(:ongoing), do: "success"
+  defp status_tone(:finished), do: "finished"
   defp status_tone(:pending), do: "neutral"
 end
