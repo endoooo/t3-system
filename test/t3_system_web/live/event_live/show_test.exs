@@ -2551,9 +2551,18 @@ defmodule T3SystemWeb.EventLive.ShowTest do
 
     test "the matches tab shows team match cards linking to the team match page", ctx do
       %{team_match: team_match} = team_match_setup(ctx)
+      [ana, bia, caio, duda] = ctx.players
 
       build_conn()
       |> visit(~p"/events/#{ctx.event}?tab=matches&category_id=#{ctx.category.id}")
+      |> assert_has(
+        "#team-match-#{team_match.id} [data-tooltip='AABB — #{ana.name} / #{bia.name}']",
+        text: "AABB"
+      )
+      |> assert_has(
+        "#team-match-#{team_match.id} [data-tooltip='Clube Y — #{caio.name} / #{duda.name}']",
+        text: "Clube Y"
+      )
       |> assert_has("#team-match-#{team_match.id}", text: "AABB")
       |> assert_has("#team-match-#{team_match.id}", text: "Clube Y")
       |> assert_has("#team-match-#{team_match.id}", text: "0 — 0")

@@ -2584,6 +2584,8 @@ defmodule T3SystemWeb.EventLive.Show do
       p2_won: not is_nil(winner_id) and winner_id == match.registration2_id,
       p1_name: team_name(match, 1),
       p2_name: team_name(match, 2),
+      p1_full_name: team_full_name(match, 1),
+      p2_full_name: team_full_name(match, 2),
       p1_player_ids: team_card_player_ids(match, 1),
       p2_player_ids: team_card_player_ids(match, 2)
     }
@@ -2626,6 +2628,17 @@ defmodule T3SystemWeb.EventLive.Show do
     do: MapSet.new(players, & &1.player_id)
 
   defp card_player_ids(_), do: MapSet.new()
+
+  # The team name with its players, e.g. "AABB — Ana / Bia"
+  defp team_full_name(match, side) do
+    case side_registration(match, side) do
+      %Registration{registration_players: [_ | _] = players} ->
+        "#{team_name(match, side)} — #{player_names(players)}"
+
+      _ ->
+        team_name(match, side)
+    end
+  end
 
   # A team's players and the players of its side in the matches inside the
   # team match
@@ -2679,7 +2692,7 @@ defmodule T3SystemWeb.EventLive.Show do
           <.match_card_row
             id={"tooltip-team-match-#{@card.id}-1"}
             name={@card.p1_name}
-            full_name={@card.p1_name}
+            full_name={@card.p1_full_name}
             won={@card.p1_won}
             has_sets={false}
             set_wins={0}
@@ -2688,7 +2701,7 @@ defmodule T3SystemWeb.EventLive.Show do
           <.match_card_row
             id={"tooltip-team-match-#{@card.id}-2"}
             name={@card.p2_name}
-            full_name={@card.p2_name}
+            full_name={@card.p2_full_name}
             won={@card.p2_won}
             has_sets={false}
             set_wins={0}
