@@ -257,7 +257,8 @@ defmodule T3System.Matches.Match do
   end
 
   # The form posts each side's player selects by index (`%{"0" => id, "1" =>
-  # id}`), "" for an empty one; the lineup is the picked ids in select order
+  # id}`), "" for an empty one; the lineup is the picked ids in select order.
+  # Non-index keys (LiveView's `"_unused_0"` for untouched selects) are ignored.
   defp lineup_picks(attrs) do
     Map.new(attrs, fn
       {key, ids} when key in ["player_ids1", "player_ids2", :player_ids1, :player_ids2] ->
@@ -269,9 +270,11 @@ defmodule T3System.Matches.Match do
   end
 
   defp picks_in_order(%{} = by_index) do
-    by_index
-    |> Enum.sort_by(fn {index, _id} -> String.to_integer(index) end)
-    |> Enum.map(fn {_index, id} -> id end)
+    picks = for {index, id} <- by_index, {n, ""} <- [Integer.parse(index)], do: {n, id}
+
+    picks
+    |> Enum.sort_by(fn {n, _id} -> n end)
+    |> Enum.map(fn {_n, id} -> id end)
   end
 
   defp picks_in_order(ids) when is_list(ids), do: ids

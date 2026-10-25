@@ -200,6 +200,35 @@ defmodule T3SystemWeb.TeamMatchLive.ShowTest do
       |> assert_has("#team-match-matches", text: "XY")
     end
 
+    # The browser posts untouched inputs as `_unused_` keys (here
+    # `inner_match[player_ids1][_unused_0]`), which PhoenixTest doesn't send
+    test "switching to doubles with untouched player selects", ctx do
+      build_conn()
+      |> log_in_user(insert(:superuser))
+      |> visit(page_path(ctx))
+      |> click_button("Adicionar partida")
+      |> unwrap(fn view ->
+        view
+        |> Phoenix.LiveViewTest.element("#inner-match-form")
+        |> Phoenix.LiveViewTest.render_change(%{
+          "_target" => ["inner_match", "kind"],
+          "inner_match" => %{
+            "kind" => "doubles",
+            "_unused_position1" => "",
+            "position1" => "",
+            "player_ids1" => %{"_unused_0" => "", "0" => ""},
+            "_unused_position2" => "",
+            "position2" => "",
+            "player_ids2" => %{"_unused_0" => "", "0" => ""},
+            "_unused_table_id" => "",
+            "table_id" => ""
+          }
+        })
+      end)
+      |> assert_has("label", text: "Jogador 2 — AABB")
+      |> assert_has("label", text: "Jogador 2 — Clube Y")
+    end
+
     test "a doubles side needs two different players", ctx do
       build_conn()
       |> log_in_user(insert(:superuser))
