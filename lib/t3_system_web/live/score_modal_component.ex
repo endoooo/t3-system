@@ -30,7 +30,13 @@ defmodule T3SystemWeb.ScoreModalComponent do
     <div>
       <.modal id={@id} title={gettext("Editar Resultados")} on_close={@on_close}>
         <% sets_by_num = Map.new(@match.sets, &{&1.set_number, &1}) %>
-        <form id="score-form" phx-submit="save_scores" phx-target={@myself} class="space-y-6">
+        <form
+          id="score-form"
+          phx-change="change_scores"
+          phx-submit="save_scores"
+          phx-target={@myself}
+          class="space-y-6"
+        >
           <div>
             <div class="grid w-full grid-cols-[min-content_minmax(0,1fr)_min-content_minmax(0,1fr)_2.5rem] items-center gap-2 text-center">
               <%!-- Column headers --%>
@@ -46,7 +52,8 @@ defmodule T3SystemWeb.ScoreModalComponent do
               </div>
               <%!-- Set rows --%>
               <div :for={n <- 1..@set_count} class="col-span-5 grid grid-cols-subgrid items-center">
-                <% set = Map.get(sets_by_num, n) %>
+                <% set = Map.get(sets_by_num, n)
+                typed = @typed_sets[to_string(n - 1)] %>
                 <input :if={set} type="hidden" name={"sets[#{n - 1}][id]"} value={set.id} />
                 <input type="hidden" name={"sets[#{n - 1}][set_number]"} value={n} />
                 <span class="text-xs text-fg-muted">{n}</span>
@@ -54,7 +61,7 @@ defmodule T3SystemWeb.ScoreModalComponent do
                   id={"score-#{n}-1"}
                   type="number"
                   name={"sets[#{n - 1}][score1]"}
-                  value={set && set.score1}
+                  value={if typed, do: typed["score1"], else: set && set.score1}
                   label={gettext("Set %{n}, P1", n: n)}
                   sr_only
                   min="0"
@@ -65,7 +72,7 @@ defmodule T3SystemWeb.ScoreModalComponent do
                   id={"score-#{n}-2"}
                   type="number"
                   name={"sets[#{n - 1}][score2]"}
-                  value={set && set.score2}
+                  value={if typed, do: typed["score2"], else: set && set.score2}
                   label={gettext("Set %{n}, P2", n: n)}
                   sr_only
                   min="0"
@@ -102,7 +109,7 @@ defmodule T3SystemWeb.ScoreModalComponent do
             label={gettext("Vencedor da partida")}
             prompt={gettext("No winner yet")}
             options={winner_options(@match, @labels)}
-            value={@match.winner_registration_id}
+            value={@typed_winner || @match.winner_registration_id}
           />
           <.form_actions align="end">
             <.button type="button" phx-click={@on_close}>{gettext("Cancelar")}</.button>
@@ -118,20 +125,32 @@ defmodule T3SystemWeb.ScoreModalComponent do
   def update(assigns, socket) do
     socket = assign(socket, assigns)
 
-    # A new match starts with its own sets (at least 3 rows)
+    # A new match starts with its own sets (at least 3 rows, enough to show
+    # every saved set number) and nothing typed yet
     socket =
       if socket.assigns[:set_count_for] == socket.assigns.match.id,
         do: socket,
         else:
           assign(socket,
-            set_count: max(length(socket.assigns.match.sets), 3),
-            set_count_for: socket.assigns.match.id
+            set_count: Enum.max([3 | Enum.map(socket.assigns.match.sets, & &1.set_number)]),
+            set_count_for: socket.assigns.match.id,
+            typed_sets: %{},
+            typed_winner: nil
           )
 
     {:ok, socket}
   end
 
   @impl true
+  # Keep what was typed so re-renders (adding/removing rows) don't wipe it
+  def handle_event("change_scores", params, socket) do
+    {:noreply,
+     assign(socket,
+       typed_sets: params["sets"] || %{},
+       typed_winner: params["winner_registration_id"]
+     )}
+  end
+
   def handle_event("add_score_row", _params, socket) do
     {:noreply, update(socket, :set_count, &(&1 + 1))}
   end

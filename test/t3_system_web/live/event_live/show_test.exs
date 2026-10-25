@@ -1933,6 +1933,45 @@ defmodule T3SystemWeb.EventLive.ShowTest do
       # At 1 row, remove buttons should be hidden
       refute has_element?(view, "button[phx-click=remove_score_row]")
     end
+
+    test "adding a set row keeps the scores already typed", %{
+      conn: conn,
+      event: event,
+      category: category,
+      match: match,
+      reg1: reg1
+    } do
+      {:ok, view, _html} =
+        live(conn, ~p"/events/#{event}?tab=matches&category_id=#{category.id}")
+
+      view |> element("button", "Resultados") |> render_click()
+
+      view
+      |> form("#score-form", %{
+        "sets" => %{"0" => %{"score1" => "11", "score2" => "7"}},
+        "winner_registration_id" => reg1.id
+      })
+      |> render_change()
+
+      view |> element("button", "Adicionar set") |> render_click()
+
+      assert has_element?(view, "#score-1-1[value='11']")
+      assert has_element?(view, "#score-1-2[value='7']")
+      assert has_element?(view, "#score-4-1")
+      assert has_element?(view, "#winner-registration-id option[selected][value='#{reg1.id}']")
+
+      view
+      |> form("#score-form", %{
+        "sets" => %{"3" => %{"score1" => "11", "score2" => "5"}}
+      })
+      |> render_submit()
+
+      assert [%{set_number: 1, score1: 11, score2: 7}, %{set_number: 4, score1: 11, score2: 5}] =
+               match.id
+               |> Matches.get_match!()
+               |> Map.fetch!(:sets)
+               |> Enum.sort_by(& &1.set_number)
+    end
   end
 
   describe "live updates" do

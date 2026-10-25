@@ -444,7 +444,11 @@ defmodule T3SystemWeb.EventLive.Show do
                     <thead>
                       <tr class="border-b border-border text-left text-xs text-fg-muted">
                         <th class="w-1 pb-2 pl-4 font-normal">#</th>
-                        <th class="px-2 pb-2 font-normal">{gettext("Jogador")}</th>
+                        <th class="px-2 pb-2 font-normal">
+                          {if Category.team?(@active_category),
+                            do: gettext("Equipe"),
+                            else: gettext("Jogador")}
+                        </th>
                         <th class="w-1 px-2 pb-2 text-center font-normal">{gettext("V")}</th>
                         <th class="w-1 px-2 pb-2 text-center font-normal">{gettext("D")}</th>
                         <th
